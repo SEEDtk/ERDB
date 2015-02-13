@@ -1,0 +1,672 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="http://bio-macpro-1.mcs.anl.gov/~parrello/FIG/Html/ERDB_DBD.xsd">
+    <Title>SEED Bioinformatics Database</Title>
+    <Notes>[p]The SEED database manages bio-informatics data imported from
+        exchange files. It contains information that can be used to derive
+        subsystem spreadsheets and support annotation of genomes. The
+        annotation is three-tiered: for each protein, we recognize a
+        [i]privileged[/i] annotation, which is curated by a human expert,
+        a [i]projected[/i] annotation which is computed by annotation software,
+        and a [i]non-priviliged[/i] annotation which is proposed by the
+        user
+        community.[/p]
+        [p]The diagram colors indicate the general category of data.[/p]
+        [list]
+        [b]Red[/b]
+        Genome group: includes all taxonomy and sequence data.[*]
+        [b]Blue[/b]
+        Annotation group: includes the subsystems and all the functions and
+        roles.[*]
+        [b]Green[/b] Feature group: includes features, protein sequences,
+        and related publications.[*]
+        [b]Navy[/b] Chemistry group: includes reactions and compounds.
+        [/list]
+    </Notes>
+    <Diagram height="800" width="800" ratio="0.7" size="90"
+        fontSize="12" editable="0" />
+    <Entities>
+        <Entity name="Genome" keyType="string">
+            <DisplayInfo theme="red" col="3" row="2" />
+            <Notes>A genome represents a specific organism with DNA, or a
+                specific meta-genome. All DNA sequences in the database belong to
+                genomes.
+            </Notes>
+            <Fields>
+                <Field name="core" type="boolean">
+                    <Notes>TRUE if this is a core genome, else FALSE.
+                    Annotation data is projected from core genomes.</Notes>
+                </Field>
+                <Field name="name" type="string">
+                    <Notes>Full genus/species/strain name of the genome, occasionally
+                        containing notes from the uploader.
+                    </Notes>
+                </Field>
+                <Field name="dna-size" type="counter">
+                    <Notes>Number of base pairs in the genome.</Notes>
+                </Field>
+                <Field name="contigs" type="int">
+                    <Notes>Number of contigs for this genome.</Notes>
+                </Field>
+                <Field name="md5-identifier" type="string">
+                    <Notes>MD5 identifier for this genome, for comparison with genomes
+                        in other databases. The MD5 is computed by taking the MD5s of
+                        the contigs, lexically sorting them, joining them together with
+                        commas, and computing a hex MD5 of the result.
+                    </Notes>
+                </Field>
+                <Field name="gc-content" type="float">
+                    <Notes>Percent GC content present in the genome's DNA.</Notes>
+                </Field>
+                <Field name="contig-file" type="long-string">
+                    <Notes>Name of the file containing the genome's contig FASTA,
+                        relative to the repository root.
+                    </Notes>
+                </Field>
+            </Fields>
+            <Indexes>
+                <Index>
+                    <Notes>This index allows searching for genomes by name.</Notes>
+                    <IndexFields>
+                        <IndexField name="name" order="ascending" />
+                    </IndexFields>
+                </Index>
+                <Index>
+                    <Notes>This index allows searching for genomes by MD5 identifier.
+                    </Notes>
+                    <IndexFields>
+                        <IndexField name="md5-identifier" ordering="ascending" />
+                    </IndexFields>
+                </Index>
+                <Index>
+                    <Notes>This index presents the core genomes first in
+                    sequence.</Notes>
+                    <IndexFields>
+                        <IndexField name="core" ordering="descending" />
+                    </IndexFields>
+                </Index>
+            </Indexes>
+        </Entity>
+        <Entity name="Contig" keyType="string">
+            <DisplayInfo theme="red" col="1" row="4" />
+            <Notes>A contig is a contiguous sequence of base pairs belonging to
+                a single genome. The key of the contig is the genome ID followed
+                by a colon and then the contig ID. The contig's DNA information is
+                located in a flat file on disk named "contigs.fa" in the
+                directory named by the parent genome.
+            </Notes>
+            <Fields>
+                <Field name="length" type="counter">
+                    <Notes>Number of base pairs in the contig.</Notes>
+                </Field>
+                <Field name="md5-identifier" type="string">
+                    <Notes>MD5 identifier of this contig, for comparison with contigs
+                        in other databases. This is a standard hex MD5 of the contig
+                        DNA sequence.
+                    </Notes>
+                </Field>
+            </Fields>
+            <Indexes>
+                <Index>
+                    <Notes>This index allows searching for contigs by MD5 identifier.
+                    </Notes>
+                    <IndexFields>
+                        <IndexField name="md5-identifier" order="ascending" />
+                    </IndexFields>
+                </Index>
+            </Indexes>
+        </Entity>
+        <Entity name="Feature" keyType="string">
+            <DisplayInfo theme="green" col="3" row="4" />
+            <Notes>A feature (sometimes also called a gene) is a part of a
+                genome that is of special interest. Features may be spread across
+                multiple DNA sequences (contigs) of a genome, but never across more
+                than one genome. Each feature in the database has a unique FIG
+                ID that functions as its ID in this table.
+            </Notes>
+            <Fields>
+                <Field name="feature-type" type="string">
+                    <Notes>Code indicating the type of this feature. Among the
+                        codes currently supported are "peg" for a protein encoding
+                        gene, "bs" for a binding site, "opr" for an operon, and so
+                        forth.
+                    </Notes>
+                </Field>
+                <Field name="sequence-length" type="counter">
+                    <Notes>Number of base pairs in this feature.</Notes>
+                </Field>
+                <Field name="alias" type="string" relation="FeatureAlias">
+                    <Notes>An alternative name for the feature. These are frequently
+                        ambiguous or incomplete.
+                    </Notes>
+                </Field>
+            </Fields>
+            <Indexes>
+                <Index>
+                    <Notes>This index is used to find a feature by alias name.</Notes>
+                    <IndexFields>
+                        <IndexField name="alias" order="ascending" />
+                    </IndexFields>
+                </Index>
+            </Indexes>
+        </Entity>
+        <Entity name="Protein" keyType="string">
+            <DisplayInfo theme="green" col="4" row="6" />
+            <Notes>A protein sequence is a specific sequence of amino acids.
+                Unlike a DNA sequence, a protein sequence does not belong to a
+                genome. Identical proteins generated by different genomes are
+                stored as a single Protein instance. The key is a hex MD5
+                hash code computed from the protein letter sequence.
+            </Notes>
+            <Fields>
+                <Field name="sequence" type="text">
+                    <Notes>The sequence contains the letters corresponding to
+                        the protein's amino acids.
+                    </Notes>
+                </Field>
+            </Fields>
+        </Entity>
+        <Entity name="TaxonomicGrouping" keyType="string">
+            <DisplayInfo row="2" col="1" caption="Taxonomic\nGrouping"
+                theme="red" />
+            <Notes>A taxonomic grouping is a segment of the classification for
+                an organism. Taxonomic groupings are organized into a strict
+                hierarchy by the IsGroupContaining relationship.
+            </Notes>
+            <Fields>
+                <Field name="domain" type="boolean">
+                    <Notes>TRUE if this is a domain grouping, else FALSE.</Notes>
+                </Field>
+                <Field name="hidden" type="boolean">
+                    <Notes>TRUE if this is a hidden grouping, else FALSE. Hidden
+                        groupings are not typically shown in a lineage list.
+                    </Notes>
+                </Field>
+                <Field name="scientific-name" type="string">
+                    <Notes>Primary scientific name for this grouping. This is the name
+                        used when displaying a taxonomy.
+                    </Notes>
+                </Field>
+                <Field name="alias" type="string" relation="TaxonomicGroupingAlias">
+                    <Notes>Alternate name for this grouping. A grouping
+                        may have many alternate names. The scientific name should also
+                        be in this list.
+                    </Notes>
+                </Field>
+            </Fields>
+            <Indexes>
+                <Index>
+                    <Notes>This index allows the user to find a particular
+                        taxonomic grouping by name. Because the scientifc name is
+                        also an alias, there is no index on scientific name.
+                    </Notes>
+                    <IndexFields>
+                        <IndexField name="alias" order="ascending" />
+                    </IndexFields>
+                </Index>
+            </Indexes>
+        </Entity>
+        <Entity name="GenomeSet" keyType="string">
+            <DisplayInfo theme="red" caption="Genome Set" row="2"
+                col="5" />
+            <Notes>A genome set is a named group of related genomes.</Notes>
+            <Asides>Each genome set consists of genomes that use highly similar
+                ribosomal small subunits. Two genomes are in the same set if they
+                have a similarity of 97% or greater in subunits of length 1000 or
+                more.
+            </Asides>
+        </Entity>
+        <Entity name="Function" keyType="int" autonumber="1">
+            <DisplayInfo theme="blue" row="6" col="2" />
+            <Notes>A function is a set of roles that represent the effects of a
+                protein. Most functions consist of a single role, but many can have two or three
+                roles.
+            </Notes>
+            <Fields>
+                <Field name="statement" type="long-string">
+                    <Notes>Text of the function, consisting of the roles strung together
+                    in sequence with separator characters in between.</Notes>
+                </Field>
+                <Field name="sep" type="char">
+                    <Notes>Separator character for this function's roles. [b]/[/b] for
+                    multiple roles by different domains, [b]@[/b] for multiple
+                    roles by the same domain, or [b];[/b] when the function performs
+                    one of several roles but the precise one cannot be determined.
+                    For a single-function role, [b]@[/b] is used.</Notes>
+                </Field>
+                <Field name="checksum" type="hash-string">
+                    <Notes>Checksum for this function, formed by normalizing the roles,
+                    sorting them lexically, joining them with tab characters and prefixing
+                    the characters, then computing an MD5.</Notes>
+                </Field>
+            </Fields>
+            <Indexes>
+                <Index unique="1">
+                    <Notes>This index allows searching for functions by the checksum string.</Notes>
+                    <IndexFields>
+                        <IndexField name="checksum" order="ascending" />
+                    </IndexFields>
+                </Index>
+            </Indexes>
+        </Entity>
+        <Entity name="Role" keyType="int" autonumber="1">
+            <DisplayInfo theme="blue" row="8" col="3" />
+            <Notes>A role represents a single effect of a protein in a cell. The
+                fundamental	purpose of annotation is to assign roles to proteins.
+                The collection of roles (often only one) associated with a protein
+                is the protein's function. Each role is assigned a unique numeric key.
+                The key remains the same even if the wording of the role changes.
+            </Notes>
+            <Fields>
+                <Field name="statement" type="long-string">
+                    <Notes>textual description of the role</Notes>
+                </Field>
+                <Field name="ec-number" type="string">
+                    <Notes>EC number of this role (if any)</Notes>
+                </Field>
+                <Field name="tc-number" type="string">
+                    <Notes>transporter classification of this role (if any)</Notes>
+                </Field>
+                <Field name="hypo" type="boolean">
+                    <Notes>TRUE if this is a hypothetical role, else FALSE</Notes>
+                </Field>
+                <Field name="checksum" type="hash-string">
+                    <Notes>Checksum for this role. The role is first normalized by converting
+                    it to lower case and removing extra spaces. Then an MD5 is computed.</Notes>
+                </Field>
+            </Fields>
+            <Indexes>
+                <Index unique="1">
+                    <Notes>This index allows searching for roles by the checksum string.</Notes>
+                    <IndexFields>
+                        <IndexField name="checksum" order="ascending" />
+                    </IndexFields>
+                </Index>
+                <Index>
+                    <Notes>This index allows searching through roles by EC number.
+                    </Notes>
+                    <IndexFields>
+                        <IndexField name="ec-number" order="ascending" />
+                    </IndexFields>
+                </Index>
+                <Index>
+                    <Notes>This index allows searching through roles by TC number.
+                    </Notes>
+                    <IndexFields>
+                        <IndexField name="tc-number" order="ascending" />
+                    </IndexFields>
+                </Index>
+                <Index>
+                    <Notes>This index allows searching through roles by text. It can be
+                        used with LIKE-style queries to find similar roles.
+                    </Notes>
+                    <IndexFields>
+                        <IndexField name="statement" order="ascending" />
+                    </IndexFields>
+                </Index>
+            </Indexes>
+        </Entity>
+        <Entity name="Subsystem" keyType="string">
+            <DisplayInfo theme="blue" col="5" row="6" />
+            <Notes>A subsystem is a collection of roles that work together in a
+                cell. Identification of subsystems is an important tool for
+                recognizing parallel genetic features in different organisms. The
+                key is the subsystem name.
+            </Notes>
+            <Asides>The subsystem name used to come in two forms-- a natural form
+                with spaces and an internal form with underscores. In this database
+                we will only have the natural form.
+            </Asides>
+            <Fields>
+                <Field name="security" type="char">
+                    <Notes>Privilege level of the subsystem. [b]0[/b] for a
+                    non-privileged (public) subsystem, [b]1[/b] for a projected
+                    subsystem, and [b]2[/b] for a privileged subsystem.</Notes>
+                </Field>
+                <Field name="version" type="int">
+                    <Notes>Version number for the subsystem. This value is
+                        incremented each time the subsystem is backed up.
+                    </Notes>
+                </Field>
+            </Fields>
+        </Entity>
+        <Entity name="Reaction" keyType="string">
+            <DisplayInfo theme="navy" col="1" row="8" />
+            <Notes>A reaction is a chemical process that converts one set of
+            compounds (substrate) to another set (products). The reaction ID is
+            generally a small number preceded by a letter. A reversible reaction
+            is entered as two separate reactions so that each direction can be
+            associated with the appropriate roles.</Notes>
+        </Entity>
+        <Entity name="Compound" keyType="string">
+            <DisplayInfo theme="navy" col="1" row="10"/>
+            <Notes>A compound is a chemical that participates in a reaction. All compounds
+                have a unique ID and may also have one or more names. Both ligands and
+                reaction components are treated as compounds.
+            </Notes>
+            <Fields>
+                <Field name="label" type="string">
+                    <Notes>Primary name of the compound.</Notes>
+                </Field>
+                <Field name="ubiquitous" type="boolean">
+                    <Notes>TRUE if this compound is found in most reactions, else FALSE</Notes>
+                </Field>
+            </Fields>
+            <Indexes>
+                <Index>
+                    <Notes>This index allows searching for compounds by name.</Notes>
+                    <IndexFields>
+                        <IndexField name="label" order="ascending"/>
+                    </IndexFields>
+                </Index>
+            </Indexes>
+        </Entity>
+    </Entities>
+    <Relationships>
+        <Relationship name="Feature2Subsystem" from="Feature" to="Subsystem"
+            arity="MM" converse="Subsystem2Feature">
+            <DisplayInfo theme="blue" caption="Feature to\nSubsystem" />
+            <Notes>This is actually a ternary relationship between Subsystem,
+            Role, and Feature. It tells us which features are known to be
+            parts of subsystems.</Notes>
+            <Fields>
+                <Field name="role" type="int">
+                    <Notes>ID of the role this feature fills in the subsystem.</Notes>
+                </Field>
+            </Fields>
+            <FromIndex>
+                <Notes>This index crosses from Feature to Subsystem, and returns
+                the subsystems in role order.</Notes>
+                <IndexFields>
+                    <IndexField name="role" order="ascending" />
+                </IndexFields>
+            </FromIndex>
+            <ToIndex>
+                <Notes>This index crosses from Subsystem to Feature, and returns
+                the features in role order.</Notes>
+                <IndexFields>
+                    <IndexField name="role" order="ascending" />
+                </IndexFields>
+            </ToIndex>
+            <Indexes>
+                <Notes>This index allows searching for feature/subsystem links
+                by role. In this case, we are usually looking for subsystems
+                affected by a role change, so the minor key of the index is
+                the subsystem ID.</Notes>
+                <IndexFields>
+                    <IndexField name="role" order="ascending" />
+                    <IndexField name="to-link" order="ascending" />
+                </IndexFields>
+            </Indexes>
+        </Relationship>
+        <Relationship name="Subsystem2Genome" from="Subsystem" to="Genome"
+            arity="MM" converse="Genome2Subsystem">
+            <DisplayInfo theme="blue" caption="Genome to\nSubsystem"
+                fixed="1" col="5" row="3" />
+            <Notes>This relationship relates a genome to the subsystems
+                that it contains.
+            </Notes>
+            <Fields>
+                <Field name="variant" type="string">
+                    <Notes>The variant code is a name assigned to the
+                    particular version of the subsystem present in the
+                    genome.</Notes>
+                </Field>
+            </Fields>
+        </Relationship>
+        <Relationship name="IsInTaxonomicGroup" from="TaxonomicGrouping"
+            to="TaxonomicGrouping" arity="1M" converse="IsTaxonomicGroupOf">
+            <DisplayInfo theme="red" caption="Is In\nTaxonomic\nGroup"
+                fixed="1" row="1" col="1" />
+            <Notes>This relationship imposes a hierarchy on taxonomic groupings.
+                Each group can contain one or more subgroups. A group with no
+                subgroups is a leaf. There is a hidden root group at the top.
+                The subgroups of that group are domains.
+            </Notes>
+        </Relationship>
+        <Relationship name="Taxonomy2Genome" from="TaxonomicGrouping"
+            to="Genome" arity="1M" converse="Genome2Taxonomy">
+            <DisplayInfo theme="red" caption="Taxonomy\nto Genome" />
+            <Notes>This relationship connects a genome to the taxonomic group to
+                which it belongs. The taxonomic group is computed from the genome
+                ID where possible, and the genome name otherwise. It can also be
+                specified explicitly in the genome exchange files.
+            </Notes>
+            <Fields>
+                <Field name="confidence" type="char">
+                    <Notes>This indicates how confident we are in the taxonomic
+                    assignment. A value of [b]2[/b] means there is an exact
+                    match on name or genome ID. A value of [b]1[/b] means there
+                    was a close match near the node chosen. A value of [b]0[/b]
+                    means we had to guess.</Notes>
+                </Field>
+            </Fields>
+        </Relationship>
+        <Relationship name="Set2Genome" from="GenomeSet" to="Genome" arity="1M"
+            converse="Genome2Set">
+            <DisplayInfo theme="red" caption="Genome\nto Set" />
+            <Notes>This relationship connects a genome to the single set to
+            which it belongs. One of the genomes will be considered a
+            representative of the set. That information is stored in this
+            relationship.</Notes>
+            <Fields>
+                <Field name="representative" type="boolean">
+                    <Notes>TRUE if this is relationship connects to the
+                        representative genome of the set, else FALSE.</Notes>
+                </Field>
+            </Fields>
+            <FromIndex>
+                <Notes>This index presents the genomes of the set in order with
+                the representative first.</Notes>
+                <IndexFields>
+                    <IndexField name="representative" order="descending" />
+                </IndexFields>
+            </FromIndex>
+        </Relationship>
+        <Relationship name="Genome2Feature" from="Genome" to="Feature"
+            arity="1M" converse="Feature2Genome">
+            <DisplayInfo theme="green" caption="Genome to\nFeature" />
+            <Notes>This relationship connects a genomes to the points of
+            interest (features) in its DNA.</Notes>
+        </Relationship>
+        <Relationship name="Protein2Feature" from="Protein" to="Feature"
+            arity="1M" converse="Feature2Protein">
+            <DisplayInfo theme="green" caption="Feature\nto Protein" />
+            <Notes>This relationship connects a feature to its protein
+            translation.</Notes>
+        </Relationship>
+        <Relationship name="Feature2Contig" from="Feature" to="Contig"
+            arity="MM" converse="Contig2Feature">
+            <DisplayInfo theme="green" caption="Contig to\nFeature" />
+            <Notes>This relationship connects a feature to the DNA segments
+            that comprise it. Normally there is only one such segment, but
+            eukaryotes will tend to have features with multiple segments.</Notes>
+            <Fields>
+                <Field name="ordinal" type="int">
+                  <Notes>Sequence number of this segment, starting from 0
+                  and proceeding sequentially forward from there.</Notes>
+                </Field>
+                <Field name="begin" type="int">
+                  <Notes>Index (1-based) of the first residue in the contig
+                  that belongs to the segment.</Notes>
+                  <Asides>The begin value is not the start residue, it is the
+                  leftmost residue. If the direction is backward, it will
+                  actually be the end residue.</Asides>
+                </Field>
+                <Field name="len" type="int">
+                  <Notes>Length of this segment.</Notes>
+                </Field>
+                <Field name="dir" type="char">
+                  <Notes>Direction (strand) of the segment: [b]+[/b] if it is
+                  forward and [b]-[/b] if it is backward.</Notes>
+                </Field>
+            </Fields>
+            <FromIndex unique="1">
+                <Notes>This index presents the segments of the feature in the correct
+                order.</Notes>
+                <IndexFields>
+                    <IndexField name="ordinal" type="ascending" />
+                </IndexFields>
+            </FromIndex>
+        </Relationship>
+        <Relationship name="Protein2Function" from="Protein" to="Function"
+            arity="MM" converse="Function2Protein">
+            <DisplayInfo theme="blue" caption="Function\nto Protein" />
+            <Notes>This relationship connections a protein to the functions it
+            performs in a cell. Each protein typically connects to three functions
+            (although it is possible all three will be the same one).</Notes>
+            <Fields>
+                <Field name="security" type="char">
+                    <Notes>Privilege level of the subsystem. [b]0[/b] for a
+                    non-privileged (public) subsystem, [b]1[/b] for a projected
+                    subsystem, and [b]2[/b] for a privileged subsystem.</Notes>
+                </Field>
+                <Field name="comment" type="text">
+                    <Notes>A comment by the annotator about this functional
+                    assignment.</Notes>
+                </Field>
+            </Fields>
+            <FromIndex unique="1">
+                <Note>This index insures only one function of each privilege is assigned
+                to a protein.</Note>
+                <IndexFields>
+                    <IndexField name="security" order="descending" />
+                </IndexFields>
+            </FromIndex>
+        </Relationship>
+        <Relationship name="Function2Role" from="Function" to="Role"
+            arity="MM" converse="Role2Function">
+            <DisplayInfo theme="blue" caption="Function\nto Role" />
+            <Notes>This relationship connects a function to its constituent
+            roles. Most functions consist of a single role, but some can
+            connect to several roles.</Notes>
+        </Relationship>
+        <Relationship name="Subsystem2Role" from="Subsystem" to="Role"
+            arity="MM" converse="Role2Subsystem">
+            <DisplayInfo theme="blue" caption="Role to\nSubsystem" />
+            <Notes>This relationship connects a subsystem to its constituent
+            roles. The relationship specifies the role abbreviation and its
+            ordinal position in the subsystem path.</Notes>
+            <Fields>
+                <Field name="ordinal" type="int">
+                    <Notes>Ordinal position of this role in the subsystem's
+                    metabolic pathway.</Notes>
+                </Field>
+            </Fields>
+            <FromIndex>
+                <Notes>This index presents the roles in pathway order.</Notes>
+                <IndexFields>
+                    <IndexField name="ordinal" order="ascending" />
+                </IndexFields>
+            </FromIndex>
+        </Relationship>
+        <Relationship name="Genome2Contig" from="Genome" to="Contig"
+            arity="1M" converse="Contig2Genome">
+            <DisplayInfo theme="red" caption="Genome\nto Contig" />
+            <Notes>This relationship connects a genome to its constituent
+            contigs. The full set of contigs comprises the DNA sequence
+            of the genome.</Notes>
+        </Relationship>
+        <Relationship name="Feature2Function" from="Feature" to="Function"
+            arity="MM" converse="Function2Feature">
+            <DisplayInfo theme="blue" caption="Feature\nto Function" />
+            <Notes>This relationship connects a feature to its function.
+            Only features which do not produce proteins will be connected
+            to functions, as the primary function assignment is to
+            proteins.</Notes>
+            <Fields>
+                <Field name="security" type="char">
+                    <Notes>Privilege level of the subsystem. [b]0[/b] for a
+                    non-privileged (public) subsystem, [b]1[/b] for a projected
+                    subsystem, and [b]2[/b] for a privileged subsystem.</Notes>
+                </Field>
+                <Field name="comment" type="text">
+                    <Notes>A comment by the annotator about this functional
+                    assignment.</Notes>
+                </Field>
+            </Fields>
+            <FromIndex unique="1">
+                <Notes>This index insures only one function of each privilege is assigned
+                to a feature.</Notes>
+                <IndexFields>
+                    <IndexField name="security" order="descending" />
+                </IndexFields>
+            </FromIndex>
+        </Relationship>
+        <Relationship name="Protein2Role" from="Protein" to="Role"
+            arity="MM" converse="Role2Protein">
+            <DisplayInfo theme="green" caption="Protein\nto Role" />
+            <Notes>This relationship indicates the part of the protein
+            with which a particular role is associated. It is only
+            provided when that information is known.</Notes>
+            <Fields>
+                <Field name="begin" type="int">
+                    <Notes>Location in the protein (1-based) where the segment that
+                    effects the role begins.</Notes>
+                </Field>
+                <Field name="end" type="int">
+                    <Notes>Location in the protein (1-based) where the segment that
+                    effects the role ends.</Notes>
+                </Field>
+            </Fields>
+        </Relationship>
+        <Relationship name="Role2Reaction" from="Role" to="Reaction"
+            arity="MM" converse="Reaction2Role">
+            <DisplayInfo theme="navy" caption="Reaction\nto Role" />
+            <Notes>This relationship connects a role to the reactions that
+            take place when the role is expressed.</Notes>
+            <Fields>
+                <Field name="model-id" type="string">
+                    <Notes>ID of the reaction instance in the modeling system.</Notes>
+                </Field>
+            </Fields>
+        </Relationship>
+        <Relationship name="Reaction2Compound" from="Reaction" to="Compound"
+            arity="MM" converse="Compound2Reaction">
+            <DisplayInfo theme="navy" caption="Reaction\nto Compound" />
+            <Notes>This relationship connects a reaction to the compounds that
+                participate in it. A reaction involves many compounds, and a
+                compound can be involved in many reactions. The relationship
+                attributes indicate whether a compound is a product or substrate of
+                the reaction, as well as its stoichiometry.
+            </Notes>
+            <Fields>
+                <Field name="product" type="boolean">
+                    <Notes>TRUE if the compound is a product of the reaction,
+                        FALSE if it is a substrate. When a reaction is written on
+                        paper in chemical notation, the substrates are left of the
+                        arrow and the products are to the right. Sorting on this
+                        field will cause the substrates to appear first, followed by
+                        the products.
+                    </Notes>
+                </Field>
+                <Field name="stoichiometry" type="float">
+                    <Notes>Number of molecules of the compound that participate
+                        in a single instance of the reaction. For example, if a
+                        reaction produces two water molecules, the stoichiometry of
+                        water for the reaction would be two. When a reaction is
+                        written on paper in chemical notation, the stoichiometry is
+                        the number next to the chemical formula of the
+                        compound.
+                    </Notes>
+                </Field>
+                <Field name="cofactor" type="boolean">
+                    <Notes>TRUE if the compound is a cofactor; FALSE if it is a major
+                        component of the reaction.
+                    </Notes>
+                </Field>
+            </Fields>
+            <ToIndex>
+                <Notes>This index presents the compounds in the reaction in the
+                    order they should be displayed when writing it in chemical
+                    notation. All the substrates appear before all the products, and
+                    within that ordering, the main compounds appear first.
+                </Notes>
+                <IndexFields>
+                    <IndexField name="product" order="ascending" />
+                    <IndexField name="cofactor" order="descending" />
+                </IndexFields>
+            </ToIndex>
+        </Relationship>
+    </Relationships>
+</Database>
