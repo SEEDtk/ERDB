@@ -26,7 +26,7 @@
 
 =head1 Load Subsystems Into the Shrub Database
 
-    ShrubLoadSubsystems.pl [options] subsysDirectory
+    ShrubLoadSubsystems [options] subsysDirectory
 
 This script loads subsystems, related proteins, and their assignments into the Shrub database. The protein assignments
 are taken from subsystems to insure they are of the highest quality. This process is used to prime
@@ -137,9 +137,10 @@ computed from information in the L<FIG_Config> file.
     my $loader = ShrubLoader->new($shrub);
     # Get the statistics object.
     my $stats = $loader->stats;
-    print "Initializing function and role tables.\n";
     # Create the function loader utility object.
-    my $funcLoader = ShrubFunctionLoader->new($loader);
+    my $funcLoader;
+    print "Initializing function and role tables.\n";
+    $funcLoader = ShrubFunctionLoader->new($loader);
     # Extract the privilege level.
     my $priv = $opt->privilege;
     if ($priv > Shrub::MAX_PRIVILEGE || $priv < 0) {
@@ -288,31 +289,32 @@ computed from information in the L<FIG_Config> file.
                         translateLinks => 0, priv => $priv);
             }
         }
-        # Finally, we link the subsystems to the genomes already in the database.
-        if ($opt->links) {
-            # This hash will contain the genomes found in the database.
-            my %genomesLoaded = map { $_ => 1 } $shrub->GetFlat('Genome', "", [], 'id');
-            print scalar(keys %genomesLoaded) . " genomes already loaded in database.\n";
-            # Loop through the subsystems.
-            for my $sub (sort keys %subDirs) {
-                # Get this subsystem's directory.
-                my $subDir = $subDirs{$sub};
-                print "Connecting genomes for $sub.\n";
-                # Open the genome connection file.
-                my $ih = $loader->OpenFile("$subDir/GenomesInSubsys", 'genome');
-                # Loop through the genomes.
-                while (my $gData = $loader->GetLine($ih, 'genome')) {
-                    my ($genome, undef, $varCode) = @$gData;
-                    # Is this genome in the database?
-                    if ($genomesLoaded{$genome}) {
-                        # Yes, connect it.
-                        $loader->InsertObject('Subsystem2Genome', 'from-link' => $sub, 'to-link' => $genome,
-                                variant => $varCode);
-                        $stats->Add(genomeConnected => 1);
-                    } else {
-                        # No, skip it.
-                        $stats->Add(genomeSkipped => 1);
-                    }
+    }
+    # Finally, we link the subsystems to the genomes already in the database.
+    if ($opt->links) {
+        ##TODO Fill in Feature2Subsystem
+        # This hash will contain the genomes found in the database.
+        my %genomesLoaded = map { $_ => 1 } $shrub->GetFlat('Genome', "", [], 'id');
+        print scalar(keys %genomesLoaded) . " genomes loaded in database.\n";
+        # Loop through the subsystems.
+        for my $sub (sort keys %subDirs) {
+            # Get this subsystem's directory.
+            my $subDir = $subDirs{$sub};
+            print "Connecting genomes for $sub.\n";
+            # Open the genome connection file.
+            my $ih = $loader->OpenFile("$subDir/GenomesInSubsys", 'genome');
+            # Loop through the genomes.
+            while (my $gData = $loader->GetLine($ih, 'genome')) {
+                my ($genome, undef, $varCode) = @$gData;
+                # Is this genome in the database?
+                if ($genomesLoaded{$genome}) {
+                    # Yes, connect it.
+                    $loader->InsertObject('Subsystem2Genome', 'from-link' => $sub, 'to-link' => $genome,
+                            variant => $varCode);
+                    $stats->Add(genomeConnected => 1);
+                } else {
+                    # No, skip it.
+                    $stats->Add(genomeSkipped => 1);
                 }
             }
         }

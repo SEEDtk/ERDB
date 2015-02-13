@@ -25,7 +25,7 @@
 
 =head1 Verify Relationship Integrity in a Shrub Database
 
-    ShrubFixRels.pl [options] dbName rel1 rel2 ...
+    ShrubFixRels [options] dbName rel1 rel2 ...
 
 This script analyzes relationships in a Shrub database and deletes instances that
 link to entities that do not exist.

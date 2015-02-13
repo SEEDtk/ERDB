@@ -26,7 +26,7 @@
 
 =head1 Generate an Index and/or MD5s for Genome Source Directories
 
-    ShrubIndexGenomes.pl [options] genomeDirectory
+    ShrubIndexGenomes [options] genomeDirectory
 
 This script reads the hierarchy of a genome repository and creates its index file.
 

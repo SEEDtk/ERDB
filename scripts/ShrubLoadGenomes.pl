@@ -19,7 +19,7 @@
 
 =head1 Load Genomes Into the Shrub Database
 
-    ShrubLoadGenomes.pl [options] genome1 genome2 ...
+    ShrubLoadGenomes [options] genome1 genome2 ...
 
 This method loads one or more genomes from repository directories into the
 Shrub database. The genome data will be assembled into load files for
@@ -33,6 +33,12 @@ The command-line options listed in L<Shrub/new_for_script> are accepted
 as well as the following.
 
 =over 4
+
+=item privilege
+
+Privilege level (0, 1, or 2). The function assignments will be added at the specified privilege
+level and all levels below it and the subsystems are given the specified privilege level. The default
+is C<0>, indicating unprivileged subsystems and assignments.
 
 =item slow
 

@@ -24,7 +24,7 @@
 
 =head1 Create or Repair a Shrub Database
 
-    ShrubCreate.pl [options]
+    ShrubCreate [options]
 
 This script creates the tables in a new Shrub database.  Any existing data in the tables
 will be destroyed. (Tables not normally found in a Shrub database, however, will be unaffected.)

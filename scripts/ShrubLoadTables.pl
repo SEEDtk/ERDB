@@ -19,7 +19,7 @@
 
 =head1 Load Shrub Tables from Pre-existing Load Files
 
-    ShrubLoadTables.pl [options] table1 table2 ...
+    ShrubLoadTables [options] table1 table2 ...
 
 This method will load tables in the Shrub database from pre-existing load files.
 It can be used to recover from errors that prevent one of the various load
