@@ -546,9 +546,9 @@
             connect to several roles.</Notes>
         </Relationship>
         <Relationship name="Subsystem2Role" from="Subsystem" to="Role"
-            arity="MM" converse="Role2Subsystem" fixed="1" col="5"
-            row="8">
-            <DisplayInfo theme="blue" caption="Role to\nSubsystem" />
+            arity="MM" converse="Role2Subsystem">
+            <DisplayInfo theme="blue" caption="Role to\nSubsystem" 
+            		 fixed="1" col="5" row="8"/>
             <Notes>This relationship connects a subsystem to its constituent
             roles. The relationship specifies the role abbreviation and its
             ordinal position in the subsystem path.</Notes>
