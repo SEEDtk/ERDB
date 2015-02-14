@@ -26,8 +26,8 @@
 
     get_all [ options ] -p path -c ' constraint' -v parm1 -v parm2 ... field1 field2 ...
 
-This script performs a general database query. It can either perform a standalone query 
-or process data from a tab-delimited input file. The L<ERDB/GetAll> command is used to 
+This script performs a general database query. It can either perform a standalone query
+or process data from a tab-delimited input file. The L<ERDB/GetAll> command is used to
 perform the processing, and the documentation there should be consulted for more
 details.
 
@@ -49,7 +49,7 @@ the following.
 
 A list of entity and relationship names, space-delimited, describing a
 path through the database. If there is more than one name in the path,
-you will have to enclose it in quotes. 
+you will have to enclose it in quotes.
 
 =item constraint
 
@@ -78,43 +78,68 @@ indicates an input column.
 Maximum number of records to return. The default is C<0>, meaning all records
 will be returned. If an input file is being used, this constraint applies to
 each row of input. So, a count of 5 with an input file of 10 records would mean
-a maximum of 50 results.  
-
-## more command-line options
+a maximum of 50 results.
 
 =back
+
+=head2 Examples
+
+These examples are broken into multiple lines for readability, but in
+actual practice they would be single-line commands.
+
+The following command reads a list of subsystem IDs from the standard input
+and lists all the genomes in each subsystem along with each genome's variant
+code. The subsystem IDs are taken from the first column of the input.
+
+    get_all -p "Subsystem Subsystem2Genome" -c "Subsystem(id) = ?" -v \$1
+            "Subsystem2Genome(to-link)" "Subsystem2Genome(variant)"
+
+The following command does the same thing, but instead of reading from the
+standard input it just displays the genomes for Histidine Degradation.
+Note that we include the Subsystem ID in the output so that we have the
+same three columns as in the previous example.
+
+    get_all -p "Subsystem Subsystem2Genome" -c "Subsystem(id) = ?"
+            -v "Histidine Degradation" "Subsystem(id)"
+            "Subsystem2Genome(to-link)" "Subsystem2Genome(variant)"
+
+This reads a list of protein MD5s from the standard input and outputs
+the IDs of the features that produce the protein.
+
+    get_all -p "Protein Protein2Feature" -c "Protein(id) = ?"
+            -v \$1 "Protein2Feature(to-link)"
 
 =cut
 
     # Connect to the database and get the command parameters.
     my ($shrub, $opt) = Shrub->new_for_script('%c %o parm1 parm2 ...', { },
-    		["path|p=s", "path through the database", { required => 1} ],
-    		["constraint|c=s", "query constraint (if any)"],
-    		["value|v=s@", "parameter values for the query constraint (multiple)"],
+            ["path|p=s", "path through the database", { required => 1} ],
+            ["constraint|c=s", "query constraint (if any)"],
+            ["value|v=s@", "parameter values for the query constraint (multiple)"],
             ["input|i=s", "name of the input file (if not the standard input)"],
-          	["count|n=i", "maximum number of records to output per input line (default is 0, meaning return everything)", { default => 0 }]
+              ["count|n=i", "maximum number of records to output per input line (default is 0, meaning return everything)", { default => 0 }]
             );
     # Get the list of parameter values. If none were supplied, we use an empty list.
     my $valueList = $opt->value // [];
     # Check for input markers. This list will contain undef if the parameter value is a constant,
-    # and a column index if the parameter value is taken from the input line. 
+    # and a column index if the parameter value is taken from the input line.
     my @inputList;
     # This will be set to the input file handle if we find at least one input marker.
     my $ih;
     # Loop through the parameter values.
     my $n = scalar @$valueList;
     for (my $i = 0; $i < $n; $i++) {
-    	if ($valueList->[$i] =~ /^\$(\d+)/) {
-    		# We have an input column marker. Save the column number.
-    		push @inputList, ($1 - 1);
-    		# If this is our first marker, open the input file.
-    		if (! defined $ih) {
-		    	$ih = ScriptUtils::IH($opt->input);
-    		}
-    	} else {
-    		# Here we have an ordinary constant value.
-    		push @inputList, undef;
-    	}
+        if ($valueList->[$i] =~ /^\$(\d+)/) {
+            # We have an input column marker. Save the column number.
+            push @inputList, ($1 - 1);
+            # If this is our first marker, open the input file.
+            if (! defined $ih) {
+                $ih = ScriptUtils::IH($opt->input);
+            }
+        } else {
+            # Here we have an ordinary constant value.
+            push @inputList, undef;
+        }
     }
     # Now get the path, constraint, and count. The count already defaults to 0 so we don't
     # need to worry about it being undefined.
@@ -124,32 +149,32 @@ a maximum of 50 results.
     # Get the list of output field names.
     my @fields = @ARGV;
     if (! scalar(@fields)) {
-    	die "No output fields specified.\n";
+        die "No output fields specified.\n";
     }
     # Get the first line of input. If we have no input, this is an empty string.
     my $line = (defined $ih ? <$ih> : "\n");
     # Loop until we run out of input.
     while (defined $line) {
-    	# Parse the input line.
-    	chomp $line;
-    	my @cols = split /\t/, $line;
-    	# Form the list of parameter values.
-    	my @parms;
-    	for (my $i = 0; $i < $n; $i++) {
-    		if (defined $inputList[$i]) {
-    			push @parms, $cols[$inputList[$i]];
-    		} else {
-    			push @parms, $valueList->[$i];
-    		}
-    	}
-    	# Query the database.
-    	my @rows = $shrub->GetAll($path, $constraint, \@parms, \@fields, $count);
-    	# Output the results.
-    	for my $row (@rows) {
-    		print join("\t", @cols, @$row) . "\n";
-    	}
-    	# Get the next input line (or undef if there is no input file).
-    	$line = (defined $ih ? <$ih> : undef);
+        # Parse the input line.
+        chomp $line;
+        my @cols = split /\t/, $line;
+        # Form the list of parameter values.
+        my @parms;
+        for (my $i = 0; $i < $n; $i++) {
+            if (defined $inputList[$i]) {
+                push @parms, $cols[$inputList[$i]];
+            } else {
+                push @parms, $valueList->[$i];
+            }
+        }
+        # Query the database.
+        my @rows = $shrub->GetAll($path, $constraint, \@parms, \@fields, $count);
+        # Output the results.
+        for my $row (@rows) {
+            print join("\t", @cols, @$row) . "\n";
+        }
+        # Get the next input line (or undef if there is no input file).
+        $line = (defined $ih ? <$ih> : undef);
     }
-	# All done. Close the input.
-	close $ih;
+    # All done. Close the input.
+    close $ih;
