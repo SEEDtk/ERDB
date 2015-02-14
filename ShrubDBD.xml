@@ -366,7 +366,8 @@
     <Relationships>
         <Relationship name="Feature2Subsystem" from="Feature" to="Subsystem"
             arity="MM" converse="Subsystem2Feature">
-            <DisplayInfo theme="blue" caption="Feature to\nSubsystem" />
+            <DisplayInfo theme="blue" caption="Feature to\nSubsystem"
+            		fixed="1" col="4" row="4" />
             <Notes>This is actually a ternary relationship between Subsystem,
             Role, and Feature. It tells us which features are known to be
             parts of subsystems.</Notes>
@@ -405,7 +406,7 @@
         <Relationship name="Subsystem2Genome" from="Subsystem" to="Genome"
             arity="MM" converse="Genome2Subsystem">
             <DisplayInfo theme="blue" caption="Genome to\nSubsystem"
-                fixed="1" col="5" row="3" />
+                fixed="1" col="5" row="4" />
             <Notes>This relationship relates a genome to the subsystems
                 that it contains.
             </Notes>
@@ -546,7 +547,8 @@
         </Relationship>
         <Relationship name="Subsystem2Role" from="Subsystem" to="Role"
             arity="MM" converse="Role2Subsystem">
-            <DisplayInfo theme="blue" caption="Role to\nSubsystem" />
+            <DisplayInfo theme="blue" caption="Role to\nSubsystem" 
+            		 fixed="1" col="5" row="8"/>
             <Notes>This relationship connects a subsystem to its constituent
             roles. The relationship specifies the role abbreviation and its
             ordinal position in the subsystem path.</Notes>
