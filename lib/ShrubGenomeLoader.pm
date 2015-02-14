@@ -189,6 +189,8 @@ sub CurateNewGenomes {
         if ($incomingMD5s{$md5}) {
             $stats->Add(newGenomeConflict => 1);
             print "$genome discarded because of MD5 conflict with $incomingMD5s{$md5}.\n";
+            # Delete the genome from the output hash.
+            delete $retVal{$genome};
         } else {
             # Insure we don't load duplicates of this genome that come later in the list.
             $incomingMD5s{$md5} = $genome;
