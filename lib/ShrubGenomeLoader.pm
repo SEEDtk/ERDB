@@ -133,9 +133,9 @@ sub CurateNewGenomes {
     # Get the loader object.
     my $loader = $self->{loader};
     # Get the statistics object.
-    my $stats = $self->stats;
+    my $stats = $loader->stats;
     # Get the database object.
-    my $shrub = $self->db;
+    my $shrub = $loader->db;
     # Get the data for all the genomes currently in the database. We will create two hashes, one keyed
     # by MD5 that lists genome IDs, and one keyed by genome ID that lists the MD5 and the core-flag.
     my %genomesById;
@@ -191,7 +191,7 @@ sub CurateNewGenomes {
             print "$genome discarded because of MD5 conflict with $incomingMD5s{$md5}.\n";
         } else {
             # Insure we don't load duplicates of this genome that come later in the list.
-            $incomingMD5s{$md5} = 1;
+            $incomingMD5s{$md5} = $genome;
             # Here we will build a list of genomes in the database that might conflict.
             my @rivals;
             # Check for an existing genome with the same ID.
@@ -210,7 +210,7 @@ sub CurateNewGenomes {
                 # Discard the new genome if it has the same core status as the rival and the MISSING
                 # flag is set, or if the rival is a core genome. The net effect is that core genomes
                 # always win, and if there is a tie, the missing-flag makes the decision.
-                if ($rivalCore == $metaHash->{type} ? $missingFlag : $rivalCore) {
+                if (($rivalCore == $metaHash->{type}) ? $missingFlag : $rivalCore) {
                     $discard = 1;
                 }
             }
@@ -300,7 +300,7 @@ sub AnalyzeContigFasta {
     # Get the parameters.
     my ($self, $fileName) = @_;
     # Get the loader object.
-    my $loader = $self->loader;
+    my $loader = $self->{loader};
     # Get the statistics object.
     my $stats = $loader->stats;
     # Open the contig file.
@@ -329,7 +329,7 @@ sub AnalyzeContigFasta {
         while (! eof $ih) {
             my $line = <$ih>;
             # Is this a contig header?
-            if ($line =~ /^(\S+)/) {
+            if ($line =~ /^>(\S+)/) {
                 # Yes. Close the old contig and start a new one.
                 my $contigID = $1;
                 $self->_CloseContig($contigHash);

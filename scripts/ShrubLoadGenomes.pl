@@ -230,9 +230,8 @@ computed from information in the L<FIG_Config> module.
                  # Connect the functions.
                  print "Connecting to functions.\n";
                  for my $fid (keys %$pegHash) {
-                     my $function = $pegHash->{$fid};
                      # Compute this function's ID.
-                     my ($funcID, $comment) = $funcLoader->ProcessFunction($function);
+                     my ($funcID, $comment) = @{$pegHash->{$fid}};
                      # Make the connection at each privilege level.
                      for (my $p = $priv; $p >= 0; $p--) {
                          $loader->InsertObject('Feature2Function', 'from-link' => $fid, 'to-link' => $funcID,

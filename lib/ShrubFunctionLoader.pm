@@ -77,16 +77,36 @@ sub new {
 
 =head3 ProcessFunction
 
-    my ($fid, $comment) = $funcLoader->ProcessFunction($function);
+    my ($fid, $comment) = $funcLoader->ProcessFunction($checksum, $statement, $sep, \%roles, $comment);
 
 Get the ID of a functional assignment. The function is inserted into the database and connected to its
-constituent roles if it does not already exist.
+constituent roles if it does not already exist. The function must already have been parsed by
+L<Shrub/ParseFunction>.
 
 =over 4
 
-=item function
+=item checksum
 
-Functional assignment to insert into the database.
+The unique checksum for this function. Any function with the same roles and the same
+separator will have the same checksum.
+
+=item statement
+
+The text of the function with the EC numbers and comments removed.
+
+=item sep
+
+The separator character. For a single-role function, this is always C<@>. For multi-role
+functions, it could also be C</> or C<;>.
+
+=item roles
+
+Reference to a hash mapping each constituent role to its checksum.
+
+=item comment
+
+The comment string containing in the function. If there is no comment, will be an empty
+string.
 
 =item RETURN
 
@@ -99,15 +119,13 @@ comment (if any) extracted from it.
 
 sub ProcessFunction {
     # Get the parameters.
-    my ($self, $function) = @_;
+    my ($self, $checksum, $statement, $sep, $roles, $comment) = @_;
     # Get the loader object.
     my $loader = $self->{loader};
     # Get the database object.
     my $shrub = $loader->db;
     # Get the statistics object.
     my $stats = $loader->stats;
-    # Parse the function to get its roles and its checksum.
-    my ($checksum, $statement, $sep, $roles, $comment) = Shrub::ParseFunction($function);
     # Get the function's ID. This may insert the function into the database.
     my ($retVal, $newFlag) = $loader->InsureTable('Function', checksum => $checksum, sep => $sep,
             statement => $statement);
@@ -134,7 +152,7 @@ sub ProcessFunction {
 
 =head3 ProcessRole
 
-    my $roleID = $funcLoader->ProcessRole($role);
+    my ($roleID, $roleMD5) = $funcLoader->ProcessRole($role);
 
 Return the ID of a role in the database. If the role does not exist, it will be inserted.
 
@@ -146,7 +164,8 @@ Text of the role to find.
 
 =item RETURN
 
-Returns the ID of the role in the database.
+Returns a two-element list containing (0) the ID of the role in the database and (1) the
+role's MD5 checksum.
 
 =back
 
@@ -166,7 +185,7 @@ sub ProcessRole {
     my ($retVal) = $loader->InsureTable('Role', checksum => $checkSum, 'ec-number' => $ecNum,
             'tc-number' => $tcNum, hypo => $hypo, statement => $roleText);
     # Return it.
-    return $retVal;
+    return ($retVal, $checkSum);
 }
 
 
@@ -189,8 +208,9 @@ Directory containing the genome source files.
 
 =item gPegHash
 
-Reference to a hash mapping peg IDs to function assignments. Only the pegs in the hash will be
-processed.
+Reference to a hash mapping peg IDs to 2-tuples describing assigned functions. Each 2-tuple
+contains (0) the function's ID number and (1) the associated comment (frequently an empty
+string).
 
 =item options
 
@@ -232,15 +252,15 @@ sub ConnectPegFunctions {
     # Loop through the proteins.
     while (my $protDatum = $loader->GetLine($fh, 'protein')) {
         my ($pegId, undef, $seq) = @$protDatum;
-        my $function = $gPegHash->{$pegId};
+        my $funcData = $gPegHash->{$pegId};
         # Are we interested in this protein?
-        if (defined $function) {
+        if (defined $funcData) {
             # Compute the protein ID.
             my $protID = Shrub::ProteinID($seq);
             # Insert the protein into the database.
             $loader->InsertObject('Protein', id => $protID, sequence => $seq);
             # Insure the function is in the database.
-            my ($funcID, $comment) = $self->ProcessFunction($function);
+            my ($funcID, $comment) = @$funcData;
             # Attach the function to it at the current privilege level and all levels
             # below.
             for (my $p = $priv; $p >= 0; $p--) {
@@ -257,6 +277,7 @@ sub ConnectPegFunctions {
         }
     }
 }
+
 
 =head3 ReadFeatures
 
@@ -303,8 +324,12 @@ sub ReadFeatures {
         # Create a list of location objects from the location string.
         my @locs = map { BasicLocation->new($_) } split /\s*,\s*/, $locString;
         $stats->Add(featureLocs => scalar(@locs));
-        # Store the function in the return hash.
-        $retVal{$fid} = $function;
+        # Parse the function.
+        my @parsed = Shrub::ParseFunction($function);
+        # Insure it is in the database.
+        my ($funcID, $comment) = $self->ProcessFunction(@parsed);
+        # Store the function's 2-tuple in the return hash.
+        $retVal{$fid} = [$funcID, $comment];
         # Compute the feature type.
         my $ftype;
         if ($fid =~ /fig\|\d+\.\d+\.(\w+)\.\d+/) {
