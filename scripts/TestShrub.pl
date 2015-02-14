@@ -18,8 +18,7 @@
 #
 
     use strict;
-    use Env;
 
-    print join("\n", @INC, "");
-
-    Env::WriteLines(\*STDOUT, "This is line 1.", "This is line 1");
+    my $test = "abcdd&efg&h";
+    $test =~ s/&/^&/g;
+    print "$test\n";

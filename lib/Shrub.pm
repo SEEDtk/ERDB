@@ -589,8 +589,9 @@ sub ParseFunction {
     shift if UNIVERSAL::isa($_[0], __PACKAGE__);
     # Get the parameters.
     my ($function) = @_;
-    # Separate out the comment (if any).
-    my $statement = $function;
+    # Separate out the comment (if any). Note we convert an undefined function
+    # to an empty string.
+    my $statement = $function // "";
     my $comment = "";
     if ($function && $function =~ /(.+?)\s*[#!](.+)/) {
         ($statement, $comment) = ($1, $2);

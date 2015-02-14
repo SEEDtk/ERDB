@@ -324,12 +324,6 @@ sub ReadFeatures {
         # Create a list of location objects from the location string.
         my @locs = map { BasicLocation->new($_) } split /\s*,\s*/, $locString;
         $stats->Add(featureLocs => scalar(@locs));
-        # Parse the function.
-        my @parsed = Shrub::ParseFunction($function);
-        # Insure it is in the database.
-        my ($funcID, $comment) = $self->ProcessFunction(@parsed);
-        # Store the function's 2-tuple in the return hash.
-        $retVal{$fid} = [$funcID, $comment];
         # Compute the feature type.
         my $ftype;
         if ($fid =~ /fig\|\d+\.\d+\.(\w+)\.\d+/) {
@@ -337,6 +331,18 @@ sub ReadFeatures {
         } else {
             die "Invalid feature ID $fid.";
         }
+        # If this is NOT a peg and has no function, change the function to
+        # 'unspecified'. Otherwise it will be converted to
+        # "hypothetical protein".
+        if ($ftype ne 'peg' && ! $function) {
+            $function = "unspecified $ftype";
+        }
+        # Parse the function.
+        my @parsed = Shrub::ParseFunction($function);
+        # Insure it is in the database.
+        my ($funcID, $comment) = $self->ProcessFunction(@parsed);
+        # Store the function's 2-tuple in the return hash.
+        $retVal{$fid} = [$funcID, $comment];
         # Compute the total sequence length.
         my $seqLen = 0;
         for my $loc (@locs) {
