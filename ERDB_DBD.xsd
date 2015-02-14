@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="Database">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Title"/>
+                <xs:element ref="Issues" minOccurs="0"/>
+                <xs:element ref="Notes"/>
+                <xs:element ref="Regions"/>
+                <xs:element ref="Diagram"/>
+                <xs:element ref="Entities"/>
+                <xs:element ref="Relationships" minOccurs="0" />
+                <xs:element ref="Shapes" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Title" type="xs:string"/>
+    <xs:element name="Issues" type="xs:string"/>
+    <xs:element name="Regions">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="Region"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Region">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Notes"/>
+            </xs:sequence>
+            <xs:attribute name="name" use="required" type="xs:string"/>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Diagram">
+        <xs:complexType>
+            <xs:attribute name="editable" use="required" type="xs:integer"/>
+            <xs:attribute name="fontSize" use="required" type="xs:integer"/>
+            <xs:attribute name="height" use="required" type="xs:integer"/>
+            <xs:attribute name="ratio" use="required" type="xs:decimal"/>
+            <xs:attribute name="size" use="required" type="xs:integer"/>
+            <xs:attribute name="width" use="required" type="xs:integer"/>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Entities">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element maxOccurs="unbounded" ref="Entity"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Entity">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" ref="DisplayInfo"/>
+                <xs:element ref="Notes"/>
+                <xs:element minOccurs="0" ref="Asides"/>
+                <xs:element minOccurs="0" ref="Fields"/>
+                <xs:element minOccurs="0" ref="FulltextIndexes" />
+                <xs:element minOccurs="0" ref="Indexes"/>
+            </xs:sequence>
+            <xs:attribute name="autonumber" type="xs:integer"/>
+            <xs:attribute name="keyType" use="required" type="dataType"/>
+            <xs:attribute name="name" use="required" type="xs:string"/>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Indexes">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element maxOccurs="unbounded" ref="Index"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Index">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Notes"/>
+                <xs:element ref="IndexFields"/>
+            </xs:sequence>
+            <xs:attribute name="unique" type="xs:integer"/>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="FulltextIndexes">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element maxOccurs="unbounded" ref="FulltextIndex"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="FulltextIndex">
+        <xs:complexType>
+          <xs:sequence>
+              <xs:element minOccurs="0" maxOccurs="unbounded" ref="UseField"/>
+          </xs:sequence>
+          <xs:attribute name="type" type="textIndexType"/>
+          <xs:attribute name="name" type="xs:string" />
+          <xs:attribute name="path" type="xs:string" />
+          <xs:attribute name="in_result" type="xs:integer" />
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="UseField">
+        <xs:complexType>
+          <xs:attribute name="name" type="xs:string" />
+          <xs:attribute name="field" type="xs:string"/>
+          <xs:attribute name="in_result" type="xs:integer" />
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Relationships">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element maxOccurs="unbounded" ref="Relationship"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Relationship">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" ref="DisplayInfo"/>
+                <xs:element ref="Notes"/>
+                <xs:element ref="Asides" minOccurs="0" />
+                <xs:element ref="Fields" minOccurs="0" />
+                <xs:element minOccurs="0" ref="FromIndex"/>
+                <xs:element minOccurs="0" ref="ToIndex"/>
+                <xs:element minOccurs="0" ref="Indexes" />
+            </xs:sequence>
+
+            <xs:attribute name="arity" use="required" type="arityType"/>
+            <xs:attribute name="converse" use="required" type="xs:string"/>
+            <xs:attribute name="from" use="required" type="xs:string"/>
+            <xs:attribute name="name" use="required" type="xs:string"/>
+            <xs:attribute name="to" use="required" type="xs:string"/>
+            <xs:attribute name="embedded" type="xs:integer"/>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="FromIndex">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Notes"/>
+                <xs:element ref="IndexFields"/>
+            </xs:sequence>
+            <xs:attribute name="unique" type="xs:integer"/>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="ToIndex">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Notes"/>
+                <xs:element ref="IndexFields"/>
+            </xs:sequence>
+            <xs:attribute name="unique" type="xs:integer"/>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Shapes">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Shape"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Shape">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="DisplayInfo"/>
+                <xs:element ref="Notes"/>
+                <xs:element ref="Asides" minOccurs="0"/>
+            </xs:sequence>
+            <xs:attribute name="from" use="required" type="xs:string"/>
+            <xs:attribute name="name" use="required" type="xs:string"/>
+            <xs:attribute name="to" use="required" type="xs:string"/>
+            <xs:attribute name="type" use="required" type="shapeType"/>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Notes" type="xs:string"/>
+    <xs:element name="DisplayInfo">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element minOccurs="0" maxOccurs="unbounded" ref="RegionInfo"/>
+            </xs:sequence>
+            <xs:attribute name="caption"/>
+            <xs:attribute name="col" type="xs:decimal"/>
+            <xs:attribute name="connected" type="xs:integer"/>
+            <xs:attribute name="fixed" type="xs:integer"/>
+            <xs:attribute name="row" type="xs:decimal"/>
+            <xs:attribute name="theme" use="required" type="themeType"/>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="RegionInfo">
+        <xs:complexType>
+            <xs:attribute name="caption"/>
+            <xs:attribute name="col" type="xs:decimal"/>
+            <xs:attribute name="fixed" type="xs:integer"/>
+            <xs:attribute name="name" use="required"/>
+            <xs:attribute name="row" type="xs:decimal"/>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Asides" type="xs:string"/>
+    <xs:element name="Fields">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element maxOccurs="unbounded" ref="Field"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Field">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Notes"/>
+                <xs:element minOccurs="0" ref="Asides"/>
+            </xs:sequence>
+            <xs:attribute name="name" use="required" type="xs:string"/>
+            <xs:attribute name="relation" type="xs:string"/>
+            <xs:attribute name="special" type="xs:string"/>
+            <xs:attribute name="type" use="required" type="dataType"/>
+            <xs:attribute name="null" type="xs:integer"/>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="IndexFields">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element maxOccurs="unbounded" ref="IndexField"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="IndexField">
+        <xs:complexType>
+            <xs:attribute name="name" use="required" type="xs:string"/>
+            <xs:attribute name="order" type="orderType"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:simpleType name="shapeType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="diamond"/>
+            <xs:enumeration value="rectangle"/>
+            <xs:enumeration value="biarrow"/>
+            <xs:enumeration value="arrow"/>
+            <xs:enumeration value="oval"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="themeType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="black"/>
+            <xs:enumeration value="blue"/>
+            <xs:enumeration value="brown"/>
+            <xs:enumeration value="cyan"/>
+            <xs:enumeration value="gray"/>
+            <xs:enumeration value="green"/>
+            <xs:enumeration value="ivory"/>
+            <xs:enumeration value="navy"/>
+            <xs:enumeration value="purple"/>
+            <xs:enumeration value="red"/>
+            <xs:enumeration value="violet"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="arityType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="MM"/>
+            <xs:enumeration value="1M"/>
+            <xs:enumeration value="11"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="textIndexType">
+      <xs:restriction base="xs:string">
+        <xs:enumeration value="field" />
+        <xs:enumeration value="related_field" />
+      </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="orderType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="ascending"/>
+            <xs:enumeration value="descending"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="dataType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="boolean"/>
+            <xs:enumeration value="char"/>
+            <xs:enumeration value="counter"/>
+            <xs:enumeration value="countVector"/>
+            <xs:enumeration value="date"/>
+            <xs:enumeration value="dna"/>
+            <xs:enumeration value="float"/>
+            <xs:enumeration value="hash-string"/>
+            <xs:enumeration value="image"/>
+            <xs:enumeration value="int"/>
+            <xs:enumeration value="link"/>
+            <xs:enumeration value="long-string"/>
+            <xs:enumeration value="proteinData"/>
+            <xs:enumeration value="rectangle"/>
+            <xs:enumeration value="semi-boolean"/>
+            <xs:enumeration value="string"/>
+            <xs:enumeration value="text"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+
+</xs:schema>

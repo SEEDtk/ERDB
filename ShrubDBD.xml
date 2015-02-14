@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:noNamespaceSchemaLocation="http://bio-macpro-1.mcs.anl.gov/~parrello/FIG/Html/ERDB_DBD.xsd">
+    xsi:noNamespaceSchemaLocation="http://pubseed.theseed.org/FIG/Html/ERDB_DBD.xsd">
     <Title>SEED Bioinformatics Database</Title>
     <Notes>[p]The SEED database manages bio-informatics data imported from
         exchange files. It contains information that can be used to derive
@@ -23,6 +23,7 @@
         [b]Navy[/b] Chemistry group: includes reactions and compounds.
         [/list]
     </Notes>
+    <Regions />
     <Diagram height="800" width="800" ratio="0.7" size="90"
         fontSize="12" editable="0" />
     <Entities>
@@ -75,14 +76,14 @@
                     <Notes>This index allows searching for genomes by MD5 identifier.
                     </Notes>
                     <IndexFields>
-                        <IndexField name="md5-identifier" ordering="ascending" />
+                        <IndexField name="md5-identifier" order="ascending" />
                     </IndexFields>
                 </Index>
                 <Index>
                     <Notes>This index presents the core genomes first in
                     sequence.</Notes>
                     <IndexFields>
-                        <IndexField name="core" ordering="descending" />
+                        <IndexField name="core" order="descending" />
                     </IndexFields>
                 </Index>
             </Indexes>
@@ -223,7 +224,7 @@
                 roles.
             </Notes>
             <Fields>
-                <Field name="statement" type="long-string">
+                <Field name="statement" type="text">
                     <Notes>Text of the function, consisting of the roles strung together
                     in sequence with separator characters in between.</Notes>
                 </Field>
@@ -390,14 +391,16 @@
                 </IndexFields>
             </ToIndex>
             <Indexes>
-                <Notes>This index allows searching for feature/subsystem links
-                by role. In this case, we are usually looking for subsystems
-                affected by a role change, so the minor key of the index is
-                the subsystem ID.</Notes>
-                <IndexFields>
-                    <IndexField name="role" order="ascending" />
-                    <IndexField name="to-link" order="ascending" />
-                </IndexFields>
+                <Index>
+                    <Notes>This index allows searching for feature/subsystem links
+                    by role. In this case, we are usually looking for subsystems
+                    affected by a role change, so the minor key of the index is
+                    the subsystem ID.</Notes>
+                    <IndexFields>
+                        <IndexField name="role" order="ascending" />
+                        <IndexField name="to-link" order="ascending" />
+                    </IndexFields>
+                </Index>
             </Indexes>
         </Relationship>
         <Relationship name="Subsystem2Genome" from="Subsystem" to="Genome"
@@ -506,7 +509,7 @@
                 <Notes>This index presents the segments of the feature in the correct
                 order.</Notes>
                 <IndexFields>
-                    <IndexField name="ordinal" type="ascending" />
+                    <IndexField name="ordinal" order="ascending" />
                 </IndexFields>
             </FromIndex>
         </Relationship>
@@ -528,8 +531,8 @@
                 </Field>
             </Fields>
             <FromIndex unique="1">
-                <Note>This index insures only one function of each privilege is assigned
-                to a protein.</Note>
+                <Notes>This index insures only one function of each privilege is assigned
+                to a protein.</Notes>
                 <IndexFields>
                     <IndexField name="security" order="descending" />
                 </IndexFields>

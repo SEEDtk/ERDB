@@ -74,7 +74,8 @@ If specified, the subsystem-to-genome links will be filled in.
 
 =item prots
 
-If specified, the proteins and function assignments will be filled in.
+If specified, the proteins and function assignments will be filled in and the features will be
+linked to the subsystems..
 
 =item roles
 
@@ -169,7 +170,7 @@ computed from information in the L<FIG_Config> file.
     # loading. We only set up the tables in normal mode. In slow mode, our failure to do so will
     # cause the loader package to do manual inserts.
     if (! $opt->slow) {
-        $loader->Open(qw(Protein Protein2Function Subsystem Subsystem2Genome Subsystem2Role));
+        $loader->Open(qw(Protein Protein2Function Subsystem Subsystem2Genome Subsystem2Role Feature2Subsystem));
     }
     $loader->ReplaceMode('Protein2Function');
     # We need to be able to tell which subsystems are already in the database. If the number of subsystems
@@ -182,6 +183,9 @@ computed from information in the L<FIG_Config> file.
             $subHash = { map { $_ => 1 } $shrub->GetFlat('Subsystem', '', [], 'id') };
         }
     }
+    # This will hold a map of subsystems to roles. Each subsystem will msp to a sub-hash
+    # of role checksums to IDs.
+    my %subRoles;
     # Process the subsystems one at a time in phases. First we load the subsystem proper and the roles.
     # If we are not doing roles, we note which subsystems we have to skip because they do not exist.
     # The subsystems we keep will go in this hash, which maps the names to directories.
@@ -231,14 +235,19 @@ computed from information in the L<FIG_Config> file.
                 # Next come the roles of the subsystem. This may cause new roles to be added to
                 # the Role table. Get the roles.
                 my $roles = $loader->GetNamesFromFile("$subDir/Roles", "role");
+                # The list of role checksums will go in here.
+                my %roleMap;
                 # Loop through the roles. Note we need to track the ordinal position of each role.
                 my $ord = 0;
                 for my $role (@$roles) {
-                    my $roleID = $funcLoader->ProcessRole($role);
+                    my ($roleID, $md5) = $funcLoader->ProcessRole($role);
                     $loader->InsertObject('Subsystem2Role', 'from-link' => $sub, 'to-link' => $roleID,
                             ordinal => ++$ord);
                     $stats->Add(roleForSubsystem => 1);
+                    $roleMap{$md5} = $roleID;
                 }
+                # Save the subsystem's role map.
+                $subRoles{$sub} = \%roleMap;
             }
         }
         # If we are keeping this subsystem, remember it.
@@ -254,12 +263,24 @@ computed from information in the L<FIG_Config> file.
         # Create a hash of the genome directories.
         print "Locating genomes.\n";
         my $genomeHash = $loader->FindGenomeList($genomeDirectory);
-        # This is a two-level hash that will map PEGs to funtions, organized by genome.
+        # This is a two-level hash that will map PEGs to [function-id, comment] pairs,
+        # organized by genome. This hash can later be used to connect functions to
+        # proteins.
         my %genomePegs;
         # Loop through the subsystems.
         for my $sub (sort keys %subDirs) {
             # Get the subsystem's directory.
             my $subDir = $subDirs{$sub};
+            # Get the subsystem's role map.
+            my $roleMap = $subRoles{$sub};
+            if (! $roleMap) {
+                # Here we have not loaded the subsystem, so we need to read its roles from
+                # the database.
+                print "Reading subsystem roles from database.\n";
+                $roleMap = { map { $_->[0] => $_->[1] } $shrub->GetAll('Subsystem2Role Role',
+                        'Subsystem2Role(from-link) = ?', [$sub], 'Role(checksum) Role(id)') };
+                $stats->Add(roleMapsLoaded => 1);
+            }
             print "Loading proteins and functions for $sub.\n";
             # Now we want to get the proteins covered by this subsystem and associate functions
             # with them. We go through the list of pegs. Later we will find the protein information
@@ -269,30 +290,48 @@ computed from information in the L<FIG_Config> file.
             while (my $pegDatum = $loader->GetLine($ih, 'peg')) {
                 # Get the fields of the peg data line.
                 my ($peg, $function) = @$pegDatum;
-                # Save the PEG's information.
+                # Do we care about this genome?
                 my $genome = SeedUtils::genome_of($peg);
-                $genomePegs{$genome}{$peg} = $function;
-                $stats->Add(subsystemPeg => 1);
+                if (! $genomeHash->{$genome}) {
+                    $stats->Add(subsysPegSkipped => 1);
+                } else {
+                    # Yes. Now we need to parse the function to get the roles.
+                    my @parsed = $shrub->ParseFunction($function);
+                    # Insure the function is stored in the database.
+                    my ($funcID, $comment) = $funcLoader->ProcessFunction(@parsed);
+                    # Save the PEG's information.
+                    $genomePegs{$genome}{$peg} = [$funcID, $comment];
+                    $stats->Add(subsystemPeg => 1);
+                    # Get the function's roles.
+                    my $funRoles = $parsed[3];
+                    # Loop through the roles. Any that are found in the subsystem will
+                    # generate a Feature2Subsystem connection.
+                    for my $funRole (keys @$funRoles) {
+                        my $roleID = $roleMap->{$funRole};
+                        if (! $roleID) {
+                            # Skip this connection. The role is not in the subsystem.
+                            $stats->Add(pegRoleSubsystemFailure => 1);
+                        } else {
+                            # This role is in the subsystem. Forge the connection.
+                            $loader->InsertObject('Feature2Subsystem', 'from-link' => $peg,
+                                    role => $roleID, 'to-link' => $sub);
+                            $stats->Add(pegRoleInSubsystem => 1);
+                        }
+                    }
+                }
             }
         }
         # Loop through the genomes found in the peg list.
         print "Processing genomes for function mapping.\n";
         for my $genome (sort keys %genomePegs) {
             my $gPegHash = $genomePegs{$genome};
-            # Do we have this genome?
-            my $genomeDir = $genomeHash->{$genome};
-            if (! $genomeDir) {
-                print "Genome $genome not found in the repository.\n";
-                $stats->Add(genomeNotFound => 1);
-            } else {
-                $funcLoader->ConnectPegFunctions($genome, $genomeDir, $gPegHash,
-                        translateLinks => 0, priv => $priv);
-            }
+            # Connect the proteins to their functions.
+            $funcLoader->ConnectPegFunctions($genome, $genomeHash->{$genome},
+                    $gPegHash, translateLinks => 0, priv => $priv);
         }
     }
     # Finally, we link the subsystems to the genomes already in the database.
     if ($opt->links) {
-        ##TODO Fill in Feature2Subsystem
         # This hash will contain the genomes found in the database.
         my %genomesLoaded = map { $_ => 1 } $shrub->GetFlat('Genome', "", [], 'id');
         print scalar(keys %genomesLoaded) . " genomes loaded in database.\n";
