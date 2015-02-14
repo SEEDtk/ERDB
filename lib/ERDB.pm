@@ -7925,7 +7925,7 @@ sub _Resolve {
     my $retVal;
     # Parse off any numbers at the end. The pattern below will always match
     # a valid name.
-    if ($objectName =~ /^(\D+)(\d*)$/) {
+    if ($objectName =~ /^(.+?)(\d*)$/) {
         # Check the alias table. Real names map to themselves, and converse
         # names map to the real name.
         $retVal = $self->{_metaData}->{AliasTable}->{$1};

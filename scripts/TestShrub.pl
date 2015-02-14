@@ -18,7 +18,9 @@
 #
 
     use strict;
-
-    my $test = "abcdd&efg&h";
-    $test =~ s/&/^&/g;
-    print "$test\n";
+	use Getopt::Long::Descriptive;
+	my ($opt) = describe_options('%c %o parms',
+			["value|v=s@", "value list"],
+			["option|o", "simple option"]);
+	my $thing = $opt->value // [];
+	print scalar(@$thing) . " values found.";
