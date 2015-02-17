@@ -192,12 +192,14 @@ sub new {
 
 Construct a new Shrub object for a command-line script.
 
-=over 4 opt
+=over 4
+
+=item opt
 
 An options object from L<Getopt::Long::Descriptive> that
 includes the parameters from L</script_options>.
 
-=over 4 tuning
+=item tuning
 
 A hash with the following (optional) members.
 
@@ -233,7 +235,7 @@ sub new_for_script {
     return $retVal;
 }
 
-=head2 script_options
+=head3 script_options
 
     my @opt_specs = Shrub::script_options();
 
