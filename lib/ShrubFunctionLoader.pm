@@ -128,7 +128,7 @@ sub ProcessFunction {
     my $stats = $loader->stats;
     # Get the function's ID. This may insert the function into the database.
     my ($retVal, $newFlag) = $loader->InsureTable('Function', checksum => $checksum, sep => $sep,
-            statement => $statement);
+            description => $statement);
     # If we inserted the function, we need to connect the roles. Note that a hypothetical protein or
     # malformed function will have no roles.
     if ($newFlag) {
@@ -140,7 +140,7 @@ sub ProcessFunction {
             my ($roleText, $ecNum, $tcNum, $hypo) = Shrub::ParseRole($role);
             # Get the role's ID.
             my ($roleID) = $loader->InsureTable('Role', checksum => $roleCheck, 'ec-number' => $ecNum,
-                    'tc-number' => $tcNum, hypo => $hypo, statement => $roleText);
+                    'tc-number' => $tcNum, hypo => $hypo, description => $roleText);
             # Connect the role to the function.
             $shrub->InsertObject('Function2Role', 'from-link' => $retVal, 'to-link' => $roleID);
             $stats->Add(function2role => 1);
@@ -183,7 +183,7 @@ sub ProcessRole {
     my $checkSum = Shrub::Checksum($roleNorm);
     # Get the role's ID. This will insert the role if it is not already present.
     my ($retVal) = $loader->InsureTable('Role', checksum => $checkSum, 'ec-number' => $ecNum,
-            'tc-number' => $tcNum, hypo => $hypo, statement => $roleText);
+            'tc-number' => $tcNum, hypo => $hypo, description => $roleText);
     # Return it.
     return ($retVal, $checkSum);
 }

@@ -163,7 +163,7 @@ computed from information in the L<FIG_Config> file.
     if ($opt->clear) {
         # Yes. Erase all the subsystem tables.
         print "CLEAR option specified.\n";
-        $loader->Clear(qw(Subsystem Subsystem2Genome Subsystem2Role));
+        $loader->Clear(qw(Subsystem Subsystem2Genome Subsystem2Role Feature2Subsystem));
     }
     # Set up the tables we are going to load. Duplicate proteins will be discarded, but new function
     # assignments will replace old ones. Old subsystem data will be deleted before the new data is
@@ -183,7 +183,7 @@ computed from information in the L<FIG_Config> file.
             $subHash = { map { $_ => 1 } $shrub->GetFlat('Subsystem', '', [], 'id') };
         }
     }
-    # This will hold a map of subsystems to roles. Each subsystem will msp to a sub-hash
+    # This will hold a map of subsystems to roles. Each subsystem will map to a sub-hash
     # of role checksums to IDs.
     my %subRoles;
     # Process the subsystems one at a time in phases. First we load the subsystem proper and the roles.
@@ -232,21 +232,25 @@ computed from information in the L<FIG_Config> file.
                 # record.
                 print "Creating $sub.\n";
                 $loader->InsertObject('Subsystem', id => $sub, security => $priv, version => 1);
-                # Next come the roles of the subsystem. This may cause new roles to be added to
-                # the Role table. Get the roles.
-                my $roles = $loader->GetNamesFromFile("$subDir/Roles", "role");
-                # The list of role checksums will go in here.
+                # Next from the roles. The list of role checksums will go in here.
                 my %roleMap;
+                # Open the role input file.
+                my $rh = $loader->OpenFile("$subDir/Roles", "role");
                 # Loop through the roles. Note we need to track the ordinal position of each role.
                 my $ord = 0;
-                for my $role (@$roles) {
+                while (my $roleData = $loader->GetLine($rh, "role")) {
+                    # Get this role's data.
+                    my ($abbr, $role) = @$roleData;
+                    # Compute the role ID and MD5. If the role is new, this inserts it in the database.
                     my ($roleID, $md5) = $funcLoader->ProcessRole($role);
+                    # Link the subsystem to the role.
                     $loader->InsertObject('Subsystem2Role', 'from-link' => $sub, 'to-link' => $roleID,
-                            ordinal => ++$ord);
+                            ordinal => $ord++, abbr => $abbr);
                     $stats->Add(roleForSubsystem => 1);
+                    # Save the role's MD5 for later.
                     $roleMap{$md5} = $roleID;
                 }
-                # Save the subsystem's role map.
+                # Save the subsystem's role map. We'll need this to create Feature2Subsystem.
                 $subRoles{$sub} = \%roleMap;
             }
         }
@@ -306,7 +310,7 @@ computed from information in the L<FIG_Config> file.
                     my $funRoles = $parsed[3];
                     # Loop through the roles. Any that are found in the subsystem will
                     # generate a Feature2Subsystem connection.
-                    for my $funRole (keys @$funRoles) {
+                    for my $funRole (values %$funRoles) {
                         my $roleID = $roleMap->{$funRole};
                         if (! $roleID) {
                             # Skip this connection. The role is not in the subsystem.

@@ -224,7 +224,7 @@
                 roles.
             </Notes>
             <Fields>
-                <Field name="statement" type="text">
+                <Field name="description" type="text">
                     <Notes>Text of the function, consisting of the roles strung together
                     in sequence with separator characters in between.</Notes>
                 </Field>
@@ -259,7 +259,7 @@
                 The key remains the same even if the wording of the role changes.
             </Notes>
             <Fields>
-                <Field name="statement" type="long-string">
+                <Field name="description" type="long-string">
                     <Notes>textual description of the role</Notes>
                 </Field>
                 <Field name="ec-number" type="string">
@@ -302,7 +302,7 @@
                         used with LIKE-style queries to find similar roles.
                     </Notes>
                     <IndexFields>
-                        <IndexField name="statement" order="ascending" />
+                        <IndexField name="description" order="ascending" />
                     </IndexFields>
                 </Index>
             </Indexes>
@@ -367,7 +367,7 @@
         <Relationship name="Feature2Subsystem" from="Feature" to="Subsystem"
             arity="MM" converse="Subsystem2Feature">
             <DisplayInfo theme="blue" caption="Feature to\nSubsystem"
-            		fixed="1" col="4" row="4" />
+                    fixed="1" col="4" row="4" />
             <Notes>This is actually a ternary relationship between Subsystem,
             Role, and Feature. It tells us which features are known to be
             parts of subsystems.</Notes>
@@ -547,15 +547,18 @@
         </Relationship>
         <Relationship name="Subsystem2Role" from="Subsystem" to="Role"
             arity="MM" converse="Role2Subsystem">
-            <DisplayInfo theme="blue" caption="Role to\nSubsystem" 
-            		 fixed="1" col="5" row="8"/>
+            <DisplayInfo theme="blue" caption="Role to\nSubsystem"
+                     fixed="1" col="5" row="8"/>
             <Notes>This relationship connects a subsystem to its constituent
             roles. The relationship specifies the role abbreviation and its
             ordinal position in the subsystem path.</Notes>
             <Fields>
                 <Field name="ordinal" type="int">
-                    <Notes>Ordinal position of this role in the subsystem's
-                    metabolic pathway.</Notes>
+                    <Notes>Ordinal position of this role (from 0) in the columns
+                        of the populated subsystem</Notes>
+                </Field>
+                <Field name="abbr" type="string">
+                    <Notes>Abbreviation for the subsystem role name.</Notes>
                 </Field>
             </Fields>
             <FromIndex>
