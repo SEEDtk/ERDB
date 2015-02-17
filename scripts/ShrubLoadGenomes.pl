@@ -84,7 +84,9 @@ computed from information in the L<FIG_Config> module.
     use File::Copy ();
 
     # This is the list of tables we are loading.
-    use constant LOADTABLES => qw(Genome Genome2Contig Contig Genome2Feature Feature Feature2Contig Feature2Function Protein2Feature Protein);
+    use constant LOADTABLES => qw(Genome Genome2Contig Contig Genome2Feature Feature
+                                  Protein2Feature Protein Protein2Function
+                                  Feature2Contig Feature2Function);
 
     # Start timing.
     my $startTime = time;
