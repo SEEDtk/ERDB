@@ -375,6 +375,58 @@ sub SubsystemID {
     return $retVal;
 }
 
+=head3 Feature2Function
+
+	my $featureMap = $shrub->Feature2Function($priv, \@features);
+
+Get the functions assigned to each of the specified features at the specified privilege level.
+
+=over 4
+
+=item priv
+
+Privilege level of interest (C<0> for unprivileged, C<1> for projected, C<2> for privileged).
+
+=item features
+
+Reference to a list of feature IDs.
+
+=item RETURN
+
+Returns a reference to a hash mapping each feature to a 3-tuple. Each 3-tuple will consist of
+(0) the function ID, (1) the function statement, and (2) the associated comment.
+
+=back
+
+=cut
+
+sub Feature2Function {
+	# Get the parameters.
+	my ($self, $priv, $features) = @_;
+	# The return hash will be built in here.
+	my %retVal;
+	# Loop through the features.
+	for my $feature (@$features) {
+		# We'll store the function data in here.
+		my $functionData;
+		# Is this a peg?
+		if ($feature =~ /peg/) {
+			# Yes. Get the function via the protein.
+			($functionData) = $self->GetAll('Feature2Protein Protein Protein2Function Function', 
+					'Feature2Protein(from-link) = ? AND Protein2Function(security) = ?',
+					[$feature, $priv], 'Function(id) Function(statement) Protein2Function(comment)');
+		} else {
+			# No. Get the function directly.
+			($functionData) = $self->GetAll('Feature2Function Function',
+					'Feature2Function(from-link) = ? AND Feature2Function(security) = ?',
+					[$feature, $priv], 'Function(id) Function(statement) Feature2Function(comment)');
+		}
+		# Store the function data in the return hash.
+		$retVal{$feature} = $functionData;
+	}
+	# Return the computed hash.
+	return \%retVal;
+}
 
 =head2 Public Constants
 
