@@ -21,6 +21,7 @@ use strict;
 use Tracer;
 use Shrub;
 use ShrubLoader;
+use ScriptUtils;
 
 =head1 Display Shrub Table Load Formats
 
@@ -35,7 +36,7 @@ create load files for the specified Shrub database.
 
 There are no positional parameters.
 
-The command-line options are those found in L<Shrub/new_for_script> plus
+The command-line options are those found in L<Shrub/script_options> plus
 the following.
 
 =item entities
@@ -48,9 +49,11 @@ related to the entities will be displayed.
 =cut
 
     $| = 1; # Prevent buffering on STDOUT.
-    # Connect to the database.
-    my ($shrub, $opt) = Shrub->new_for_script('%c %o', {},
+    # Process the command line.
+    my $opt = ScriptUtils::Opts('', Shrub::script_options(),
             ["entities", "If specified, the name of a file containing a list of entities of interest"]);
+    # Connect to the database.
+    my $shrub = Shrub->new_for_script($opt);
     # Create the loader helper object.
     my $loader = ShrubLoader->new($shrub);
     # Get the hash of entities.

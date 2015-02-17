@@ -23,6 +23,7 @@
     use ShrubLoader;
     use Shrub;
     use ShrubFunctionLoader;
+    use ScriptUtils;
 
 =head1 Load Subsystems Into the Shrub Database
 
@@ -43,7 +44,7 @@ specifying the appropriate option (C<subs>, C<links>, and/or C<prots>).
 The positional parameter is the name of the directory containing the subsystem source
 directory. If omitted, it will be computed from information in the L<FIG_Config> module.
 
-The command-line options are as specified in L<Shrub/new_for_script> plus
+The command-line options are as specified in L<Shrub/script_options> plus
 the following.
 
 =over 4
@@ -102,9 +103,8 @@ computed from information in the L<FIG_Config> file.
     # Start timing.
     my $startTime = time;
     $| = 1; # Prevent buffering on STDOUT.
-    # Connect to the database.
-    print "Connecting to database.\n";
-    my ($shrub, $opt) = Shrub->new_for_script('%c %o subsysDirectory', { },
+    # Parse the command line.
+    my $opt = ScriptUtils::Opts('subsysDirectory',
             ["privilege|p=i", "privilege level for assignment", { default => 0 }],
             ["slow|s", "use individual inserts rather than table loads"],
             ["subsystems=s", "name of a file containing a list of the subsystems to use"],
@@ -116,6 +116,9 @@ computed from information in the L<FIG_Config> file.
             ["all|A", "process all functions (same as LPR)", { implies => ['links', 'prots', 'roles'] }],
             ["genomeDir|g=s", "genome directory containing the data to load", { default => "$FIG_Config::shrub_dir/Inputs/GenomeData" }]
         );
+    # Connect to the database.
+    print "Connecting to database.\n";
+    my $shrub = Shrub->new_for_script($opt);
     # Get the positional parameters.
     my ($subsysDirectory) = @ARGV;
     # Get the genome directory.

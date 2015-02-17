@@ -23,6 +23,7 @@
     use ShrubLoader;
     use Shrub;
     use MD5Computer;
+    use ScriptUtils;
 
 =head1 Generate an Index and/or MD5s for Genome Source Directories
 
@@ -36,7 +37,7 @@ This script loads the DBD but does not connect to the database.
 
 The single positional parameter is the name of the genome directory.
 
-The command-line options are as specified in L<Shrub/new_for_script> plus the
+The command-line options are as specified in L<Shrub/script_options> plus the
 following.
 
 =over 4
@@ -50,9 +51,11 @@ If specified, the script will recompute each genome's MD5 from its contigs file.
 =cut
 
     $| = 1; # Prevent buffering on STDOUT.
-    # Connect to the database.
-    my ($shrub, $opt) = Shrub->new_for_script('%c %o genomeDIrectory', { offline => 1 },
+    # Process the command line.
+    my $opt = ScriptUtils::Opts('genomeDirectory', Shrub::script_options(),
             ["fixMD5|f", "recompute MD5 identifiers in the genome-info files"]);
+    # Connect to the database.
+    my $shrub = Shrub->new_for_script($opt, { offline => 1 });
     # Create the loader object.
     my $loader = ShrubLoader->new($shrub);
     my $stats = $loader->stats;

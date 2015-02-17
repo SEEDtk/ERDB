@@ -21,6 +21,7 @@
     use warnings;
     use Shrub;
     use ShrubLoader;
+    use ScriptUtils;
 
 =head1 Prototype Shrub Load Script
 
@@ -32,7 +33,7 @@ This is a prototype template for a database load script.
 
 ## describe positional parameters
 
-The command-line options are those found in L<Shrub/new_for_script> plus
+The command-line options are those found in L<Shrub/script_options> plus
 the following.
 
 =over 4
@@ -46,11 +47,13 @@ the following.
     # Start timing.
     my $startTime = time;
     $| = 1; # Prevent buffering on STDOUT.
+    # Get the command parameters.
+    my $opt = ScriptUtils::Opts('parm1 parm2 ...', Shrub::script_options(),
+        ## more options
+        );
     # Connect to the database and get the command parameters.
     print "Connecting to the database.\n";
-    my ($shrub, $opt) = Shrub->new_for_script('%c %o parm1 parm2 ...', { },
-            ## more command-line options here
-            );
+    my $shrub = Shrub->new_for_script($opt);
     # Get the load helper.
     my $loader = ShrubLoader->new($shrub);
     # Get the statistics object.

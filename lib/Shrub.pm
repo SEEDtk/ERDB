@@ -65,6 +65,30 @@ not related to a particular genome.
     # Name of the global section
     use constant GLOBAL => 'Globals';
 
+=head3 Privilege Level Constants
+
+The following constants indicate privilege levels.
+
+=over 4
+
+=item PUBLIC
+
+Lowest privilege (0), indicating a publically assigned annotation.
+
+=item PROJ
+
+Middle privilege (1), indicating a projected annotation.
+
+=item PRIV
+
+Highest privilege (2), indicating a core-curated annotation.
+
+=back
+
+=cut
+
+    use constant PUBLIC => 0, PROJ => 1, PRIV => 2;
+
 =head3 new
 
     my $shrub = Shrub->new(%options);
@@ -164,27 +188,58 @@ sub new {
 
 =head3 new_for_script
 
-    my ($shrub, $opt, $usage) = Shrub->new_for_script($program, \%tuning, @options);
+    my $shrub = Shrub->new_for_script($opt, %tuning);
 
-Construct a new Shrub object for a command-line script. This method
-uses a call to L<GetOpt::Long::Descriptive/describe_options> to parse the command-line
-options, passing in the incoming B<program> and B<options> parameters.
+Construct a new Shrub object for a command-line script.
 
-If the command-line parse fails, the method will die with a usage message.
+=over 4 opt
 
-For example
+An options object from L<Getopt::Long::Descriptive> that
+includes the parameters from L</script_options>.
 
-    my ($shrub, $opt, $usage) = Shrub->new_for_script('%c %o genome1 genome2 ...',
-            { offline => 1},
-            [ 'missing|m', "only load missing genomes"],
-            [ 'directory|d=s', "source directory", { default => '/vol/fig/shrub_data' }]);
+=over 4 tuning
 
-will create an offline L<Shrub> object. The C<$opt> object will have a member
-C<missing> that is TRUE if we should only load missing genomes and a member
-C<directory> that returns the source directory. The C<text> member of C<$usage> can
-be used to display a usage string in error messages, and if the user invokes the
-C<--help> option on the command line, all of the option information will be displayed
-in full detail.
+A hash with the following (optional) members.
+
+=over 8
+
+=item externalDBD
+
+If TRUE, use of an external DBD will be forced, overriding the DBD stored in the database.
+
+=item offline
+
+If TRUE, the database object will be constructed but not connected to the database.
+
+=back
+
+=back
+
+=cut
+
+sub new_for_script {
+    # Get the parameters.
+    my ($class, $opt, %tuning) = @_;
+    # Check for an external DBD override.
+    my $externalDBD = $tuning{externalDBD} || $opt->dbd;
+    # Here we have a real invocation, so we can create the Shrub object.
+    my $retVal = Shrub::new($class, loadDirectory => $opt->loaddirectory, DBD => $opt->dbd,
+            dbName => $opt->dbname, sock => $opt->sock, userData => $opt->userdata,
+            dbhost => $opt->dbhost, port => $opt->port, dbms => $opt->dbms,
+            repository => $opt->repository, offline => $tuning{offline},
+            externalDBD => $externalDBD
+            );
+    # Return the result.
+    return $retVal;
+}
+
+=head2 script_options
+
+    my @opt_specs = Shrub::script_options();
+
+Return the command-line options for connecting to a shrub database. These options are
+expected in the C<$opt> parameters of L</new_for_script> and used to construct the
+Shrub object. The options are as follows.
 
 The following command-line options (all of which are optional) will
 be processed by this method automatically and used to construct the Shrub object.
@@ -229,27 +284,10 @@ Name of the directory containing the genome repository.
 
 =back
 
-The B<tuning> parameter is a reference to a hash with the following members.
-
-=over 4
-
-=item externalDBD
-
-If TRUE, use of an external DBD will be forced, overriding the DBD stored in the database.
-
-=item offline
-
-If TRUE, the database object will be constructed but not connected to the database.
-
-=back
-
 =cut
 
-sub new_for_script {
-    # Get the parameters.
-    my ($class, $program, $tuning, @options) = @_;
-    # Parse the command line.
-    my ($opt, $usage) = describe_options($program,
+sub script_options {
+    return (
            [ "loadDirectory=s", "directory for creating table load files" ],
            [ "DBD=s", "file containing the database definition XML" ],
            [ "dbName=s", "database name" ],
@@ -259,24 +297,7 @@ sub new_for_script {
            [ "port=i", "mysql port" ],
            [ "dbms=s", "database management system" ],
            [ "repository=s", "genome repository directory root" ],
-           [ "help|h", "display usage information", { shortcircuit => 1}],
-           @options);
-    # The above method dies if the options are invalid. Check here for the HELP option.
-    if ($opt->help) {
-        print $usage->text;
-        exit;
-    }
-    # Check for an external DBD override.
-    my $externalDBD = $tuning->{externalDBD} || $opt->dbd;
-    # Here we have a real invocation, so we can create the Shrub object.
-    my $retVal = Shrub::new($class, loadDirectory => $opt->loaddirectory, DBD => $opt->dbd,
-            dbName => $opt->dbname, sock => $opt->sock, userData => $opt->userdata,
-            dbhost => $opt->dbhost, port => $opt->port, dbms => $opt->dbms,
-            repository => $opt->repository, offline => $tuning->{offline},
-            externalDBD => $externalDBD
-            );
-    # Return the result.
-    return ($retVal, $opt, $usage);
+    );
 }
 
 
@@ -377,7 +398,7 @@ sub SubsystemID {
 
 =head3 Feature2Function
 
-	my $featureMap = $shrub->Feature2Function($priv, \@features);
+    my $featureMap = $shrub->Feature2Function($priv, \@features);
 
 Get the functions assigned to each of the specified features at the specified privilege level.
 
@@ -401,31 +422,31 @@ Returns a reference to a hash mapping each feature to a 3-tuple. Each 3-tuple wi
 =cut
 
 sub Feature2Function {
-	# Get the parameters.
-	my ($self, $priv, $features) = @_;
-	# The return hash will be built in here.
-	my %retVal;
-	# Loop through the features.
-	for my $feature (@$features) {
-		# We'll store the function data in here.
-		my $functionData;
-		# Is this a peg?
-		if ($feature =~ /peg/) {
-			# Yes. Get the function via the protein.
-			($functionData) = $self->GetAll('Feature2Protein Protein Protein2Function Function', 
-					'Feature2Protein(from-link) = ? AND Protein2Function(security) = ?',
-					[$feature, $priv], 'Function(id) Function(statement) Protein2Function(comment)');
-		} else {
-			# No. Get the function directly.
-			($functionData) = $self->GetAll('Feature2Function Function',
-					'Feature2Function(from-link) = ? AND Feature2Function(security) = ?',
-					[$feature, $priv], 'Function(id) Function(statement) Feature2Function(comment)');
-		}
-		# Store the function data in the return hash.
-		$retVal{$feature} = $functionData;
-	}
-	# Return the computed hash.
-	return \%retVal;
+    # Get the parameters.
+    my ($self, $priv, $features) = @_;
+    # The return hash will be built in here.
+    my %retVal;
+    # Loop through the features.
+    for my $feature (@$features) {
+        # We'll store the function data in here.
+        my $functionData;
+        # Is this a peg?
+        if ($feature =~ /peg/) {
+            # Yes. Get the function via the protein.
+            ($functionData) = $self->GetAll('Feature2Protein Protein Protein2Function Function',
+                    'Feature2Protein(from-link) = ? AND Protein2Function(security) = ?',
+                    [$feature, $priv], 'Function(id) Function(statement) Protein2Function(comment)');
+        } else {
+            # No. Get the function directly.
+            ($functionData) = $self->GetAll('Feature2Function Function',
+                    'Feature2Function(from-link) = ? AND Feature2Function(security) = ?',
+                    [$feature, $priv], 'Function(id) Function(statement) Feature2Function(comment)');
+        }
+        # Store the function data in the return hash.
+        $retVal{$feature} = $functionData;
+    }
+    # Return the computed hash.
+    return \%retVal;
 }
 
 =head2 Public Constants

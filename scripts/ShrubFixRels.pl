@@ -21,6 +21,7 @@
     use Stats;
     use Tracer;
     use Shrub;
+    use ScriptUtils;
 
 
 =head1 Verify Relationship Integrity in a Shrub Database
@@ -34,7 +35,7 @@ link to entities that do not exist.
 
 The positional parameters are the relationship names.
 
-The command-line options are those described in L<Shrub/new_for_script> plus the
+The command-line options are those described in L<Shrub/script_options> plus the
 following.
 
 =over 4
@@ -49,8 +50,11 @@ specified on the command line.
 =cut
 
     $| = 1; # Prevent buffering on STDOUT.
+    # Process the command-line options.
+    my $opt = ScriptUtils::Opts('', Shrub::script_options(),
+            ["all|a", "process all relationships"]);
     # Connect to the database.
-    my ($shrub, $opt) = Shrub->new_for_script('%c %o', {}, ["all|a", "process all relationships"]);
+    my $shrub = Shrub->new_for_script($opt);
     # Create the statistics object.
     my $stats = Stats->new();
     # Get the relationship names.

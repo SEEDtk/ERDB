@@ -33,7 +33,7 @@ an emergency situation.
 The positional parameters are the names of the objects (entities and relationships)
 to be loaded.
 
-The command-line options are those specified in L<Shrub/new_for_script> plus the
+The command-line options are those specified in L<Shrub/script_options> plus the
 following:
 
 =over 4
@@ -52,13 +52,16 @@ specified in the positional parameters.
     use warnings;
     use Shrub;
     use ShrubLoader;
+    use ScriptUtils;
 
     $| = 1; # Prevent buffering on STDOUT.
-    # Connect to the database.
-    print "Connecting to database.\n";
-    my ($shrub, $opt) = Shrub->new_for_script('%c %o table1 table2 ...', {},
+    # Parse the command line.
+    my $opt = ScriptUtils::Opts('table1 table2 ...', Shrub::script_options(),
             ["objects=s", "file containing table list in first column"],
             );
+    # Connect to the database.
+    print "Connecting to database.\n";
+    my $shrub = Shrub->new_for_script($opt);
     # Create a loader helper and get the statistics object.
     my $loader = ShrubLoader->new($shrub);
     my $stats = $loader->stats;

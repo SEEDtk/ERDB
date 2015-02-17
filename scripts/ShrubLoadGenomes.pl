@@ -29,7 +29,7 @@ each table, and then the tables loaded directly from the files.
 
 The positional parameters are names of the genomes to be loaded.
 
-The command-line options listed in L<Shrub/new_for_script> are accepted
+The command-line options listed in L<Shrub/script_options> are accepted
 as well as the following.
 
 =over 4
@@ -82,6 +82,7 @@ computed from information in the L<FIG_Config> module.
     use ShrubGenomeLoader;
     use File::Path ();
     use File::Copy ();
+    use ScriptUtils;
 
     # This is the list of tables we are loading.
     use constant LOADTABLES => qw(Genome Genome2Contig Contig Genome2Feature Feature
@@ -91,9 +92,8 @@ computed from information in the L<FIG_Config> module.
     # Start timing.
     my $startTime = time;
     $| = 1; # Prevent buffering on STDOUT.
-    # Connect to the database.
-    print "Connecting to database.\n";
-    my ($shrub, $opt) = Shrub->new_for_script('%c %o genomeDirectory genome1 genome2 ...', { },
+    # Process the command line.
+    my $opt = ScriptUtils::Opts('genomeDirectory genome1 genome2 ...', Shrub::script_options(),
             ["privilege|p=i", "privilege level for assignments", { default => 0 }],
             ["slow|s", "use individual inserts rather than table loads"],
             ["genomes=s", "name of a file containing a list of the genomes to load"],
@@ -101,8 +101,11 @@ computed from information in the L<FIG_Config> module.
             ["override|o", "override existing protein function assignments"],
             ["clear|c", "clear the genome tables before loading"],
             ["all|a", "process all genomes in the genome directory"],
-            ["genomeDir|g", "genome directory containing the data to load", { default => "$FIG_Config::shrub_dir/Inputs/GenomeData" }]
+            ["genomeDir|g=s", "genome directory containing the data to load", { default => "$FIG_Config::shrub_dir/Inputs/GenomeData" }]
         );
+    # Connect to the database.
+    print "Connecting to database.\n";
+    my $shrub = Shrub->new_for_script($opt);
     # We are connected. Create the loader utility object.
     my $loader = ShrubLoader->new($shrub);
     # Create the genome loader utility object.

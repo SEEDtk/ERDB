@@ -18,6 +18,7 @@
 #
 
     use strict;
+    use ScriptUtils;
     use Stats;
     use SeedUtils;
     use Shrub;
@@ -35,7 +36,7 @@ This method always uses an external DBD, ignoring the DBD stored in the database
 
 There are no positional parameters.
 
-The command-line options are as specified in L<Shrub/new_for_script> plus
+The command-line options are as specified in L<Shrub/script_options> plus
 the following.
 
 =over 4
@@ -61,11 +62,13 @@ Store the DBD in the database to improve performance.
 =cut
 
     $| = 1; # Prevent buffering on STDOUT.
-    # Connect to the database.
-    my ($shrub, $opt) = Shrub->new_for_script('%c %o', { externalDBD => 1 },
+    # Parse the command line.
+    my $opt = ScriptUtils::Opts('', Shrub::script_options(),
             ["missing|m", "only add missing tables"],
             ["fixup|f", "attempt to fix tables to match the DBD (implies \"missing\")"],
             ["store|s", "store the DBD in the database to improve performance"]);
+    # Connect to the database, forcing use of an external DBD.
+    my $shrub = Shrub->new_for_script($opt, externalDBD => 1);
     # Create the statistics object.
     my $stats = Stats->new();
     print "Database definition taken from " . $shrub->GetMetaFileName() . "\n";
