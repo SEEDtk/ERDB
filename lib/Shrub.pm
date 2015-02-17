@@ -65,29 +65,6 @@ not related to a particular genome.
     # Name of the global section
     use constant GLOBAL => 'Globals';
 
-=head3 Privilege Level Constants
-
-The following constants indicate privilege levels.
-
-=over 4
-
-=item PUBLIC
-
-Lowest privilege (0), indicating a publically assigned annotation.
-
-=item PROJ
-
-Middle privilege (1), indicating a projected annotation.
-
-=item PRIV
-
-Highest privilege (2), indicating a core-curated annotation.
-
-=back
-
-=cut
-
-    use constant PUBLIC => 0, PROJ => 1, PRIV => 2;
 
 =head3 new
 
@@ -239,12 +216,7 @@ sub new_for_script {
 
     my @opt_specs = Shrub::script_options();
 
-Return the command-line options for connecting to a shrub database. These options are
-expected in the C<$opt> parameters of L</new_for_script> and used to construct the
-Shrub object. The options are as follows.
-
-The following command-line options (all of which are optional) will
-be processed by this method automatically and used to construct the Shrub object.
+These are the command-line options for connecting to a Shrub database.
 
 =over 4
 
@@ -285,6 +257,9 @@ Database management system to use (e.g. C<postgres>, default C<mysql>).
 Name of the directory containing the genome repository.
 
 =back
+
+This method returns the specifications for these command-line options in a form
+that can be used in the L<ScriptUtils/Opts> method.
 
 =cut
 
@@ -437,12 +412,12 @@ sub Feature2Function {
             # Yes. Get the function via the protein.
             ($functionData) = $self->GetAll('Feature2Protein Protein Protein2Function Function',
                     'Feature2Protein(from-link) = ? AND Protein2Function(security) = ?',
-                    [$feature, $priv], 'Function(id) Function(statement) Protein2Function(comment)');
+                    [$feature, $priv], 'Function(id) Function(description) Protein2Function(comment)');
         } else {
             # No. Get the function directly.
             ($functionData) = $self->GetAll('Feature2Function Function',
                     'Feature2Function(from-link) = ? AND Feature2Function(security) = ?',
-                    [$feature, $priv], 'Function(id) Function(statement) Feature2Function(comment)');
+                    [$feature, $priv], 'Function(id) Function(description) Feature2Function(comment)');
         }
         # Store the function data in the return hash.
         $retVal{$feature} = $functionData;
@@ -452,6 +427,32 @@ sub Feature2Function {
 }
 
 =head2 Public Constants
+
+=head3 Privilege Level Constants
+
+The following constants indicate privilege levels.
+
+=over 4
+
+=item PUBLIC
+
+Lowest privilege (0), indicating a publically assigned annotation.
+
+=item PROJ
+
+Middle privilege (1), indicating a projected annotation.
+
+=item PRIV
+
+Highest privilege (2), indicating a core-curated annotation.
+
+=back
+
+=cut
+
+    use constant PUBLIC => 0;
+    use constant PROJ => 1;
+    use constant PRIV => 2;
 
 =head3 MAX_PRIVILEGE
 
