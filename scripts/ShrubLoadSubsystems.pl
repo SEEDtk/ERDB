@@ -113,8 +113,8 @@ computed from information in the L<FIG_Config> file.
             ["links|L", "process subsystem/genome links"],
             ["prots|P", "process proteins and functional assignments"],
             ["roles|R", "process subsystems and roles"],
-            ["all|A", "process all functions (same as LPS)", { implies => ['links', 'prots', 'roles'] }],
-            ["genomeDir|g", "genome directory containing the data to load", { default => "$FIG_Config::shrub_dir/Inputs/GenomeData" }]
+            ["all|A", "process all functions (same as LPR)", { implies => ['links', 'prots', 'roles'] }],
+            ["genomeDir|g=s", "genome directory containing the data to load", { default => "$FIG_Config::shrub_dir/Inputs/GenomeData" }]
         );
     # Get the positional parameters.
     my ($subsysDirectory) = @ARGV;
