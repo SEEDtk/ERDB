@@ -1,0 +1,117 @@
+=head1 Shrub Exchange Format
+
+The exchange format describes how to construct the input directories for the Shrub database. Each genome is
+represented by a directory whose name is the genome ID. Each subsystem is represented by a directory
+whose name is the subsystem name with spaces replaced by underscores.
+
+The directory tree containing the genomes is called the I<genome repository>. In a default situation,
+the genomes are stored in a two-level directory tree whose first level is the genus name and whose
+second level is the species name. This prevents individual directories from being too large. A file
+named C<index> at the top level maps genome IDs to a relative directory path in the tree. The file
+is tab-delimited with three columns-- (0) the genome ID, (1) the genome name, and (2) the relative
+path to the genome directory. If this file does not exist, you can create it with L<ShrubIndexGenomes.pl>.
+
+The directory containing the subsystems is a single, flat directory. There is no need for an index file.
+
+=head2 Metadata Files
+
+Attribute information is stored in I<metadata files>. A metadata file contains key-value pairs, one
+per line. The key comes first, followed by a separating colon (C<:>), then the value. Metadata files
+can be read and written using methods of the L<Loader> object.
+
+=head2 The Subsystem Directory
+
+The exchange-format directory for a single subsystem contains four files.
+
+=over 4
+
+=item Info
+
+This is a metadata file containing the following keys.
+
+=over 8
+
+=item version
+
+The version number of the subsystem.
+
+=item privileged
+
+C<0> if the subsystem is public (can be edited by all users) or C<1> if it is privileged (can
+only be edited by privileged users).
+
+=back
+
+=item Roles
+
+This is a tab-delimited file containing the roles of the subsystem in order. The first column (0) is
+the role abbreviation and the second (1) is the role description (that is, the statement of the role).
+
+=item GenomesInSubsys
+
+This is a tab-delimited file listing the genomes in which the subsystem is implemented. (In general,
+not all implementations will be in here, only the ones interesting enough to be in the main
+subsystem spreadsheet). The first column (0) is the genome ID, the second (1) is the genome name,
+and the third (2) is the variant code.
+
+=item PegsInSubsys
+
+This is a tab-delimited file listing the features in the subsystem spreadsheet. The first column (0)
+is the feature ID and, the second (1) is the role abbreviation, and the third (2) is the role
+description.
+
+=back
+
+=head2 The Genome Directory
+
+The exchange-format directory for a single genome contains five files.
+
+=over 4
+
+=item contigs
+
+A FASTA file containing the contigs in the genome and their DNA sequences.
+
+=item genome-info
+
+A metadata file containing the following fields.
+
+=over 8
+
+=item md5
+
+The MD5 digest for the genome's DNA sequence, as defined by L<MD5Computer>.
+
+=item name
+
+The genome name, usually the scientific name with some additional (and very
+optional) comments.
+
+=item type
+
+The privilege level of the genome's annotations-- C<0> for public (unprivileged),
+C<1> for projected, and C<2> for privileged.
+
+=back
+
+=item non-peg-info
+
+A tab-delimited file containing the information for non-protein features. The
+first column (0) contains the feature ID, the second column (1) contains the feature's
+location string (described as I<Sprout format> in L<Location>), and the third
+column (2) contains the feature's assigned function.
+
+=item peg-info
+
+A tab-delimited file containing the information for protein features. The first
+column (0) contains the feature ID, the second column (1) contains the feature's
+location string (described as I<Sprout format> in L<Location>), and the third
+column (2) contains the feature's assigned function.
+
+=item peg-trans
+
+A FASTA file containing the protein translations of the protein features.
+
+=back
+
+=cut
