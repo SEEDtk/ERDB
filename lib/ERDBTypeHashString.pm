@@ -36,7 +36,7 @@ however, possible to reverse the encoding.
 
 There is no encoding or decoding done for this type. Instead, its use serves as
 notice that the real identifier must be computed by feeding something through
-L<ERDB/DigestKey>.
+L<ERDB/DigestKey> or L<Data::UUID>.
 
 =head3 new
 
@@ -68,7 +68,7 @@ database. This value is used to compute the expected size of a database table.
 =cut
 
 sub averageLength {
-    return 22;
+    return 24;
 }
 
 =head3 prettySortValue
@@ -113,7 +113,7 @@ sub validate {
     my ($self, $value) = @_;
     # Assume it's valid until we prove otherwise.
     my $retVal = "";
-    if (length($value) != 22) {
+    if (length($value) > 24) {
         $retVal = "Invalid hash string field.";
     }
     # Return the determination.
@@ -204,7 +204,7 @@ an SQL table.
 =cut
 
 sub sqlType {
-    return "CHAR(22)";
+    return "VARCHAR(24)";
 }
 
 =head3 indexMod
@@ -245,7 +245,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    return 'A Base64 Digest MD5 code.';
+    return 'A Base64 code off 24 or fewer characters.';
 }
 
 =head3 name
@@ -272,7 +272,7 @@ an error will be thrown during the load.
 =cut
 
 sub default {
-    return '                      ';
+    return '';
 }
 
 =head3 align

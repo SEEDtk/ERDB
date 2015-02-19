@@ -4855,11 +4855,11 @@ sub InsertValue {
 
 =head3 InsertObject
 
-    $erdb->InsertObject($objectType, %fieldHash);
+    my $rows = $erdb->InsertObject($objectType, %fieldHash);
 
     or
 
-    $erdb->InsertObject($objectType, \%fieldHash, %options);
+    my $rows = $erdb->InsertObject($objectType, \%fieldHash, %options);
 
 Insert an object into the database. The object is defined by a type name and
 then a hash of field names to values. All field values should be
@@ -4918,6 +4918,10 @@ version.
 If TRUE, the fields are presumed to be already encoded for loading.
 
 =back
+
+=item RETURN
+
+Returns the number of rows inserted.
 
 =back
 
@@ -5042,8 +5046,8 @@ sub InsertObject {
             }
         }
     }
-    # Return a 1 for backward compatibility.
-    return 1;
+    # Return the number of rows inserted.
+    return $retVal;
 }
 
 =head3 UpdateEntity

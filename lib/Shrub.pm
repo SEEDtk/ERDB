@@ -27,10 +27,8 @@ package Shrub;
     use Stats;
     use DBKernel;
     use SeedUtils;
-    use ERDBGenerate;
-    use XML::Simple;
     use Digest::MD5;
-    use Getopt::Long::Descriptive;
+
 
 =head1 Shrub Database Package
 
@@ -54,17 +52,7 @@ Name of the directory containing the genome repository.
 
 =back
 
-=head3 Global Section Constant
-
-Each section of the database used by the loader corresponds to a single genome.
-The global section is loaded after all the others, and is concerned with data
-not related to a particular genome.
-
-=cut
-
-    # Name of the global section
-    use constant GLOBAL => 'Globals';
-
+=head2 Special Methods
 
 =head3 new
 
@@ -722,37 +710,6 @@ sub ParseFunction {
 }
 
 
-=head2 Configuration Methods
-
-=head3 GlobalSection
-
-    my $flag = $shrub->GlobalSection($name);
-
-Return TRUE if the specified section name is the global section, FALSE
-otherwise.
-
-=over 4
-
-=item name
-
-Section name to test.
-
-=item RETURN
-
-Returns TRUE if the parameter matches the GLOBAL constant, else FALSE.
-
-=back
-
-=cut
-
-sub GlobalSection {
-    # Get the parameters.
-    my ($self, $name) = @_;
-    # Return the result.
-    return ($name eq GLOBAL);
-}
-
-
 =head2 Virtual Methods
 
 =head3 PreferredName
@@ -765,122 +722,6 @@ Return the variable name to use for this database when generating code.
 
 sub PreferredName {
     return 'shrub';
-}
-
-=head3 GetSourceObject
-
-    my $source = $erdb->GetSourceObject();
-
-Return the object to be used in creating load files for this database. The Shrub
-does not have a source object, so we return nothing.
-
-=cut
-
-sub GetSourceObject {
-    my ($self) = @_;
-    return undef;
-}
-
-=head3 SectionList
-
-    my @sections = $erdb->SectionList();
-
-Return a list of the names for the different data sections used when loading this database.
-The default is a single string, in which case there is only one section representing the
-entire database.
-
-=cut
-
-sub SectionList {
-    # Get the parameters.
-    my ($self) = @_;
-    # The section names will be put in here.
-    my @retVal;
-    # Get the name of the section control file.
-    my $controlFileName = ERDBGenerate::CreateFileName("SectionList", undef, 'control', $self->LoadDirectory());
-    # Check to see if it exists.
-    if (-f $controlFileName) {
-        # Yes. Pull out the sections from it.
-        Trace("Reading section list from $controlFileName.") if T(ERDBGenerate => 2);
-        @retVal = Tracer::GetFile($controlFileName);
-    } else {
-        # No, so we have to create it. Get the genome repository's directories.
-        my @genomes = grep { $_ =~ /\d+\.\d+/ } Tracer::OpenDir($self->{repository});
-        @retVal = sort @genomes;
-        # Append the global section.
-        push @retVal, GLOBAL;
-        # Write out the control file with the new sections.
-        Trace("Writing section list to $controlFileName.") if T(ERDBGenerate => 2);
-        Tracer::PutFile($controlFileName, \@retVal);
-    }
-    # Return the section list.
-    return @retVal;
-}
-
-=head3 Loader
-
-    my $groupLoader = $erdb->Loader($groupName, $source, $options);
-
-Return an L<ERDBLoadGroup> object for the specified load group. This method is used
-by L<ERDBGenerator.pl> to create the load group objects. If you are not using
-L<ERDBGenerator.pl>, you don't need to override this method.
-
-=over 4
-
-=item groupName
-
-Name of the load group whose object is to be returned. The group name is
-guaranteed to be a single word with only the first letter capitalized.
-
-=item source
-
-The source object used to access the data from which the load file is derived. This
-is the same object returned by L</GetSourceObject>; however, we allow the caller to pass
-it in as a parameter so that we don't end up creating multiple copies of a potentially
-expensive data structure. It is permissible for this value to be undefined, in which
-case the source will be retrieved the first time the client asks for it.
-
-=item options
-
-Reference to a hash of command-line options.
-
-=item RETURN
-
-Returns an L<ERDBLoadGroup> object that can be used to process the specified load group
-for this database.
-
-=back
-
-=cut
-
-sub Loader {
-    # Get the parameters.
-    my ($self, $groupName, $options) = @_;
-    # Compute the loader name.
-    my $loaderClass = "${groupName}ShrubLoader";
-    # Pull in its definition.
-    require "$loaderClass.pm";
-    # Create an object for it.
-    my $retVal = eval("$loaderClass->new(\$self, \$options)");
-    # Insure it worked.
-    Confess("Could not create $loaderClass object: $@") if $@;
-    # Return it to the caller.
-    return $retVal;
-}
-
-=head3 LoadGroupList
-
-    my @groups = $erdb->LoadGroupList();
-
-Returns a list of the names for this database's load groups. This method is used
-by L<ERDBGenerator.pl> when the user wishes to load all table groups. The default
-is a single group called 'All' that loads everything.
-
-=cut
-
-sub LoadGroupList {
-    # Return the list.
-    return qw(Genome Subsystem Taxonomy Chemistry);
 }
 
 =head3 UseInternalDBD
