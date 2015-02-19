@@ -62,6 +62,15 @@ be copied.
 Name of the output directory for subsystems, or C<undef> if subsystems are
 not to be copied.
 
+=item subGenomes
+
+TRUE if all genomes in a subsystem spreadsheet should be copied when the
+subsystem is processed.
+
+=item blacklist
+
+Reference to a hash of genome IDs. Genomes in this list will never be copied.
+
 =back
 
 =head2 Command-Line Option Groups
@@ -87,7 +96,7 @@ of the subsystems to copy. If omitted, all subsystems in the
 specified SEED will be copied. If C<none>, no subsystems will
 be copied.
 
-=item subgenomes
+=item subGenomes
 
 If specified, all genomes in the spreadsheets of the specified subsystems
 will be copied.
@@ -105,7 +114,7 @@ sub subsys_options {
     return (
             ["subsysDir|s=s", "output directory for subsystem folders", { default => "$FIG_Config::shrub_dir/Inputs/SubSystemData"}],
             ["subsystems=s", "file listing subsystems to copy (default all)"],
-            ["subgenomes", "if specified, all genomes in the spreadsheets of the specified subsystems will be copied"],
+            ["subGenomes", "if specified, all genomes in the spreadsheets of the specified subsystems will be copied"],
             ["subpriv", "if specified, the subsystems copied will be treated as privileged"],
     );
 }
@@ -206,6 +215,16 @@ sub new {
     # not have "subsysDir".)
     $retVal->{genomeOutput} = $opt->{genomedir};
     $retVal->{subsysOutput} = $opt->{subsysdir};
+    # Determine if we are copying all the genomes for each processed subsystem.
+    $retVal->{subGenomes} = ($retVal->{genomeOutput} && $opt->{subgenomes});
+    # Check for a black list.
+    if (! $retVal->{genomeOutput} || ! $opt->blacklist) {
+        # Here there is no genome black list.
+        $retVal->{blacklist} = {};
+    } else {
+        # Here we need to create a hash of the genome IDs in the blacklist file.
+        $retVal->{blacklist} = { map { $_ => 1 } $retVal->GetNamesFromFile($opt->blacklist) };
+    }
     # Return the created object.
     return $retVal;
 }
@@ -226,5 +245,96 @@ sub FreeFidFunctions {
     $self->{functionMap} = {};
     $self->{genomesFunctioned} = {};
 }
+
+=head3 ComputeSubsystems
+
+    my $subList = $loader->ComputeSubsystems();
+
+Compute the list of subsystems to process. The subsystem names will be
+converted to directory format and directories that are not found will be
+eliminated. This method should only be called
+
+=cut
+
+sub ComputeSubsystems {
+    # Get the parameters.
+    my ($self) = @_;
+    # Declare the return variable.
+    my @retVal;
+    # Get the statistics object.
+    my $stats = $self->stats;
+    # Get the command-line options.
+    my $opt = $self->{opt};
+    # Compute the base subsystem directory.
+    my $subBase = "$self->{figDisk}/FIG/Data/Subsystems";
+    # Get the input list of subsystems.
+    my $subFile = $opt->subsystems;
+    my @inputSubs;
+    if ($subFile) {
+        # Get the list of subsystem names from the file.
+        my $subList = $self->GetNamesFromFile($subFile, 'subsystem');
+        print scalar(@$subList) . " subsystem names read from $subFile.\n";
+        # Insure all the subsystems exist.
+        for my $sub (@inputSubs) {
+            # Convert the subsystem name to a directory name.
+            my $dirName = $sub;
+            $dirName =~ tr/ /_/;
+            # Verify the directory.
+            if (! -d "$subBase/$sub") {
+                print "Subsystem $sub not found in SEED.\n";
+                $stats->Add(subsystemNotFound => 1);
+            } elsif (! -f "$subBase/$sub/EXCHANGEABLE") {
+                print "Subsystem $sub is private in SEED.\n";
+                $stats->Add(subsystemPrivate => 1);
+            } elsif (! -f "$subBase/$sub/spreadsheet") {
+                # This is a real subsystem. Save it.
+                push @retVal, $dirName;
+                $stats->Add(subsystemKept => 1);
+            }
+        }
+    } else {
+        # Here we getting all subsystems. Read the directory.
+        @retVal =
+                grep { substr($_,0,1) ne '.' && -f "$subBase/$_/EXCHANGABLE" && -f "$subBase/$_/spreadsheet" } $self->OpenDir($subBase);
+        $stats->Add(subsystemKept => scalar(@retVal));
+        print scalar(@retVal) . " subsystems found in $subBase.\n";
+    }
+    # Return the result.
+    return \@retVal;
+}
+
+=head3 LoadSubsystem
+
+    $loader->LoadSubsystem($sub);
+
+Extract the specified subsystem from the SEED and place its
+exchange-format files in the desired subsystem output directory.
+
+=over 4
+
+=item sub
+
+The directory name of the subsystem to process. (This is essentially
+the subsystem name with spaces converted to underscores.)
+
+=back
+
+=cut
+
+sub LoadSubsystem {
+    # Get the parameters.
+    my ($self, $sub) = @_;
+    # Determine what we're doing with genomes. We may or may
+    # not be loading them right now.
+    my $subGenomeFlag = $self->{subGenomes};
+    # Compute the input directory name.
+    my $subDisk = "$self->{figDisk}/FIG/Data/Subsystems/$sub";
+    # Open the spreadsheet file for input.
+    my $ih = $self->OpenFile("$subDisk/spreadsheet", "spreadsheet-data");
+    # Loop through the roles.
+    ##TODO: Code for LoadSubsystem
+}
+
+
 
 1;

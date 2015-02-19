@@ -51,10 +51,10 @@ L<CopyFromSeed/genome_options> plus the following.
     my $stats = $loader->stats;
     # Compute the list of subsystems to load.
     print "Determining list of subsystems to process.\n";
-    my $subList = ComputeSubsystems($loader);
+    my $subList = $loader->ComputeSubsystems();
     # Loop through the subsystems, loading them.
     for my $sub (@$subList) {
-        LoadSubsystem($sub, $loader);
+        $loader->LoadSubsystem($sub);
     }
     # We no longer need the function hash. Release its memory.
     $loader->FreeFidFunctions();
@@ -71,69 +71,6 @@ L<CopyFromSeed/genome_options> plus the following.
     print "All done.\n" . $stats->Show();
 
 =head2 Subroutines
-
-=head3 ComputeSubsystems
-
-    my $subList = ComputeSubsystems($loader);
-
-Compute the list of subsystems to process. The subsystem names will be
-converted to directory format and directories that are not found will be
-eliminated.
-
-=over 4
-
-=item loader
-
-L<CopyFromSeed> helper object.
-
-=item RETURN
-
-Returns a reference to a list of base subsystem directory names. These are
-essentially the subsystem names with spaces converted to underscores.
-
-=back
-
-=cut
-
-sub ComputeSubsystems {
-    # Get the parameters.
-    my ($loader) = @_;
-    # Declare the return variable.
-    my @retVal;
-
-    ##TODO: Code for ComputeSubsystems
-    # Return the result.
-    return \@retVal;
-}
-
-
-=head3 LoadSubsystem
-
-    LoadSubsystem($sub, $loader);
-
-Extract the specified subsystem from the SEED and place its
-exchange-format files in the desired subsystem output directory.
-
-=over 4
-
-=item sub
-
-The directory name of the subsystem to process. (This is essentially
-the subsystem name with spaces converted to underscores.)
-
-=item loader
-
-L<CopyFromSeed> helper object.
-
-=back
-
-=cut
-
-sub LoadSubsystem {
-    # Get the parameters.
-    my ($sub, $loader) = @_;
-    ##TODO: Code for LoadSubsystem
-}
 
 =head3 FindRemainingGenomes
 
