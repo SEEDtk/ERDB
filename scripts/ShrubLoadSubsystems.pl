@@ -159,7 +159,7 @@ computed from information in the L<FIG_Config> file.
         print scalar(@$subs) . " subsystems read from " . $opt->subsystems . "\n";
     } else {
         # Here we are processing all the subsystems in the subsystem directory.
-        $subs = [ map { Shrub::SubsystemID($_) } grep { -d "$subsysDirectory/$_" } ShrubLoader::OpenDir($subsysDirectory, 1) ];
+        $subs = [ map { Shrub::NormalizedName($_) } grep { -d "$subsysDirectory/$_" } ShrubLoader::OpenDir($subsysDirectory, 1) ];
         print scalar(@$subs) . " subsystems found in repository at $subsysDirectory.\n";
     }
     # Are we clearing?
