@@ -319,22 +319,23 @@ sub ProteinID {
     return $retVal;
 }
 
-=head3 SubsystemID
+=head3 NormalizedName
 
-    my $subID = $shrub->SubsystemID($subName);
+    my $subID = $shrub->NormalizedName($subName);
 
 or
 
-    my $subID = Shrub::SubsystemID($subName);
+    my $subID = Shrub::NormalizedName($subName);
 
-Return the ID of the subsystem with the specified name.
+Return the normalized name of the subsystem with the specified name. A subsystem
+name with underscores for spaces will return the same normalized name as a subsystem
+name with the spaces still in it.
 
 =over 4
 
 =item subName
 
-Name of the relevant subsystem. A subsystem name with underscores for spaces
-will return the same ID as a subsystem name with the spaces still in it.
+Name of the relevant subsystem.
 
 =item RETURN
 
@@ -344,7 +345,7 @@ Returns a normalized subsystem name.
 
 =cut
 
-sub SubsystemID {
+sub NormalizedName {
     # Convert from the instance form of the call to a direct call.
     shift if UNIVERSAL::isa($_[0], __PACKAGE__);
     # Get the parameters.
@@ -413,6 +414,53 @@ sub Feature2Function {
     # Return the computed hash.
     return \%retVal;
 }
+
+=head3 Subsystem2Feature
+
+    my $fidList = $shrub->Subsystem2Feature($fld => $sub);
+
+Return a list of all the features in a single subsystem. The subsystem can be
+identified by name or ID. So, for example
+
+    my $fidList = $shrub->Subsystem2Feature(name => 'Histidine Degradation');
+
+would process the subsystem named C<Histidine Degradation>, while
+
+    my $fidList = $shrub->Subsystem2Feature(id => 'HD1);
+
+would process the subsystem with ID C<HD1>.
+
+=over 4
+
+=item fld
+
+Field being used to identify the subsystem-- C<name> for the subsystem name,
+or C<id> for the subsystem ID.
+
+=item sub
+
+The name or ID of the subsystem of interest.
+
+=item RETURN
+
+Returns a reference to a list of the feature IDs for al the features that have
+been populated in the subsystem.
+
+=back
+
+=cut
+
+sub Subsystem2Feature {
+    # Get the parameters.
+    my ($self, $fld, $sub) = @_;
+    # Read the subsystem features from the database. NOTE that right now the ID and name
+    # are the same field.
+    my @retVal = $self->GetFlat('Subsystem Subsystem2Feature', "Subsystem(id) = ?", [$sub],
+            'Subsystem2Feature(to-link)');
+    # Return the result.
+    return \@retVal;
+}
+
 
 =head2 Public Constants
 

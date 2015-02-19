@@ -17,12 +17,19 @@
 # http://www.theseed.org/LICENSE.TXT.
 #
 
+=head1 System Status Test Script
+
+This script is used to debug problems with library includes. It displays the
+PERL library search paths followed by a dump of a hash that displays where every
+included module was found.
+
+=cut
+
     use strict;
     use Shrub;
     use ScriptUtils;
-    use Data::UUID;
+    use Data::Dumper;
 
-    my $suffix = '';
-    for (my $i = 0; $i < 10; $i++) {
+    print join("\n", @INC, "");
+    print Dumper(\%INC);
 
-    }
