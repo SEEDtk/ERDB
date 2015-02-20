@@ -23,6 +23,8 @@ package CopyFromSeed;
     use base qw(RepoLoader);
     use File::Path;
     use File::Copy::Recursive;
+    use MD5Computer;
+    use BasicLocation;
 
 =head1 CopyFromSeed Helper Object
 
@@ -209,7 +211,7 @@ sub new {
     # Get the output directories. We use hash notation rather than the member facility of $opt
     # in case the option was not defined by the client. (For example, a genome copy script would
     # not have "subsysDir".)
-    my $genomeOption = $opt->{genomeDir};
+    my $genomeOption = $opt->{genomedir};
     if (! $genomeOption || $genomeOption eq 'none') {
         $retVal->{genomeOutput} = undef;
     } else {
@@ -332,11 +334,17 @@ sub CopySubsystem {
     # If we're writing, set up the output files.
     if ($self->{subsysOutput}) {
         my $outDir = "$self->{subsysOutput}/$sub";
+        # Insure the output directory exists.
+        if (! -d $outDir) {
+            print "Creating $outDir\n";
+            File::Path::make_path($outDir);
+            $stats->Add('subsystem-directory-created' => 1);
+        }
         open($rh, ">$outDir/Roles") || die "Cannot open Roles output file: $!";
         open($gh, ">$outDir/GenomesInSubsys") || die "Cannot open GenomesInSubsys file: $!";
         open($ph, ">$outDir/PegsInSubsys") || die "Cannot open PegsInSubsys file: $!";
         # Now create the metafile. We start with the subsystem's privilege status.
-        my %metaHash = ( privilege => $self->{opt}->subpriv );
+        my %metaHash = ( privilege => $self->{opt}->subpriv ? 1 : 0);
         # Next read the version. If there is no version we default to 1.
         $metaHash{version} = ReadFlagFile("$subDisk/VERSION") // 1;
         # Now write the metafile.
@@ -355,10 +363,12 @@ sub CopySubsystem {
         } else {
             # Here we have a real role. Write it to the roles file.
             $self->PutLine('role', $rh, @$roleData);
+            # Save the abbreviation.
+            push @roleAbbrs, $roleData->[0];
         }
     }
-    # Skip over the next two sections of the input file.
-    my $marksLeft = 2;
+    # Skip over the next section of the input file.
+    my $marksLeft = 1;
     while (! eof $ih && $marksLeft) {
         my $line = <$ih>;
         $stats->Add('spreadsheet-skip-line' => 1);
@@ -379,7 +389,7 @@ sub CopySubsystem {
         # Are we writing the subsystem?
         if ($gh) {
             # Yes. Check to see if we want to keep this variant.
-            if ($variant =~ /\*?-1/) {
+            if ($variant =~ /^\*?-1/) {
                 # It's vacant, so we are skipping it.
                 $stats->Add(vacantVariantSkipped => 1);
             } else {
@@ -481,7 +491,7 @@ sub CopyGenome {
         } else {
             # Now find out if this genome is prokaryotic. If we don't know
             # for sure, then it isn't.
-            my $taxonomy = $self->ReadFlagFile("$genomeDir/TAXONOMY");
+            my $taxonomy = ReadFlagFile("$genomeDir/TAXONOMY");
             my $prokFlag = ($taxonomy && $taxonomy =~ /^Archaea|Bacteria/);
             if ($opt->proks && ! $prokFlag) {
                 # Here we are only loading proks and this isn't one, so we
@@ -504,7 +514,7 @@ sub CopyGenome {
                 # Create the path.
                 my $outDir = join("/", $outRepo, $genus, $species, $genome);
                 if (! -d $outDir) {
-                    File::Path->make_path($outDir);
+                    File::Path::make_path($outDir);
                     $stats->Add('genome-dir-created' => 1);
                 }
                 # Get the privilege level.
@@ -516,7 +526,7 @@ sub CopyGenome {
                 my %metaHash = (md5 => $md5, name => $genomeName, type => $privilege,
                         prokaryotic => $prokFlag);
                 # Look for a taxonomy ID.
-                my $taxID = $self->ReadFlagFile("$genomeDir/TAXONOMY_ID");
+                my $taxID = ReadFlagFile("$genomeDir/TAXONOMY_ID");
                 if (defined $taxID) {
                     $metaHash{taxID} = $taxID;
                 } else {
@@ -529,7 +539,7 @@ sub CopyGenome {
                 # Now create the peg-info file.
                 open(my $ph, ">$outDir/peg-info") || die "Could not open peg-info for output: $!";
                 # Read the peg features.
-                $self->ProcessFeature($genomeDir, 'peg', $ph, $funHash);
+                $self->ProcessFeatures($genomeDir, 'peg', $ph, $funHash);
                 # Close the peg-info file.
                 close $ph;
                 # Now we want to copy the protein translations.
@@ -550,7 +560,7 @@ sub CopyGenome {
                         $self->OpenDir("$genomeDir/Features");
                 for my $ftype (@ftypes) {
                     $stats->Add('non-peg-type' => 1);
-                    $self->ProcessFeature($genomeDir, $ftype, $nh, $funHash);
+                    $self->ProcessFeatures($genomeDir, $ftype, $nh, $funHash);
                 }
             }
         }
@@ -561,9 +571,9 @@ sub CopyGenome {
 }
 
 
-=head3 ProcessFeature
+=head3 ProcessFeatures
 
-    $self->ProcessFeature($genomeDir, $ftype, $oh, \%funHash);
+    $self->ProcessFeatures($genomeDir, $ftype, $oh, \%funHash);
 
 Process the feature information for the specified feature type. The
 deleted features are read first, then the feature table is read. The
@@ -594,9 +604,10 @@ Reference to a hash mapping feature IDs to functional assignments.
 
 =cut
 
-sub ProcessFeature {
+sub ProcessFeatures {
     # Get the parameters.
     my ($self, $genomeDir, $ftype, $oh, $funHash) = @_;
+    print "Processing $ftype features.\n";
     # Get the statistics object.
     my $stats = $self->stats;
     # Compute the input directory.
@@ -606,8 +617,8 @@ sub ProcessFeature {
     my %fids;
     # Look for a deleted features file.
     my %deleted;
-    if (-f "$inputDir/deleted.fids") {
-        my $dels = $self->GetNamesFromFile("deleted-$ftype" => "$inputDir/deleted.fids");
+    if (-f "$inputDir/deleted.features") {
+        my $dels = $self->GetNamesFromFile("deleted-$ftype" => "$inputDir/deleted.features");
         %deleted = map { $_ => } @$dels;
         $stats->Add(deletedFids => scalar keys %deleted);
     }
@@ -628,13 +639,17 @@ sub ProcessFeature {
     }
     # Merge the functions into the location map to produce the output.
     for my $fid (sort keys %fids) {
+        # Get the functional assignment.
         my $function = $funHash->{$fid};
         if (! defined $function) {
             $stats->Add("$ftype-function-not-found" => 1);
             $function = '';
-        } else {
-            $self->PutLine("$ftype-line" => $oh, $fid, $fids{$fid}, $function);
         }
+        # We need to normalize the location strings. Convert them to location objects.
+        my @locs = map { BasicLocation->new($_) } split /\s*,\s*/, $fids{$fid};
+        my $locString = join(",", map { $_->String } @locs);
+        # Output the ID, location, and function.
+        $self->PutLine("$ftype-line" => $oh, $fid, $locString, $function);
     }
 }
 
