@@ -35,8 +35,9 @@ ready for loading into Shrub.
 The single positional parameter is the location of the SEED FIGdisk
 directory.
 
-The command-line options are those found in L<CopyFromSeed/subsys_options> and
-L<CopyFromSeed/genome_options>.
+The command-line options are those found in L<CopyFromSeed/subsys_options>,
+L<CopyFromSeed/genome_options>, and L<CopyFromSeed/common_options>.
+
 
 =cut
 
@@ -45,7 +46,8 @@ L<CopyFromSeed/genome_options>.
     $| = 1; # Prevent buffering on STDOUT.
     # Get the command-line parameters.
     my $opt = ScriptUtils::Opts('fig_disk', CopyFromSeed::subsys_options(),
-            CopyFromSeed::genome_options());
+            CopyFromSeed::genome_options(), CopyFromSeed::common_options(),
+    );
     # Get a helper object and the associated statistics object.
     my $loader = CopyFromSeed->new($opt, $ARGV[0]);
     my $stats = $loader->stats;
@@ -65,6 +67,8 @@ L<CopyFromSeed/genome_options>.
     for my $genome (@$genomeList) {
         $loader->CopyGenome($genome);
     }
+    # If we have genome output, create the genome index.
+    $loader->IndexGenomes();
     # Compute the total time.
     my $timer = time - $startTime;
     $stats->Add(totalTime => $timer);

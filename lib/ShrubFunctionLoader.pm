@@ -46,7 +46,7 @@ L<ShrubLoader> object used to access the database and the hash tables.
 
 =head3 new
 
-    my $funcLoader = ShrubFunctionLoader->new($loader);
+    my $funcLoader = ShrubFunctionLoader->new($loader, %options);
 
 Construct a new Shrub function loader object and initialize the hash tables.
 
@@ -56,18 +56,53 @@ Construct a new Shrub function loader object and initialize the hash tables.
 
 L<ShrubLoader> object to be used to access the database and the load utility methods.
 
+=item options
+
+A hash of options relating to this object. The following keys are supported.
+
+=over 8
+
+=item rolesOnly
+
+If TRUE, functions will not be processed. The function hash will not be
+created and the function tables will not be opened for loading. The default
+is FALSE.
+
+=item slow
+
+If TRUE, tables will be loaded with individual inserts instead of file loading
+when the L<ShrubLoader> object is closed.
+
+=back
+
 =back
 
 =cut
 
 sub new {
     # Get the parameters.
-    my ($class, $loader) = @_;
+    my ($class, $loader, %options) = @_;
     # Create the object.
     my $retVal = { loader => $loader };
-    # Load the function and role tables into memory.
-    $loader->CreateTableHash('Function', 'checksum');
+    # Determine if this is slow mode.
+    my $slowMode = $options{slow};
+    # Are we processing functions?
+    if (! $options{rolesOnly}) {
+        # Yes. Load the function table into memory.
+        $loader->CreateTableHash('Function', 'checksum');
+        # Prepare to load the function-related tables.
+        if (! $slowMode) {
+            # This causes inserts to be spooled into files
+            # for loading when the loader object is closed.
+            $loader->Open(qw(Function Function2Role));
+        }
+    }
+    # Load the role table into memory.
     $loader->CreateTableHash('Role', 'checksum');
+    # Prepare to load the role table.
+    if (! $slowMode) {
+        $loader->Open('Role');
+    }
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;

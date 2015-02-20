@@ -59,7 +59,8 @@ Otherwise, the index file will be read if present.
 
 =item RETURN
 
-Returns a reference to a hash mapping genome IDs to directory names.
+Returns a reference to a hash mapping genome IDs to 2-tuples consisting of (0) the directory name
+and (1) the genome name.
 
 =back
 
@@ -80,8 +81,8 @@ sub FindGenomeList {
             # We have the index file. Read the genomes from it.
             print "Reading genome index for $repository.\n";
             while (my $fields = $self->GetLine(GenomeIndex => $ih)) {
-                my ($genome, undef, $dir) = @$fields;
-                $retVal{$genome} = "$repository/$dir";
+                my ($genome, $name, $dir) = @$fields;
+                $retVal{$genome} = ["$repository/$dir", $name];
             }
             # Denote we've loaded from the index.
             $indexUsed = 1;
@@ -97,7 +98,7 @@ sub FindGenomeList {
             my $dir = pop @dirs;
             # Retrieve all the subdirectories. This is a filtered search, so "." and ".." are skipped
             # automatically.
-            my @subDirs = grep { -d "$dir/$_" } OpenDir($dir, 1);
+            my @subDirs = grep { -d "$dir/$_" } $self->OpenDir($dir, 1);
             # Loop through the subdirectories.
             for my $subDir (@subDirs) {
                 # Compute the directory name.
@@ -214,6 +215,7 @@ sub IndexGenomes {
     }
     # Close the output file.
     close $oh;
+    print "Genome directory index created.\n";
 }
 
 1;

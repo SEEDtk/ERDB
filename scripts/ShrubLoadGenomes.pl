@@ -34,12 +34,6 @@ as well as the following.
 
 =over 4
 
-=item privilege
-
-Privilege level (0, 1, or 2). The function assignments will be added at the specified privilege
-level and all levels below it and the subsystems are given the specified privilege level. The default
-is C<0>, indicating unprivileged subsystems and assignments.
-
 =item slow
 
 Load the database with individual inserts instead of a table load.
@@ -50,7 +44,7 @@ Load only genomes that are not already in the database.
 
 =item clear
 
-Truncate the tables before loading.
+Re-create the tables before loading.
 
 =item genomes
 
@@ -81,7 +75,6 @@ computed from information in the L<FIG_Config> module.
     use ShrubFunctionLoader;
     use ShrubGenomeLoader;
     use File::Path ();
-    use File::Copy ();
     use ScriptUtils;
 
     # This is the list of tables we are loading.
@@ -94,7 +87,6 @@ computed from information in the L<FIG_Config> module.
     $| = 1; # Prevent buffering on STDOUT.
     # Process the command line.
     my $opt = ScriptUtils::Opts('genomeDirectory genome1 genome2 ...', Shrub::script_options(),
-            ["privilege|p=i", "privilege level for assignments", { default => 0 }],
             ["slow|s", "use individual inserts rather than table loads"],
             ["genomes=s", "name of a file containing a list of the genomes to load"],
             ["missing|m", "only load genomes not already in the database"],
@@ -120,7 +112,7 @@ computed from information in the L<FIG_Config> module.
         die "Invalid genome directory $genomeDir.";
     }
     # Get the list of genomes to load. We will store it in $genomeHash, as a hash mapping
-    # genome IDs to directories.
+    # genome IDs to [directory,name] pairs.
     print "Reading genome repository.\n";
     my $genomeHash = $loader->FindGenomeList($genomeDir);
     if ($opt->all) {
@@ -133,7 +125,7 @@ computed from information in the L<FIG_Config> module.
         # First, do we have a list file?
         if ($opt->genomes) {
             # Yes. Get the genomes in the list.
-            my $genomeData = $loader->GetNamesFromFile(genomes => $opt->genomes);
+            my $genomeData = $loader->GetNamesFromFile(genome => $opt->genomes);
             push @$genomeList, @$genomeData;
         }
         # Now run through the genome list. If one of them is not in the repository, throw an error.
@@ -150,16 +142,14 @@ computed from information in the L<FIG_Config> module.
         # Save the genome map.
         $genomeHash = \%genomeMap;
     }
-    # Now "$genomeHash" contains a hash mapping the genomes we want to process to their directories.
+    # Now "$genomeHash" contains a hash mapping the genomes we want to process to their directories and names.
+    # We only need the directories, so we get rid of the names.
+    for my $genome (keys %$genomeHash) {
+        $genomeHash->{$genome} = $genomeHash->{$genome}[0];
+    }
     print "Initializing function and role tables.\n";
     # Create the function loader utility object.
-    my $funcLoader = ShrubFunctionLoader->new($loader);
-    # Extract the privilege level.
-    my $priv = $opt->privilege;
-    if ($priv > Shrub::MAX_PRIVILEGE || $priv < 0) {
-        die "Invalid privilege level $priv.";
-    }
-    print "Privilege level is $priv.\n";
+    my $funcLoader = ShrubFunctionLoader->new($loader, slow => $opt->slow);
     # Are we clearing?
     if ($opt->clear) {
         # Yes. The MISSING option is invalid.
@@ -180,7 +170,7 @@ computed from information in the L<FIG_Config> module.
     }
     # The next step is to resolve collisions. The following method will check for duplicate genomes and
     # delete existing genomes that conflict with the incoming ones. At the end, $genomeMeta will be a
-    # hash mapping the ID of each genome we need to process to it metadata.
+    # hash mapping the ID of each genome we need to process to its metadata.
     my $genomeMeta = $genomeLoader->CurateNewGenomes($genomeHash, $opt->missing, $opt->clear);
     # These variables will be used to display progress.
     my ($gCount, $gTotal) = (0, scalar(keys %$genomeMeta));
@@ -195,22 +185,20 @@ computed from information in the L<FIG_Config> module.
              print "Processing $genome ($gCount of $gTotal).\n";
              # Get the input repository directory.
              my $genomeLoc = $genomeHash->{$genome};
-             # Parse the genome name.
-             my ($genus, $species) = split /\s+/, $metaHash->{name};
              # Form the repository directory for the DNA.
-             my $relPath = "$genus/species";
-             my $absPath = "$dnaRepo/$genus/$species";
+             my $relPath = $loader->RepoPath($metaHash->{name});
+             my $absPath = "$dnaRepo/$relPath";
              if (! -d $absPath) {
                  print "Creating directory $relPath for DNA file.\n";
                  File::Path::make_path($absPath);
              }
-             print "Copying contig file.\n";
-             File::Copy::copy("$genomeLoc/contigs", "$absPath/$genome.fa") ||
-                 die "Could not copy contig file from $genomeLoc: $!";
              # Now we read the contig file and analyze the DNA for gc-content, number
-             # of bases, and the list of contigs.
+             # of bases, and the list of contigs. We also copy it to the output
+             # repository.
              print "Analyzing contigs.\n";
-             my ($contigList, $genomeHash) = $genomeLoader->AnalyzeContigFasta("$absPath/$genome.fa");
+             my ($contigList, $genomeHash) = $genomeLoader->AnalyzeContigFasta("$genomeLoc/contigs", "$absPath/$genome.fa");
+             # Get the annotation privilege level for this genome.
+             my $priv = $metaHash->{privilege};
              # Now we can create the genome record.
              print "Storing $genome in database.\n";
              $loader->InsertObject('Genome', id => $genome, %$genomeHash,

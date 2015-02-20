@@ -547,7 +547,7 @@
         </Relationship>
         <Relationship name="Subsystem2Role" from="Subsystem" to="Role"
             arity="MM" converse="Role2Subsystem">
-            <DisplayInfo theme="blue" caption="Subnsystem\nto Role" />
+            <DisplayInfo theme="blue" caption="Subsystem\nto Role" />
             <Notes>This relationship connects a subsystem to its constituent
             roles. The relationship specifies the role abbreviation and its
             ordinal position in the subsystem path.</Notes>

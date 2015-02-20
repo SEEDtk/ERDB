@@ -25,6 +25,7 @@ package ShrubLoader;
     use SeedUtils;
     use Digest::MD5;
     use Carp;
+    use Data::UUID;
 
 =head1 Shrub Load Utilities
 
@@ -54,7 +55,7 @@ they were passed in to L</Open>.
 =item hashes
 
 Reference to a hash mapping entity names to hashes that cache the content of the entity. The entity must
-be of the type that stores a string that is identified by an autonumber ID. For each entity, this hash
+be of the type that stores a string that is identified by a UUID. For each entity, this hash
 contains the unqualified name of the text field and a sub-hash that maps MD5s of the text field to IDs.
 If the string is already in the database, the hash can be used to retrieve the ID; otherwise, we know
 we need to add the string to the database.
@@ -62,6 +63,10 @@ we need to add the string to the database.
 =item replaces
 
 Reference to a hash containing the names of the tables being inserted in replace mode.
+
+=item uuid
+
+L<Data::UUID> object for generating new IDs.
 
 =back
 
@@ -95,6 +100,8 @@ sub new {
     $retVal->{tables} = {};
     $retVal->{replaces} = {};
     $retVal->{tableList} = [];
+    # Create the UUID generator.
+    $retVal->{uuid} = Data::UUID->new();
     # Return the completed object.
     return $retVal;
 }
@@ -117,14 +124,15 @@ sub db {
 
 =head2 Database Utility Methods
 
-=head3 Check
 
-    my $found = $loader->Check($entity, $id, $entityHash);
+=head3 CheckByName
 
-Check to determine if a particular entity instance is in the database. This task is normally performed
-by the L<ERDB/Exists> function. In this case, the caller can optionally specify a reference to a hash
-containing all the IDs in the database, to improve performance. If the hash is not present, this method
-falls back to the B<Exists> call.
+    my $id = $loader->CheckByName($entity, $field => $name, $entityHash);
+
+Check to determine if a particular entity instance is in the database. This is similar to L<ERDB/Exists> except
+the check is performed based on a unique name field instead of the ID field and the caller can
+optionally specify a reference to a hash that maps names to IDs. If this is the case, the hash
+will be used instead of the database. The return value is the named instance's ID.
 
 =over 4
 
@@ -132,38 +140,105 @@ falls back to the B<Exists> call.
 
 Name of the entity to check.
 
+=item field
+
+Name of the field containing the names of the entity instances.
+
 =item id
 
-ID of the instance for which to look.
+Name of the instance for which to look.
 
 =item entityHash
 
-If specified, a reference to a hash whose keys are all the IDs of the entity in the database.
-If unspecified, the database will be interrogated directly.
+If specified, a reference to a hash whose keys are all the names of the entity in the database
+and which maps those names to IDs. If unspecified, the database will be interrogated directly.
 
 =item RETURN
 
-Returns TRUE if an entity instance exists with the specified, ID, else FALSE.
+Returns the ID of the named entity instance, or C<undef> if the entity instance does not
+exist.
 
 =back
 
 =cut
 
-sub Check {
+sub CheckByName {
     # Get the paramteers.
-    my ($self, $entity, $id, $entityHash) = @_;
+    my ($self, $entity, $field, $name, $entityHash) = @_;
     # This will be the return value.
     my $retVal;
     # Do we have a hash?
     if ($entityHash) {
         # Yes, check it.
-        $retVal = $entityHash->{$id};
+        $retVal = $entityHash->{$name};
     } else {
         # No, check the database.
-        $retVal = $self->{shrub}->Exists($entity => $id);
+        ($retVal) = $self->{shrub}->GetFlat($entity, "$entity($field) = ?", [$name], 'id');
+    }
+    # Return the ID found (if any).
+    return $retVal;
+}
+
+
+=head3 CheckCached
+
+    my $found = $loader->CheckCached($entity => $id, $cache);
+
+This method checks to see if the entity instance with the specified ID can be found
+in the database. The results of the check will be cached in a client-provided hash
+reference to improve performance on future checks.
+
+=over 4
+
+=item entity
+
+The name of the entity type whose instances are to be checked.
+
+=item id
+
+The ID of the entity instance whose existence is in question.
+
+=item cache
+
+Reference to a hash that can be used to improve performance.
+
+=item RETURN
+
+Returns TRUE if the entity instance is in the database, else FALSE.
+
+=back
+
+=cut
+
+sub CheckCached {
+    # Get the parameters.
+    my ($self, $entity, $id, $cache) = @_;
+    # This will be set to TRUE if we confirm the entity instance is in the database.
+    my $retVal = $cache->{$id};
+    # Was there a result in the cache?
+    if (! defined $retVal) {
+        # No, check the database.
+        $retVal = $self->db->Exists($entity => $id);
+        # Save the result in the cache. Note that we can't allow
+        # undef, since that's how we detect missing values.
+        $cache->{$id} = ($retVal ? 1 : 0);
     }
     # Return the determination indicator.
     return $retVal;
+}
+
+
+=head3 NewID
+
+    my $uuid = $loader->NewID();
+
+Return a new UUID. Currently, this is simply a pass-through call to the internal
+UUID generator, but it may become more complex if we devise a new scheme.
+
+=cut
+
+sub NewID {
+    return $_[0]->{uuid}->new();
 }
 
 
@@ -174,7 +249,8 @@ sub Check {
     my $tableHash = $loader->CreateTableHash($table, $textField);
 
 Create a hash table that maps checksums to IDs. The checksums are taken from a named field in an entity object,
-which should be unqualified (i.e. C<sequence> instead of C<Protein(sequence))>).
+which should be unqualified (i.e. C<sequence> instead of C<Protein(sequence))>). This facility
+is designed for tables with UUID keys.
 
 =over 4
 
@@ -227,9 +303,9 @@ sub CreateTableHash {
 
     my ($id, $newFlag) = $loader->InsureTable($table, %fields);
 
-This is a wrapper for the L<ERDB/InsertNew> method that first checks the cache created by L</CreateTableHash>.
-If the specified entity does not exist, it is inserted into the database. Otherwise, its ID is returned from
-the hash.
+This is a wrapper for the L<InsertObject> method that first checks the cache created by L</CreateTableHash>.
+If the specified entity does not exist, and ID is created and the record is inserted into the database.
+Otherwise, its ID is returned from the hash.
 
 =over 4
 
@@ -276,8 +352,9 @@ sub InsureTable {
             # We found it, we're done.
             $stats->Add("$table-foundRecord" => 1);
         } else {
-            # We need to add a record.
-            $retVal = $shrub->InsertNew($table, %fields);
+            # We need to add a record. Compute a UUID.
+            $retVal = $self->NewID();
+            $self->InsertObject($table, id => $retVal, %fields);
             $stats->Add("$table-newRecord" => 1);
             # Update the hash.
             $hashTable->{$textValue} = $retVal;

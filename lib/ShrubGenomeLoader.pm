@@ -164,7 +164,7 @@ sub CurateNewGenomes {
         # Read the metadata.
         my $metaHash = $loader->ReadMetaData("$genomeDir/genome-info", required => [qw(name md5 type)]);
         # Is this a core genome?
-        if ($metaHash->{type} eq 'c') {
+        if ($metaHash->{privilege} eq Shrub::PRIV()) {
             # Set the core flag to 1 (true) and store the genome in the core list.
             $metaHash->{type} = 1;
             push @genomes, $genome;
@@ -238,17 +238,21 @@ sub CurateNewGenomes {
 
 =head3 AnalyzeContigFasta
 
-    my ($contigList, $genomeHash) = $genomeLoader->AnalyzeContigFasta($fileName);
+    my ($contigList, $genomeHash) = $genomeLoader->AnalyzeContigFasta($inFile, $fileName);
 
 Read and analyze the contig FASTA for a genome. This method computes the length, GC count, ID, and
 MD5 for each contig in the FASTA file and returns the information in a list of hashes along with
-a hash of global data for the genome.
+a hash of global data for the genome. It also copies the contig file to the DNA repository.
 
 =over 4
 
-=item fileName
+=item inFile
 
 Name of the file containing the contig sequences in FASTA format.
+
+=item fileName
+
+Output location in the DNA repository for the contig FASTA.
 
 =item RETURN
 
@@ -300,13 +304,15 @@ sequence.
 
 sub AnalyzeContigFasta {
     # Get the parameters.
-    my ($self, $fileName) = @_;
+    my ($self, $inFile, $fileName) = @_;
     # Get the loader object.
     my $loader = $self->{loader};
     # Get the statistics object.
     my $stats = $loader->stats;
     # Open the contig file.
-    my $ih = $loader->OpenFile(contig => $fileName);
+    my $ih = $loader->OpenFile(contig => $inFile);
+    # Open the output file.
+    open(my $oh, ">$fileName") || die "Could not open contig output file $fileName: $!";
     # Create the return variables.
     my (@contigList, %genomeHash);
     # Initialize the MD5 computer.
@@ -324,12 +330,16 @@ sub AnalyzeContigFasta {
         # Here we have an invalid header.
         die "Invalid header in contig FASTA $fileName";
     } else {
+        # Echo the line to the output.
+        print $oh $line;
         # Initialize the contig hash with the ID.
         my $contigHash = $self->_InitializeContig($1);
         $stats->Add(contigHeaders => 1);
         # Loop through the FASTA file.
         while (! eof $ih) {
+            # Read the next line and write it out.
             my $line = <$ih>;
+            print $oh $line;
             # Is this a contig header?
             if ($line =~ /^>(\S+)/) {
                 # Yes. Close the old contig and start a new one.

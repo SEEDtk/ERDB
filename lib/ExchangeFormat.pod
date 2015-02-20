@@ -40,6 +40,10 @@ The version number of the subsystem.
 C<0> if the subsystem is public (can be edited by all users) or C<1> if it is privileged (can
 only be edited by privileged users).
 
+=item row-privilege
+
+The privilege level of the annotations from which the subsystem was constructed.
+
 =back
 
 =item Roles
@@ -52,13 +56,13 @@ the role abbreviation and the second (1) is the role description (that is, the s
 This is a tab-delimited file listing the genomes in which the subsystem is implemented. (In general,
 not all implementations will be in here, only the ones interesting enough to be in the main
 subsystem spreadsheet). The first column (0) is the genome ID, the second (1) is the genome name,
-and the third (2) is the variant code.
+the third (2) is the variant code, and the fourth (3) is the row number.
 
 =item PegsInSubsys
 
 This is a tab-delimited file listing the features in the subsystem spreadsheet. The first column (0)
-is the feature ID and, the second (1) is the role abbreviation, and the third (2) is the role
-description.
+is the feature ID and, the second (1) is the role abbreviation, the third (2) is the role
+description, and the fourth (3) is the row number.
 
 =back
 
