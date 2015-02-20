@@ -306,7 +306,7 @@ sub AnalyzeContigFasta {
     # Get the statistics object.
     my $stats = $loader->stats;
     # Open the contig file.
-    my $ih = $loader->OpenFile($fileName, 'contig');
+    my $ih = $loader->OpenFile(contig => $fileName);
     # Create the return variables.
     my (@contigList, %genomeHash);
     # Initialize the MD5 computer.

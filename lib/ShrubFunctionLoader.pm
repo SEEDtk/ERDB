@@ -248,9 +248,9 @@ sub ConnectPegFunctions {
     my $stats = $loader->stats;
     # Open the genome's protein FASTA.
     print "Processing $genome peg functions.\n";
-    my $fh = $loader->OpenFasta("$genomeDir/peg-trans", 'protein');
+    my $fh = $loader->OpenFasta(protein => "$genomeDir/peg-trans");
     # Loop through the proteins.
-    while (my $protDatum = $loader->GetLine($fh, 'protein')) {
+    while (my $protDatum = $loader->GetLine(protein => $fh)) {
         my ($pegId, undef, $seq) = @$protDatum;
         my $funcData = $gPegHash->{$pegId};
         # Are we interested in this protein?
@@ -314,11 +314,11 @@ sub ReadFeatures {
     # Get the statistics object.
     my $stats = $loader->stats;
     # Open the file for input.
-    my $ih = $loader->OpenFile($fileName, 'feature');
+    my $ih = $loader->OpenFile(feature => $fileName);
     # The return hash will be built in here.
     my %retVal;
     # Loop through the feature file.
-    while (my $featureDatum = $loader->GetLine($ih, 'feature')) {
+    while (my $featureDatum = $loader->GetLine(feature => $ih)) {
         # Get the feature elements.
         my ($fid, $locString, $function) = @$featureDatum;
         # Create a list of location objects from the location string.

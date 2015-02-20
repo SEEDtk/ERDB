@@ -1,5 +1,8 @@
+## This is a few generations old and is currently only provided to be cannibalized for creating the new version.
+
 use Data::Dumper;
 use strict;
+no warnings 'once';
 
 my @time = localtime();
 my $yyyy = $time[5] + 1900;

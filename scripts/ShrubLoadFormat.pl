@@ -61,7 +61,7 @@ related to the entities will be displayed.
     # Get the list of entities of interest.
     my $entities = {};
     if ($opt->entities) {
-        $entities = { map { $_ => $entityHash->{$_} } $loader->GetNamesFromFile($opt->entities, 'entity name') };
+        $entities = { map { $_ => $entityHash->{$_} } $loader->GetNamesFromFile('entity name' => $opt->entities) };
     } else {
         $entities = \%$entityHash;
     }

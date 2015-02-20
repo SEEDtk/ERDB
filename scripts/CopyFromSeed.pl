@@ -36,7 +36,7 @@ The single positional parameter is the location of the SEED FIGdisk
 directory.
 
 The command-line options are those found in L<CopyFromSeed/subsys_options> and
-L<CopyFromSeed/genome_options> plus the following.
+L<CopyFromSeed/genome_options>.
 
 =cut
 
@@ -53,16 +53,17 @@ L<CopyFromSeed/genome_options> plus the following.
     print "Determining list of subsystems to process.\n";
     my $subList = $loader->ComputeSubsystems();
     # Loop through the subsystems, loading them.
+    print "Processing subsystems.\n";
     for my $sub (@$subList) {
-        $loader->LoadSubsystem($sub);
+        $loader->CopySubsystem($sub);
     }
-    # We no longer need the function hash. Release its memory.
-    $loader->FreeFidFunctions();
     # Determine the remaining genomes.
     print "Determining list of genomes to process.\n";
-    my $genomeList = FindRemainingGenomes($loader);
+    my $genomeList = $loader->ComputeGenomes();
+    # Loop through the genomes, loading them.
+    print "Processing genomes.\n";
     for my $genome (@$genomeList) {
-        LoadGenome($genome, $loader);
+        $loader->CopyGenome($genome);
     }
     # Compute the total time.
     my $timer = time - $startTime;
@@ -70,64 +71,3 @@ L<CopyFromSeed/genome_options> plus the following.
     # Tell the user we're done.
     print "All done.\n" . $stats->Show();
 
-=head2 Subroutines
-
-=head3 FindRemainingGenomes
-
-    my $genomeList = FindRemainingGenomes($loader);
-
-Return a list of the genomes still to be processed. Some genomes are
-loaded while processing subsystems, and these are tracked in the
-L<CopyFromSeed> object. This method gets the full list of genomes to
-process and subtracts the ones already loaded.
-
-=over 4
-
-=item loader
-
-L<CopyFromSeed> helper object.
-
-=item RETURN
-
-Returns a reference to a list of genome IDs for the genomes to process.
-
-=back
-
-=cut
-
-sub FindRemainingGenomes {
-    # Get the parameters.
-    my ($loader) = @_;
-    # Declare the return variable.
-    my $retVal;
-    ##TODO: Code for FindRemainingGenomes
-    # Return the result.
-    return $retVal;
-}
-
-=head3 LoadGenome
-
-    LoadGenome($genome, $loader);
-
-Extract a genome from the SEED directories and deposit its
-exchange-format files in the designated genome output directory.
-
-=over 4
-
-=item genome
-
-ID of the genome to process.
-
-=item loader
-
-L<CopyFromSeed> helper object.
-
-=back
-
-=cut
-
-sub LoadGenome {
-    # Get the parameters.
-    my ($genome, $loader) = @_;
-    ##TODO: Code for LoadGenome
-}

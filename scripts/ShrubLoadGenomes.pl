@@ -133,7 +133,7 @@ computed from information in the L<FIG_Config> module.
         # First, do we have a list file?
         if ($opt->genomes) {
             # Yes. Get the genomes in the list.
-            my $genomeData = $loader->GetNamesFromFile($opt->genomes, 'genome');
+            my $genomeData = $loader->GetNamesFromFile(genomes => $opt->genomes);
             push @$genomeList, @$genomeData;
         }
         # Now run through the genome list. If one of them is not in the repository, throw an error.

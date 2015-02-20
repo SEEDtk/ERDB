@@ -92,6 +92,14 @@ optional) comments.
 The privilege level of the genome's annotations-- C<0> for public (unprivileged),
 C<1> for projected, and C<2> for privileged.
 
+=item prokaryotic
+
+C<1> if this is a prokaryotic genome, else C<0>.
+
+=item taxid
+
+The genome's taxonomy ID (if known).
+
 =back
 
 =item non-peg-info

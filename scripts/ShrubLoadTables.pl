@@ -71,7 +71,7 @@ specified in the positional parameters.
     # Check for a list file.
     if ($opt->objects) {
         # We have one. Read in the names from it.
-        push @objects, $loader->GetNamesFromFile($opt->objects, 'table');
+        push @objects, $loader->GetNamesFromFile(table => $opt->objects);
     }
     # Insure we have something to do.
     if (! scalar @objects) {

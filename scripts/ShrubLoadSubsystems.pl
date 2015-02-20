@@ -155,7 +155,7 @@ computed from information in the L<FIG_Config> file.
     my $subs;
     if ($opt->subsystems) {
         # Here we have a subsystem list.
-        $subs = $loader->GetNamesFromFile($opt->subsystems, "subsystem");
+        $subs = $loader->GetNamesFromFile(subsystem => $opt->subsystems);
         print scalar(@$subs) . " subsystems read from " . $opt->subsystems . "\n";
     } else {
         # Here we are processing all the subsystems in the subsystem directory.
@@ -196,7 +196,7 @@ computed from information in the L<FIG_Config> file.
     print "Processing the subsystem list.\n";
     for my $sub (sort @$subs) {
         $stats->Add(subsystemCheck => 1);
-        my $subDir = ShrubLoader::FindSubsystem($subsysDirectory, $sub);
+        my $subDir = $loader->FindSubsystem($subsysDirectory, $sub);
         # This will be cleared if we decide to skip the subsystem.
         my $processSub = 1;
         # Are we loading the subsystem and its roles?
@@ -238,10 +238,10 @@ computed from information in the L<FIG_Config> file.
                 # Next from the roles. The list of role checksums will go in here.
                 my %roleMap;
                 # Open the role input file.
-                my $rh = $loader->OpenFile("$subDir/Roles", "role");
+                my $rh = $loader->OpenFile(role => "$subDir/Roles");
                 # Loop through the roles. Note we need to track the ordinal position of each role.
                 my $ord = 0;
-                while (my $roleData = $loader->GetLine($rh, "role")) {
+                while (my $roleData = $loader->GetLine(role => $rh)) {
                     # Get this role's data.
                     my ($abbr, $role) = @$roleData;
                     # Compute the role ID and MD5. If the role is new, this inserts it in the database.
@@ -293,8 +293,8 @@ computed from information in the L<FIG_Config> file.
             # with them. We go through the list of pegs. Later we will find the protein information
             # in the relevant genome files.
             print "Processing subsystem PEGs.\n";
-            my $ih = $loader->OpenFile("$subDir/PegsInSubsys", 'peg');
-            while (my $pegDatum = $loader->GetLine($ih, 'peg')) {
+            my $ih = $loader->OpenFile(peg => "$subDir/PegsInSubsys");
+            while (my $pegDatum = $loader->GetLine(peg => $ih)) {
                 # Get the fields of the peg data line.
                 my ($peg, $function) = @$pegDatum;
                 # Do we care about this genome?
@@ -348,9 +348,9 @@ computed from information in the L<FIG_Config> file.
             my $subDir = $subDirs{$sub};
             print "Connecting genomes for $sub.\n";
             # Open the genome connection file.
-            my $ih = $loader->OpenFile("$subDir/GenomesInSubsys", 'genome');
+            my $ih = $loader->OpenFile(genome => "$subDir/GenomesInSubsys");
             # Loop through the genomes.
-            while (my $gData = $loader->GetLine($ih, 'genome')) {
+            while (my $gData = $loader->GetLine(genome => $ih)) {
                 my ($genome, undef, $varCode) = @$gData;
                 # Is this genome in the database?
                 if ($genomesLoaded{$genome}) {

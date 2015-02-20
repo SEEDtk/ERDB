@@ -64,6 +64,9 @@
                         relative to the repository root.
                     </Notes>
                 </Field>
+                <Field name="prokaryotic" type="boolean">
+                    <Notes>TRUE if this is a prokaryotic genome, else FALSE.</Notes>
+                </Field>
             </Fields>
             <Indexes>
                 <Index>
