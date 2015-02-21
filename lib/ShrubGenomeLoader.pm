@@ -194,6 +194,7 @@ sub CurateNewGenomes {
             delete $retVal{$genome};
         } else {
             # Insure we don't load duplicates of this genome that come later in the list.
+            # (This works because all the core genomes are first in the list.)
             $incomingMD5s{$md5} = $genome;
             # Here we will build a list of genomes in the database that might conflict.
             my @rivals;

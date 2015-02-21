@@ -25,7 +25,6 @@ package ShrubLoader;
     use SeedUtils;
     use Digest::MD5;
     use Carp;
-    use Data::UUID;
 
 =head1 Shrub Load Utilities
 
@@ -64,10 +63,6 @@ we need to add the string to the database.
 
 Reference to a hash containing the names of the tables being inserted in replace mode.
 
-=item uuid
-
-L<Data::UUID> object for generating new IDs.
-
 =back
 
 =head2 Special Methods
@@ -100,8 +95,6 @@ sub new {
     $retVal->{tables} = {};
     $retVal->{replaces} = {};
     $retVal->{tableList} = [];
-    # Create the UUID generator.
-    $retVal->{uuid} = Data::UUID->new();
     # Return the completed object.
     return $retVal;
 }
@@ -225,20 +218,6 @@ sub CheckCached {
     }
     # Return the determination indicator.
     return $retVal;
-}
-
-
-=head3 NewID
-
-    my $uuid = $loader->NewID();
-
-Return a new UUID. Currently, this is simply a pass-through call to the internal
-UUID generator, but it may become more complex if we devise a new scheme.
-
-=cut
-
-sub NewID {
-    return $_[0]->{uuid}->new();
 }
 
 

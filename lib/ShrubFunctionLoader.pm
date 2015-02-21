@@ -50,6 +50,11 @@ new unique role IDs.
 A hash mapping role MD5s to role IDs. This is used to find out if roles are already in
 the database.
 
+=item funHash
+
+A hash mapping function MD5s to role IDs. This is used to find out if functions are
+already in the database.
+
 =back
 
 =head2 ** IMPORTANT NOTE **
@@ -101,10 +106,15 @@ sub new {
     my $retVal = { loader => $loader };
     # Determine if this is slow mode.
     my $slowMode = $options{slow};
+    # Prepare to load the role database table.
+    if (! $slowMode) {
+        $loader->Open('Role');
+    }
     # Are we processing functions?
     if (! $options{rolesOnly}) {
         # Yes. Load the function table into memory.
-        $loader->CreateTableHash('Function', 'checksum');
+        my $funHash = $loader->CreateTableHash('Function', 'checksum');
+        $retVal->{funHash} = $funHash;
         # Prepare to load the function-related database tables.
         if (! $slowMode) {
             # This causes inserts to be spooled into files
@@ -137,10 +147,6 @@ sub new {
     # Save these two role-related hashes.
     $retVal->{roleSuffixes} = \%suffixHash;
     $retVal->{roleHash} = $roleHash;
-    # Prepare to load the role database table.
-    if (! $slowMode) {
-        $loader->Open('Role');
-    }
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;
@@ -150,7 +156,7 @@ sub new {
 
 =head3 ProcessFunction
 
-    my ($fid, $comment) = $funcLoader->ProcessFunction($checksum, $statement, $sep, \%roles, $comment);
+    my $fun_id = $funcLoader->ProcessFunction($checksum, $statement, $sep, \%roles, $comment);
 
 Get the ID of a functional assignment. The function is inserted into the database and connected to its
 constituent roles if it does not already exist. The function must already have been parsed by
@@ -183,8 +189,7 @@ string.
 
 =item RETURN
 
-Returns a two-element list consisting of the ID code associated with the functional assignment and the
-comment (if any) extracted from it.
+Returns the ID code associated with the functional assignment.
 
 =back
 
@@ -199,33 +204,35 @@ sub ProcessFunction {
     my $shrub = $loader->db;
     # Get the statistics object.
     my $stats = $loader->stats;
-    # Get the function's ID. This may insert the function into the database.
-    my ($retVal, $newFlag) = $loader->InsureTable('Function', checksum => $checksum, sep => $sep,
-            description => $statement);
-    # If we inserted the function, we need to connect the roles. Note that a hypothetical protein or
-    # malformed function will have no roles.
-    if ($newFlag) {
-        # Loop through the roles.
+    # Is this function already in the database?
+    my $funHash = $self->{funHash};
+    my $retVal = $funHash->{$checksum};
+    if (! $retVal) {
+        # No, we must insert it. Get an ID for it.
+        $retVal = $shrub->NewID();
+        # Put in the roles first.
         for my $role (keys %$roles) {
             # Get this role's checksum.
             my $roleCheck = $roles->{$role};
-            # Parse the role components.
-            my ($roleText, $ecNum, $tcNum, $hypo) = Shrub::ParseRole($role);
             # Get the role's ID.
-            my ($roleID) = $loader->InsureTable('Role', checksum => $roleCheck, 'ec-number' => $ecNum,
-                    'tc-number' => $tcNum, hypo => $hypo, description => $roleText);
+            my ($roleID) = $self->ProcessRole($role, $roleCheck);
             # Connect the role to the function.
             $shrub->InsertObject('Function2Role', 'from-link' => $retVal, 'to-link' => $roleID);
             $stats->Add(function2role => 1);
         }
+        # Now put in the function itself.
+        $loader->InsertObject('Function', id => $retVal, checksum => $checksum, sep => $sep,
+            description => $statement);
+        # Save its ID for next time.
+        $funHash->{$checksum} = $retVal;
     }
-    # Return the function ID and the comment string.
-    return ($retVal, $comment);
+    # Return the function ID.
+    return $retVal;
 }
 
 =head3 ProcessRole
 
-    my ($roleID, $roleMD5) = $funcLoader->ProcessRole($role);
+    my ($roleID, $roleMD5) = $funcLoader->ProcessRole($role, $checksum);
 
 Return the ID of a role in the database. If the role does not exist, it will be inserted.
 
@@ -234,6 +241,10 @@ Return the ID of a role in the database. If the role does not exist, it will be 
 =item role
 
 Text of the role to find.
+
+=item checksum (optional)
+
+If the checksum of the role is already known, it can be passed in here.
 
 =item RETURN
 
@@ -435,9 +446,9 @@ sub ReadFeatures {
         # Parse the function.
         my @parsed = Shrub::ParseFunction($function);
         # Insure it is in the database.
-        my ($funcID, $comment) = $self->ProcessFunction(@parsed);
+        my $funcID = $self->ProcessFunction(@parsed);
         # Store the function's 2-tuple in the return hash.
-        $retVal{$fid} = [$funcID, $comment];
+        $retVal{$fid} = [$funcID, $parsed[4]];
         # Compute the total sequence length.
         my $seqLen = 0;
         for my $loc (@locs) {

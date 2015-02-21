@@ -177,67 +177,65 @@ computed from information in the L<FIG_Config> module.
     # Get the DNA repository directory.
     my $dnaRepo = $shrub->DNArepo;
     # Loop through the incoming genomes.
-     for my $genome (sort keys %$genomeHash) {
+    for my $genome (sort keys %$genomeMeta) {
          my $metaHash = $genomeMeta->{$genome};
-         if ($metaHash) {
-             # Here we're keeping this genome. Display our progress.
-             $gCount++;
-             print "Processing $genome ($gCount of $gTotal).\n";
-             # Get the input repository directory.
-             my $genomeLoc = $genomeHash->{$genome};
-             # Form the repository directory for the DNA.
-             my $relPath = $loader->RepoPath($metaHash->{name});
-             my $absPath = "$dnaRepo/$relPath";
-             if (! -d $absPath) {
-                 print "Creating directory $relPath for DNA file.\n";
-                 File::Path::make_path($absPath);
-             }
-             # Now we read the contig file and analyze the DNA for gc-content, number
-             # of bases, and the list of contigs. We also copy it to the output
-             # repository.
-             print "Analyzing contigs.\n";
-             my ($contigList, $genomeHash) = $genomeLoader->AnalyzeContigFasta("$genomeLoc/contigs", "$absPath/$genome.fa");
-             # Get the annotation privilege level for this genome.
-             my $priv = $metaHash->{privilege};
-             # Now we can create the genome record.
-             print "Storing $genome in database.\n";
-             $loader->InsertObject('Genome', id => $genome, %$genomeHash,
-                     core => $metaHash->{type}, name => $metaHash->{name}, prokaryotic => $metaHash->{prokaryotic},
-                     'contig-file' => "$relPath/$genome.fa");
-             $stats->Add(genomeInserted => 1);
-             # Connect the contigs to it.
-             for my $contigDatum (@$contigList) {
-                 # Fix the contig ID.
-                 $contigDatum->{id} = "$genome:$contigDatum->{id}";
-                 # Connect the genome to the contig.
-                 $loader->InsertObject('Genome2Contig', 'from-link' => $genome, 'to-link' => $contigDatum->{id});
-                 # Create the contig.
-                 $loader->InsertObject('Contig', %$contigDatum);
-                 $stats->Add(contigInserted => 1);
-             }
-             # Process the non-protein features.
-             my $npFile = "$genomeLoc/non-peg-fids";
-             if (-f $npFile) {
-                 # Read the feature data.
-                 print "Processing non-protein features.\n";
-                 my $pegHash = $funcLoader->ReadFeatures($genome, $npFile);
-                 # Connect the functions.
-                 print "Connecting to functions.\n";
-                 for my $fid (keys %$pegHash) {
-                     # Compute this function's ID.
-                     my ($funcID, $comment) = @{$pegHash->{$fid}};
-                     # Make the connection at each privilege level.
-                     for (my $p = $priv; $p >= 0; $p--) {
-                         $loader->InsertObject('Feature2Function', 'from-link' => $fid, 'to-link' => $funcID,
-                                 comment => $comment, security => $p);
-                         $stats->Add(featureFunction => 1);
-                     }
+         # Display our progress.
+         $gCount++;
+         print "Processing $genome ($gCount of $gTotal).\n";
+         # Get the input repository directory.
+         my $genomeLoc = $genomeHash->{$genome};
+         # Form the repository directory for the DNA.
+         my $relPath = $loader->RepoPath($metaHash->{name});
+         my $absPath = "$dnaRepo/$relPath";
+         if (! -d $absPath) {
+             print "Creating directory $relPath for DNA file.\n";
+             File::Path::make_path($absPath);
+         }
+         # Now we read the contig file and analyze the DNA for gc-content, number
+         # of bases, and the list of contigs. We also copy it to the output
+         # repository.
+         print "Analyzing contigs.\n";
+         my ($contigList, $genomeHash) = $genomeLoader->AnalyzeContigFasta("$genomeLoc/contigs", "$absPath/$genome.fa");
+         # Get the annotation privilege level for this genome.
+         my $priv = $metaHash->{privilege};
+         # Now we can create the genome record.
+         print "Storing $genome in database.\n";
+         $loader->InsertObject('Genome', id => $genome, %$genomeHash,
+                 core => $metaHash->{type}, name => $metaHash->{name}, prokaryotic => $metaHash->{prokaryotic},
+                 'contig-file' => "$relPath/$genome.fa");
+         $stats->Add(genomeInserted => 1);
+         # Connect the contigs to it.
+         for my $contigDatum (@$contigList) {
+             # Fix the contig ID.
+             $contigDatum->{id} = "$genome:$contigDatum->{id}";
+             # Connect the genome to the contig.
+             $loader->InsertObject('Genome2Contig', 'from-link' => $genome, 'to-link' => $contigDatum->{id});
+             # Create the contig.
+             $loader->InsertObject('Contig', %$contigDatum);
+             $stats->Add(contigInserted => 1);
+         }
+         # Process the non-protein features.
+         my $npFile = "$genomeLoc/non-peg-info";
+         if (-f $npFile) {
+             # Read the feature data.
+             print "Processing non-protein features.\n";
+             my $pegHash = $funcLoader->ReadFeatures($genome, $npFile);
+             # Connect the functions.
+             print "Connecting to functions.\n";
+             for my $fid (keys %$pegHash) {
+                 # Compute this function's ID.
+                 my ($funcID, $comment) = @{$pegHash->{$fid}};
+                 # Make the connection at each privilege level.
+                 for (my $p = $priv; $p >= 0; $p--) {
+                     $loader->InsertObject('Feature2Function', 'from-link' => $fid, 'to-link' => $funcID,
+                             comment => $comment, security => $p);
+                     $stats->Add(featureFunction => 1);
                  }
              }
-             print "Processing protein features.\n";
-             my $pegHash = $funcLoader->ReadFeatures($genome, "$genomeLoc/peg-info");
-             $funcLoader->ConnectPegFunctions($genome, $genomeLoc, $pegHash, priv => $priv);
          }
+         print "Processing protein features.\n";
+         my $pegHash = $funcLoader->ReadFeatures($genome, "$genomeLoc/peg-info");
+         $funcLoader->ConnectPegFunctions($genome, $genomeLoc, $pegHash, priv => $priv);
      }
      # Unspool the load files.
      $loader->Close();

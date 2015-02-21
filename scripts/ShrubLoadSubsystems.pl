@@ -250,7 +250,7 @@ computed from information in the L<FIG_Config> file.
                     $stats->Add(genomeSkipped => 1);
                 } else {
                     # Yes, create a row for it.
-                    my $rowID = $loader->NewID();
+                    my $rowID = $shrub->NewID();
                     $loader->InsertObject('Subsystem2Row', 'from-link' => $subID, 'to-link' => $rowID);
                     $loader->InsertObject('SubsystemRow', id => $rowID, 'needs-curation' => $needsCuration,
                             privilege => $rowPrivilege, 'variant-code' => $varCode);
@@ -262,7 +262,7 @@ computed from information in the L<FIG_Config> file.
                         # Get this role's data.
                         my ($ord, $roleID) = @{$roleMap{$abbr}};
                         # Compute the cell ID.
-                        my $cellID = $loader->NewID();
+                        my $cellID = $shrub->NewID();
                         # Create the subsystem cell.
                         $loader->InsertObject('Row2Cell', 'from-link' => $rowID, 'ordinal' => $ord,
                                 'to-link' => $cellID);

@@ -29,6 +29,7 @@ package Shrub;
     use SeedUtils;
     use Digest::MD5;
     use charnames ();
+    use Data::UUID;
 
 
 =head1 Shrub Database Package
@@ -50,6 +51,10 @@ Name of the directory containing the files used by the loaders.
 =item repository
 
 Name of the directory containing the genome repository.
+
+=item uuid
+
+A L<Data::UUID> object for generating unique IDs.
 
 =back
 
@@ -148,6 +153,8 @@ sub new {
     my $retVal = ERDB::new($class, $dbh, $dbd, %options);
     # Attach the repository pointer.
     $retVal->{repository} = $repository;
+    # Create the UUID generator.
+    $retVal->{uuid} = Data::UUID->new();
     # Return it.
     return $retVal;
 }
@@ -319,6 +326,20 @@ sub ProteinID {
     # Return the result.
     return $retVal;
 }
+
+=head3 NewID
+
+    my $uuid = $loader->NewID();
+
+Return a new UUID. Currently, this is simply a pass-through call to the internal
+UUID generator, but it may become more complex if we devise a new scheme.
+
+=cut
+
+sub NewID {
+    return $_[0]->{uuid}->create_b64();
+}
+
 
 =head3 CreateMagicEntity
 
