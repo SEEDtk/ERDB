@@ -40,7 +40,22 @@ This object has the following fields.
 
 L<ShrubLoader> object used to access the database and the hash tables.
 
+=item roleSuffixes
+
+A hash mapping each role ID prefix to the next available suffix. THis is used to create
+new unique role IDs.
+
+=item roleHash
+
+A hash mapping role MD5s to role IDs. This is used to find out if roles are already in
+the database.
+
 =back
+
+=head2 ** IMPORTANT NOTE **
+
+This object will not work unless no other process is modifying the function and role data in the
+database.
 
 =head2 Special Methods
 
@@ -90,7 +105,7 @@ sub new {
     if (! $options{rolesOnly}) {
         # Yes. Load the function table into memory.
         $loader->CreateTableHash('Function', 'checksum');
-        # Prepare to load the function-related tables.
+        # Prepare to load the function-related database tables.
         if (! $slowMode) {
             # This causes inserts to be spooled into files
             # for loading when the loader object is closed.
@@ -98,8 +113,31 @@ sub new {
         }
     }
     # Load the role table into memory.
-    $loader->CreateTableHash('Role', 'checksum');
-    # Prepare to load the role table.
+    my $roleHash = $loader->CreateTableHash('Role', 'checksum');
+    # The roles use magic names. We need to get a hash of role ID
+    # suffix numbers to use in creating unique role IDs when new
+    # roles come in.
+    my %suffixHash;
+    for my $roleID (values %$roleHash) {
+        # Split the role ID into a prefix and a suffix.
+        my ($prefix, $suffix);
+        if ($roleID =~ /(.+?)(\d+)/) {
+            $prefix = $1;
+            $suffix = $2 + 1;
+        } else {
+            $prefix = $roleID;
+            $suffix = 2;
+        }
+        # Remember the maximum.
+        my $currentSuffix = $suffixHash{$prefix} || 0;
+        if ($suffix > $currentSuffix) {
+            $suffixHash{$prefix} = $suffix;
+        }
+    }
+    # Save these two role-related hashes.
+    $retVal->{roleSuffixes} = \%suffixHash;
+    $retVal->{roleHash} = $roleHash;
+    # Prepare to load the role database table.
     if (! $slowMode) {
         $loader->Open('Role');
     }
@@ -216,10 +254,32 @@ sub ProcessRole {
     # Compute the checksum.
     my $roleNorm = Shrub::RoleNormalize($role);
     my $checkSum = Shrub::Checksum($roleNorm);
-    # Get the role's ID. This will insert the role if it is not already present.
-    my ($retVal) = $loader->InsureTable('Role', checksum => $checkSum, 'ec-number' => $ecNum,
-            'tc-number' => $tcNum, hypo => $hypo, description => $roleText);
-    # Return it.
+    # Get the role ID hashes.
+    my $roleHash = $self->{roleHash};
+    my $suffixHash = $self->{roleSuffixes};
+    # Do we already have this role?
+    my $retVal = $roleHash->{$checkSum};
+    if (! $retVal) {
+        # No. Compute a magic name.
+        my ($prefix, $suffix) = Shrub::MagicName($roleText);
+        # Compute the correct suffix.
+        if ($suffixHash->{$prefix}) {
+            # Here it is the stored next value.
+            $suffix = $suffixHash->{$prefix};
+            # Update for next time.
+            $suffixHash->{$prefix} = $suffix + 1;
+        } else {
+            # Here it's ok. Set up for next time.
+            $suffixHash->{$prefix} = 2;
+        }
+        # Insert the role.
+        $retVal = $prefix . $suffix;
+        $loader->InsertObject('Role', id => $retVal, checksum => $checkSum, 'ec-number' => $ecNum,
+                'tc-number' => $tcNum, hypo => $hypo, description => $roleText);
+        # Save its ID in the hash.
+        $roleHash->{$checkSum} = $retVal;
+    }
+    # Return the role information.
     return ($retVal, $checkSum);
 }
 

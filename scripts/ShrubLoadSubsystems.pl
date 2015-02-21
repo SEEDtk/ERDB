@@ -139,12 +139,12 @@ computed from information in the L<FIG_Config> file.
         print scalar(@$subs) . " subsystems found in repository at $subsysDirectory.\n";
     }
     # Get the list of tables.
-    my @tables = qw(Subsystem Subsystem2Row SubsystemRow Row2Genome Row2Cell SubsystemCell Role2Cell Subsystem2Role Feature2Cell);
+    my @tables = qw(Subsystem2Row SubsystemRow Row2Genome Row2Cell SubsystemCell Role2Cell Subsystem2Role Feature2Cell);
     # Are we clearing?
     if ($opt->clear) {
         # Yes. Erase all the subsystem tables.
         print "CLEAR option specified.\n";
-        $loader->Clear(@tables);
+        $loader->Clear('Subsystem', @tables);
     }
     # Set up the tables we are going to load. Old subsystem data will be deleted before the new data is
     # loaded. We only set up the tables this way in non-slow mode. In slow mode, our failure to do so will
@@ -181,15 +181,13 @@ computed from information in the L<FIG_Config> file.
             if (! $subID) {
                 # It's a new subsystem, so we have no worries.
                 $stats->Add(subsystemAdded => 1);
-                # Create an ID for it.
-                $subID = $loader->NewID();
             } elsif ($opt->missing) {
                 # It's an existing subsystem, but we are skipping existing subsystems.
                 print "Subsystem \"$sub\" already in database-- skipped.\n";
                 $stats->Add(subsystemSkipped => 1);
                 $processSub = 0;
             } else {
-                # Here we must delete the subsystem.
+                # Here we must delete the subsystem. Note we still have the ID.
                 print "Deleting existing copy of $sub.\n";
                 my $delStats = $shrub->Delete(Subsystem => $subID);
                 $stats->Accumulate($delStats);
@@ -204,8 +202,9 @@ computed from information in the L<FIG_Config> file.
             my $metaHash = $loader->ReadMetaData("$subDir/Info", required => [qw(privileged row-privilege)]);
             # Default the version to 1.
             my $version = $metaHash->{version} // 1;
-            # Insert the subsystem record.
-            $loader->InsertObject('Subsystem', id => $subID, name => $sub, privileged => $metaHash->{privileged},
+            # Insert the subsystem record. If we already have an ID, it will be reused. Otherwise a magic name will
+            # be created.
+            $subID = $shrub->CreateMagicEntity(Subsystem => 'name', id => $subID, name => $sub, privileged => $metaHash->{privileged},
                     version => $version);
             # Next come the roles. This will map role abbreviations to a 2-tuple consisting of (0) the role ID
             # and (1) the column number.

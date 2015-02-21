@@ -202,7 +202,8 @@ computed from information in the L<FIG_Config> module.
              # Now we can create the genome record.
              print "Storing $genome in database.\n";
              $loader->InsertObject('Genome', id => $genome, %$genomeHash,
-                     core => $metaHash->{type}, name => $metaHash->{name}, 'contig-file' => "$relPath/$genome.fa");
+                     core => $metaHash->{type}, name => $metaHash->{name}, prokaryotic => $metaHash->{prokaryotic},
+                     'contig-file' => "$relPath/$genome.fa");
              $stats->Add(genomeInserted => 1);
              # Connect the contigs to it.
              for my $contigDatum (@$contigList) {

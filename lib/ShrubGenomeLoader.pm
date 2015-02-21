@@ -162,7 +162,8 @@ sub CurateNewGenomes {
         # Get this genome's source directory.
         my $genomeDir = $genomeHash->{$genome};
         # Read the metadata.
-        my $metaHash = $loader->ReadMetaData("$genomeDir/genome-info", required => [qw(name md5 type)]);
+        my $metaHash = $loader->ReadMetaData("$genomeDir/genome-info",
+                required => [qw(name md5 privilege prokaryotic)]);
         # Is this a core genome?
         if ($metaHash->{privilege} eq Shrub::PRIV()) {
             # Set the core flag to 1 (true) and store the genome in the core list.

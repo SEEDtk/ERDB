@@ -941,49 +941,6 @@ sub ProcessContigFile {
 }
 
 
-=head3 RepoPath
-
-    my $relPath = $loader->RepoPath($genomeName);
-
-Compute the repository path corresponding to a genome name. The
-repository path is more or less determined by the genus and species.
-
-=over 4
-
-=item genomeName
-
-Name of the genome whose repository path is to be computed.
-
-=item RETURN
-
-Returns a two-level directory path representing the relative location
-in an input genome repository for this genome.
-
-=back
-
-=cut
-
-sub RepoPath {
-    # Get the parameters.
-    my ($self, $genomeName) = @_;
-    # Split on spaces to get the name components.
-    my ($genus, $species, $strain) = split /\s+/, $genomeName;
-    # If the species is "sp", use the strain.
-    if (($species eq 'sp' || $species eq 'sp.') && $strain) {
-        $species = $strain;
-    } elsif (! $species) {
-        $species = "sp";
-    }
-    # Remove dangerous characters.
-    $genus =~ s/\[\]:\(\)//g;
-    $species =~ s/\[\]:\(\)//g;
-    # Compute the desired path.
-    my $retVal = "$genus/$species";
-    # Return the result.
-    return $retVal;
-}
-
-
 =head3 IndexGenomes
 
     $loader->IndexGenomes();

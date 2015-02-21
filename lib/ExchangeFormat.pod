@@ -91,7 +91,7 @@ The MD5 digest for the genome's DNA sequence, as defined by L<MD5Computer>.
 The genome name, usually the scientific name with some additional (and very
 optional) comments.
 
-=item type
+=item privilege
 
 The privilege level of the genome's annotations-- C<0> for public (unprivileged),
 C<1> for projected, and C<2> for privileged.

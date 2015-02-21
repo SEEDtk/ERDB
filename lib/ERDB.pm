@@ -85,49 +85,6 @@ I<searchable>, in which case it will be used to generate a text search
 index in which the user searches for words in the field instead of a particular
 field value.
 
-=head2 Loading
-
-Considerable support is provided for loading a database from flat files. The
-flat files are in the standard format expected by the MySQL C<LOAD DATA INFILE>
-command. This command expects each line to represent a database record and
-each record to have all the fields specified, in order, with tab characters
-separating the fields.
-
-The L<ERDBLoadGroup> object can be subclassed and used to create load files
-that can then be loaded using the L<ERDBLoader.pl> command; however, there
-is no requirement that this be done.
-
-=head3 Constructors
-
-In order to use the load facility, the constructor for the database object
-must be able to function with no parameters or with the parameters construed
-as a hash. The following options are used by the ERDB load facility. It is
-not necessary to support them all.
-
-=over 4
-
-=item DBD
-
-XML database definition file.
-
-=item dbName
-
-Name of the database to use.
-
-=item sock
-
-Socket for accessing the database.
-
-=item userData
-
-Name and password used to log on to the database, separated by a slash.
-
-=item dbhost
-
-Database host name.
-
-=back
-
 =head2 Data Types, Queries and Filtering
 
 =head3 Data Types
@@ -4930,8 +4887,8 @@ Returns the number of rows inserted.
 sub InsertObject {
     # Get the parameters.
     my ($self, $newObjectType, $first, @leftOvers) = @_;
-    # Denote that so far we appear successful.
-    my $retVal = 1;
+    # Denote that so far we have not inserted anything.
+    my $retVal = 0;
     # Create the field hash.
     my ($fieldHash, $options);
     if (ref $first eq 'HASH') {
@@ -4992,7 +4949,7 @@ sub InsertObject {
     }
     # Only proceed if there are no missing fields.
     if (@missing > 0) {
-        Trace("Relation $newObjectType for $newObjectType skipped due to missing fields: " .
+        Confess("Insert for $newObjectType failed due to missing fields: " .
             join(' ', @missing)) if T(1);
     } else {
         # Build the INSERT statement.
@@ -5022,10 +4979,12 @@ sub InsertObject {
             Confess("Error inserting into $newObjectType: $errorString");
         } else {
             Trace("Insert successful for $newObjectType.") if T(Insert => 3);
+            # Convert a true 0 to a false 0.
+            $retVal = 0 if ($retVal < 1);
         }
     }
-    # Is this object an entity?
-    if ($self->IsEntity($newObjectType)) {
+    # Did we successfully insert an entity?
+    if ($self->IsEntity($newObjectType) && $retVal) {
         # Yes. Check for secondary fields.
         my %fieldTuples = $self->GetSecondaryFields($newObjectType);
         # Loop through them, inserting their values (if any);
@@ -5042,6 +5001,7 @@ sub InsertObject {
                 # Loop through the values, inserting them.
                 for my $value (@$values) {
                     $self->InsertValue($fieldHash->{id}, "$newObjectType($field)", $value);
+                    $retVal++;
                 }
             }
         }
@@ -5956,65 +5916,6 @@ sub CleanKeywords {
     return $retVal;
 }
 
-=head3 GetSourceObject
-
-    my $source = $erdb->GetSourceObject();
-
-Return the object to be used in creating load files for this database. This is
-only the default source object. Loaders have the option of overriding the chosen
-source object when constructing the L</ERDBLoadGroup> objects.
-
-=cut
-
-sub GetSourceObject {
-    Confess("Pure virtual GetSourceObject called.");
-}
-
-=head3 SectionList
-
-    my @sections = $erdb->SectionList();
-
-Return a list of the names for the different data sections used when loading this database.
-The default is a single string, in which case there is only one section representing the
-entire database.
-
-=cut
-
-sub SectionList {
-    # Get the parameters.
-    my ($self) = @_;
-    # Return the section list.
-    return ("all");
-}
-
-=head3 GlobalSection
-
-    my $flag = $sap->GlobalSection($name);
-
-Return TRUE if the specified section name is the global section, FALSE
-otherwise.
-
-=over 4
-
-=item name
-
-Section name to test.
-
-=item RETURN
-
-Returns TRUE if the parameter is the string C<Global>, else FALSE.
-
-=back
-
-=cut
-
-sub GlobalSection {
-    # Get the parameters.
-    my ($self, $name) = @_;
-    # Return the result.
-    return ($name eq 'Global');
-}
-
 =head3 PreferredName
 
     my $name = $erdb->PreferredName();
@@ -6026,55 +5927,6 @@ is C<erdb>.
 
 sub PreferredName {
     return 'erdb';
-}
-
-=head3 Loader
-
-    my $groupLoader = $erdb->Loader($groupName, $options);
-
-Return an L</ERDBLoadGroup> object for the specified load group. This method is used
-by L<ERDBGenerator.pl> to create the load group objects. If you are not using
-L<ERDBGenerator.pl>, you don't need to override this method.
-
-=over 4
-
-=item groupName
-
-Name of the load group whose object is to be returned. The group name is
-guaranteed to be a single word with only the first letter capitalized.
-
-=item options
-
-Reference to a hash of command-line options.
-
-=item RETURN
-
-Returns an L</ERDBLoadGroup> object that can be used to process the specified load group
-for this database.
-
-=back
-
-=cut
-
-sub Loader {
-    # Get the parameters.
-    my ($self, $groupName, $options) = @_;
-
-}
-
-=head3 LoadGroupList
-
-    my @groups = $erdb->LoadGroupList();
-
-Returns a list of the names for this database's load groups. This method is used
-by L<ERDBGenerator.pl> when the user wishes to load all table groups. The default
-is a single group called 'All' that loads everything.
-
-=cut
-
-sub LoadGroupList {
-    # Return the list.
-    return qw(All);
 }
 
 =head3 LoadDirectory

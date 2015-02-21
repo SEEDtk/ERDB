@@ -258,7 +258,7 @@
             <Notes>A role represents a single effect of a protein in a cell. The
                 fundamental	purpose of annotation is to assign roles to proteins.
                 The collection of roles (often only one) associated with a protein
-                is the protein's function. Each role is assigned a UUID key.
+                is the protein's function. Each role is assigned a short string key.
                 The key remains the same even if the wording of the role changes.
             </Notes>
             <Fields>
@@ -316,7 +316,7 @@
             <Notes>A subsystem is a collection of roles that work together in a
                 cell. Identification of subsystems is an important tool for
                 recognizing parallel genetic features in different organisms. The
-                key is a UUID.
+                key is a short string constructed from the original name.
             </Notes>
             <Fields>
                 <Field name="name" type="string">
