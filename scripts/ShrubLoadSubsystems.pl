@@ -22,7 +22,7 @@
     use SeedUtils;
     use ShrubLoader;
     use Shrub;
-    use ShrubFunctionLoader;
+    use ShrubSubsystemLoader;
     use ScriptUtils;
 
 =head1 Load Subsystems Into the Shrub Database
@@ -42,7 +42,8 @@ specifying the appropriate option (C<subs>, C<links>, and/or C<prots>).
 =head2 Parameters
 
 The positional parameter is the name of the directory containing the subsystem source
-directory. If omitted, it will be computed from information in the L<FIG_Config> module.
+directory, which contains the source subsystem data in L<ExchangeFormat>. If omitted,
+the directory name will be computed from information in the L<FIG_Config> module.
 
 The command-line options are as specified in L<Shrub/script_options> plus
 the following.
@@ -74,7 +75,7 @@ Implies C<links>, C<pegs>, and C<roles>.
 
 =item genomeDir
 
-Directory containing the genome source files. If not specified, the default will be
+Directory containing the genome source data in L<ExchangeFormat>. If not specified, the default will be
 computed from information in the L<FIG_Config> file.
 
 =back
@@ -85,7 +86,7 @@ computed from information in the L<FIG_Config> file.
     my $startTime = time;
     $| = 1; # Prevent buffering on STDOUT.
     # Parse the command line.
-    my $opt = ScriptUtils::Opts('subsysDirectory',
+    my $opt = ScriptUtils::Opts('subsysDirectory', Shrub::script_options(),
             ["slow|s", "use individual inserts rather than table loads"],
             ["subsystems=s", "name of a file containing a list of the subsystems to use"],
             ["missing|m", "only load subsystems not already in the database"],
@@ -109,24 +110,12 @@ computed from information in the L<FIG_Config> file.
     if (! -d $subsysDirectory) {
         die "Invalid subsystem directory $subsysDirectory.";
     }
-    # Validate the mutually exclusive options.
-    if (! $opt->roles && $opt->missing) {
-        die "Option \"roles\" or \"all\" is required when missing-mode or clearing is requested.";
-    }
     # Create the loader utility object.
     my $loader = ShrubLoader->new($shrub);
     # Get the statistics object.
     my $stats = $loader->stats;
-    # Create the function loader utility object.
-    my $funcLoader;
-    print "Initializing function and role tables.\n";
-    $funcLoader = ShrubFunctionLoader->new($loader, rolesOnly => 1, slow => $opt->slow);
-    # Extract the privilege level.
-    my $priv = $opt->privilege;
-    if ($priv > Shrub::MAX_PRIVILEGE || $priv < 0) {
-        die "Invalid privilege level $priv.";
-    }
-    print "Privilege level is $priv.\n";
+    # Create the subsystem loader utility object.
+    my $subLoader = ShrubSubsystemLoader->new($loader, slow => $opt->slow);
     # Now we need to get the list of subsystems to process.
     my $subs;
     if ($opt->subsystems) {
@@ -138,19 +127,11 @@ computed from information in the L<FIG_Config> file.
         $subs = [ map { Shrub::NormalizedName($_) } grep { -d "$subsysDirectory/$_" } $loader->OpenDir($subsysDirectory, 1) ];
         print scalar(@$subs) . " subsystems found in repository at $subsysDirectory.\n";
     }
-    # Get the list of tables.
-    my @tables = qw(Subsystem2Row SubsystemRow Row2Genome Row2Cell SubsystemCell Role2Cell Subsystem2Role Feature2Cell);
     # Are we clearing?
     if ($opt->clear) {
         # Yes. Erase all the subsystem tables.
         print "CLEAR option specified.\n";
-        $loader->Clear('Subsystem', @tables);
-    }
-    # Set up the tables we are going to load. Old subsystem data will be deleted before the new data is
-    # loaded. We only set up the tables this way in non-slow mode. In slow mode, our failure to do so will
-    # cause the loader package to do manual inserts.
-    if (! $opt->slow) {
-        $loader->Open(@tables);
+        $subLoader->Clear();
     }
     # We need to be able to tell which subsystems are already in the database. If the number of subsystems
     # being loaded is large, we spool all the subsystem IDs into memory to speed the checking process.
@@ -195,106 +176,9 @@ computed from information in the L<FIG_Config> file.
             }
         }
         if ($processSub) {
-            # Now the old subsystem is gone. We must load the new one. We start with the root
-            # record.
-            print "Creating $sub.\n";
-            # We need the metadata.
-            my $metaHash = $loader->ReadMetaData("$subDir/Info", required => [qw(privileged row-privilege)]);
-            # Default the version to 1.
-            my $version = $metaHash->{version} // 1;
-            # Insert the subsystem record. If we already have an ID, it will be reused. Otherwise a magic name will
-            # be created.
-            $subID = $shrub->CreateMagicEntity(Subsystem => 'name', id => $subID, name => $sub, privileged => $metaHash->{privileged},
-                    version => $version);
-            # Next come the roles. This will map role abbreviations to a 2-tuple consisting of (0) the role ID
-            # and (1) the column number.
-            my %roleMap;
-            # Open the role input file.
-            my $rh = $loader->OpenFile(role => "$subDir/Roles");
-            # Loop through the roles. Note we need to track the ordinal position of each role.
-            my $ord = 0;
-            while (my $roleData = $loader->GetLine(role => $rh)) {
-                # Get this role's data.
-                my ($abbr, $role) = @$roleData;
-                # Compute the role ID. If the role is new, this inserts it in the database.
-                my ($roleID) = $funcLoader->ProcessRole($role);
-                # Link the subsystem to the role.
-                $loader->InsertObject('Subsystem2Role', 'from-link' => $sub, 'to-link' => $roleID,
-                        ordinal => $ord, abbr => $abbr);
-                $stats->Add(roleForSubsystem => 1);
-                # Save the role's abbreviation and ID.
-                $roleMap{$abbr} = [$roleID, $ord];
-                # Increment the column number.
-                $ord++;
-            }
-            # Now we create the rows.
-            print "Connecting genomes for $sub.\n";
-            # Get the row privilege.
-            my $rowPrivilege = $metaHash->{'row-privilege'};
-            # This hash will map row numbers to lists of cell IDs.
-            my %rowMap;
-            # Open the genome connection file.
-            my $ih = $loader->OpenFile(genome => "$subDir/GenomesInSubsys");
-            # Loop through the genomes.
-            while (my $gData = $loader->GetLine(genome => $ih)) {
-                my ($genome, undef, $varCode, $row) = @$gData;
-                # Normalize the variant code.
-                my $needsCuration = 0;
-                if ($varCode =~ /^\*(.+)/) {
-                    $needsCuration = 1;
-                    $varCode = $1;
-                }
-                # Is this genome in the database?
-                if ($loader->CheckCached(Genome => $genome, \%genomes)) {
-                    # No, skip it.
-                    $stats->Add(genomeSkipped => 1);
-                } else {
-                    # Yes, create a row for it.
-                    my $rowID = $shrub->NewID();
-                    $loader->InsertObject('Subsystem2Row', 'from-link' => $subID, 'to-link' => $rowID);
-                    $loader->InsertObject('SubsystemRow', id => $rowID, 'needs-curation' => $needsCuration,
-                            privilege => $rowPrivilege, 'variant-code' => $varCode);
-                    $loader->InsertObject('Genome2Row', 'from-link' => $rowID, 'to-link' => $genome);
-                    $stats->Add(genomeConnected => 1);
-                    # Now build the cells.
-                    my %cellMap;
-                    for my $abbr (keys %roleMap) {
-                        # Get this role's data.
-                        my ($ord, $roleID) = @{$roleMap{$abbr}};
-                        # Compute the cell ID.
-                        my $cellID = $shrub->NewID();
-                        # Create the subsystem cell.
-                        $loader->InsertObject('Row2Cell', 'from-link' => $rowID, 'ordinal' => $ord,
-                                'to-link' => $cellID);
-                        $loader->InsertObject('SubsystemCell', id => $cellID);
-                        $loader->InsertObject('Role2Cell', 'from-link' => $roleID, 'to-link' => $cellID);
-                        # Put it in the map.
-                        $cellMap{$abbr} = $cellID;
-                    }
-                    # Remember the row's cells.
-                    $rowMap{$row} = \%cellMap;
-                }
-            }
-            # Close the genome file.
-            close $ih;
-            # Now we link the pegs to the subsystem cells.
-            print "Processing subsystem PEGs.\n";
-            # Open the PEG data file.
-            $ih = $loader->OpenFile(peg => "$subDir/PegsInSubsys");
-            while (my $pegDatum = $loader->GetLine(peg => $ih)) {
-                # Get the fields of the peg data line.
-                my ($peg, $abbr, undef, $row) = @$pegDatum;
-                # Do we care about this genome? Note that if the genome was found, it is guaranteed to
-                # be in our cache (%genomes) by now. We checked it when we built the rows.
-                my $genome = SeedUtils::genome_of($peg);
-                if (! $genomes{$genome}) {
-                    $stats->Add(subsysPegSkipped => 1);
-                } else {
-                    # We want this peg. Put it in the cell.
-                    my $cellID = $rowMap{$row}{$abbr};
-                    $loader->InsertObject('Feature2Cell', 'from-link' => $peg, 'to-link' => $cellID);
-                }
-            }
+            # Now the old subsystem is gone. We must load the new one. If we don't have an ID yet, it
+            # will be computed here.
+            $subID = $subLoader->LoadSubsystem($subID => $sub, $subDir, \%genomes);
         }
     }
     # Close and upload the load files.

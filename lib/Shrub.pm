@@ -457,7 +457,7 @@ sub MagicName {
     my $prefix = "";
     while (length($prefix) < 16 && scalar(@words)) {
         my $word = shift @words;
-        if ($word =~ /^(\d)(\d*)$/) {
+        if ($word =~ /^(\d)$/) {
             # For a number, use the first digit.
             $prefix .= $1;
         } elsif (! LITTLES->{lc $word}) {
@@ -577,25 +577,11 @@ sub Feature2Function {
 
 =head3 Subsystem2Feature
 
-    my $fidList = $shrub->Subsystem2Feature($fld => $sub);
+    my $fidList = $shrub->Subsystem2Feature($sub);
 
-Return a list of all the features in a single subsystem. The subsystem can be
-identified by name or ID. So, for example
-
-    my $fidList = $shrub->Subsystem2Feature(name => 'Histidine Degradation');
-
-would process the subsystem named C<Histidine Degradation>, while
-
-    my $fidList = $shrub->Subsystem2Feature(id => 'HD1);
-
-would process the subsystem with ID C<HD1>.
+Return a list of all the features in a single subsystem.
 
 =over 4
-
-=item fld
-
-Field being used to identify the subsystem-- C<name> for the subsystem name,
-or C<id> for the subsystem ID.
 
 =item sub
 
@@ -612,11 +598,11 @@ been populated in the subsystem.
 
 sub Subsystem2Feature {
     # Get the parameters.
-    my ($self, $fld, $sub) = @_;
+    my ($self, $sub) = @_;
     # Read the subsystem features from the database. NOTE that right now the ID and name
     # are the same field.
-    my @retVal = $self->GetFlat('Subsystem Subsystem2Feature', "Subsystem(id) = ?", [$sub],
-            'Subsystem2Feature(to-link)');
+    my @retVal = $self->GetFlat('Subsystem2Row Row2Cell Cell2Feature', "Subsystem2Row(from-link) = ?", [$sub],
+            'Cell2Feature(to-link)');
     # Return the result.
     return \@retVal;
 }

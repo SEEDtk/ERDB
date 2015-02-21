@@ -401,7 +401,7 @@ sub CopySubsystem {
         open($gh, ">$outDir/GenomesInSubsys") || die "Cannot open GenomesInSubsys file: $!";
         open($ph, ">$outDir/PegsInSubsys") || die "Cannot open PegsInSubsys file: $!";
         # Now create the metafile. We start with the subsystem's privilege status.
-        my %metaHash = ( privilege => ($opt->subpriv ? 1 : 0),
+        my %metaHash = ( privileged => ($opt->subpriv ? 1 : 0),
                 'row-privilege' => $opt->privilege );
         # Next read the version. If there is no version we default to 1.
         $metaHash{version} = ReadFlagFile("$subDisk/VERSION") // 1;
@@ -410,6 +410,8 @@ sub CopySubsystem {
         $stats->Add('subsystem-info' => 1);
         # We'll store the list of role abbreviations in here.
         my @roleAbbrs;
+        # This will map abbreviations to roles.
+        my %abbrMap;
         # Loop through the roles.
         my $done = 0;
         while (! eof $ih && ! $done) {
@@ -422,6 +424,7 @@ sub CopySubsystem {
                 $self->PutLine('role', $rh, @$roleData);
                 # Save the abbreviation.
                 push @roleAbbrs, $roleData->[0];
+                $abbrMap{$roleData->[0]} = $roleData->[1];
             }
         }
         # Skip over the next section of the input file.
@@ -477,7 +480,7 @@ sub CopySubsystem {
                                 my $abbr = $roleAbbrs[$i];
                                 # Output the PEG info.
                                 for my $feature (@features) {
-                                    $self->PutLine('subsystem-feature' => $ph, $feature, $abbr, $rows);
+                                    $self->PutLine('subsystem-feature' => $ph, $feature, $abbr, $abbrMap{$abbr}, $rows);
                                 }
                             }
                         }

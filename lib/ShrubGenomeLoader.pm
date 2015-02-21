@@ -21,6 +21,8 @@ package ShrubGenomeLoader;
 
     use strict;
     use MD5Computer;
+    use ShrubFunctionLoader;
+    use File::Path;
 
 =head1 Shrub Genome Load Utilities
 
@@ -39,15 +41,33 @@ L<ShrubLoader> object for accessing the database and statistics.
 
 L<MD5Computer> object for computing genome and contig MD5s.
 
+=item funcLoader
+
+L<ShrubFunctionLoader> object for computing function and role IDs.
+
+=item slow
+
+TRUE if we are to load using individual inserts, FALSE if we are to load by spooling
+inserts into files for mass loading.
+
 =back
+
+=cut
+
+    # This is the list of tables we are loading.
+    use constant LOAD_TABLES => qw(Genome Genome2Contig Contig Genome2Feature Feature
+                                   Protein2Feature Protein Protein2Function
+                                   Feature2Contig Feature2Function);
+
+
 
 =head2 Special Methods
 
 =head3 new
 
-    my $genomeLoader = ShrubGenomeLoader->new($loader);
+    my $genomeLoader = ShrubGenomeLoader->new($loader, %options);
 
-Construct a new Shrub function loader object and initialize the hash tables.
+Construct a new, blank Shrub genome loader object.
 
 =over 4
 
@@ -55,21 +75,70 @@ Construct a new Shrub function loader object and initialize the hash tables.
 
 L<ShrubLoader> object to be used to access the database and the load utility methods.
 
+=item options
+
+A hash of options, including one or more of the following.
+
+=over 8
+
+=item slow
+
+TRUE if we are to load using individual inserts, FALSE if we are to load by spooling
+inserts into files for mass loading. The default is FALSE.
+
+=item funcLoader
+
+A L<ShrubFunctionLoader> object for computing function and role IDs. If none is
+provided, one will be created internally.
+
+=back
+
 =back
 
 =cut
 
 sub new {
     # Get the parameters.
-    my ($class, $loader) = @_;
+    my ($class, $loader, %options) = @_;
+    # Get the slow-load flag.
+    my $slow = $options{slow} || 0;
+    # Get the function-loader object.
+    my $funcLoader = $options{funcLoader};
+    # If the function loader was not provided, create one.
+    if (! $funcLoader) {
+        $funcLoader = ShrubFunctionLoader->new($loader, slow => $slow);
+    }
+    # If we are NOT in slow-loading mode, prepare the tables for spooling.
+    if (! $slow) {
+        $loader->Open(LOAD_TABLES);
+    }
     # Create the object.
-    my $retVal = { loader => $loader, md5 => undef };
+    my $retVal = { loader => $loader, md5 => undef,
+        funcLoader => $funcLoader, slow => $slow };
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;
 }
 
 =head2 Public Manipulation Methods
+
+=head3 Clear
+
+    $subLoader->Clear();
+
+Recreate the genome-related tables.
+
+=cut
+
+sub Clear {
+    # Get the parameters.
+    my ($self) = @_;
+    # Get the loader object.
+    my $loader = $self->{loader};
+    # CLear the tables.
+    $loader->Clear(LOAD_TABLES);
+}
+
 
 =head3 CurateNewGenomes
 
@@ -237,6 +306,79 @@ sub CurateNewGenomes {
     # Return the metadata hash.
     return \%retVal;
 }
+
+
+sub LoadGenome {
+    # Get the parameters.
+    my ($self, $genome, $genomeDir, $metaHash) = @_;
+    # Get the loader, shrub, and statistics objects.
+    my $loader = $self->{loader};
+    my $shrub = $loader->db;
+    my $stats = $loader->stats;
+    # Get the function loader.
+    my $funcLoader = $self->{funcLoader};
+    # If we do not already have the metadata hash, read it in.
+    if (! defined $metaHash) {
+        $metaHash = $loader->ReadMetaData("$genomeDir/genome-info",
+                required => [qw(name md5 privilege prokaryotic)]);
+    }
+     # Get the DNA repository directory.
+     my $dnaRepo = $shrub->DNArepo;
+     # Form the repository directory for the DNA.
+     my $relPath = $loader->RepoPath($metaHash->{name});
+     my $absPath = "$dnaRepo/$relPath";
+     if (! -d $absPath) {
+         print "Creating directory $relPath for DNA file.\n";
+         File::Path::make_path($absPath);
+     }
+     # Now we read the contig file and analyze the DNA for gc-content, number
+     # of bases, and the list of contigs. We also copy it to the output
+     # repository.
+     print "Analyzing contigs.\n";
+     my ($contigList, $genomeHash) = $self->AnalyzeContigFasta("$genomeDir/contigs", "$absPath/$genome.fa");
+     # Get the annotation privilege level for this genome.
+     my $priv = $metaHash->{privilege};
+     # Now we can create the genome record.
+     print "Storing $genome in database.\n";
+     $loader->InsertObject('Genome', id => $genome, %$genomeHash,
+             core => $metaHash->{type}, name => $metaHash->{name}, prokaryotic => $metaHash->{prokaryotic},
+             'contig-file' => "$relPath/$genome.fa");
+     $stats->Add(genomeInserted => 1);
+     # Connect the contigs to it.
+     for my $contigDatum (@$contigList) {
+         # Fix the contig ID.
+         $contigDatum->{id} = "$genome:$contigDatum->{id}";
+         # Connect the genome to the contig.
+         $loader->InsertObject('Genome2Contig', 'from-link' => $genome, 'to-link' => $contigDatum->{id});
+         # Create the contig.
+         $loader->InsertObject('Contig', %$contigDatum);
+         $stats->Add(contigInserted => 1);
+     }
+     # Process the non-protein features.
+     my $npFile = "$genomeDir/non-peg-info";
+     if (-f $npFile) {
+         # Read the feature data.
+         print "Processing non-protein features.\n";
+         my $pegHash = $funcLoader->ReadFeatures($genome, $npFile);
+         # Connect the functions.
+         print "Connecting to functions.\n";
+         for my $fid (keys %$pegHash) {
+             # Compute this function's ID.
+             my ($funcID, $comment) = @{$pegHash->{$fid}};
+             # Make the connection at each privilege level.
+             for (my $p = $priv; $p >= 0; $p--) {
+                 $loader->InsertObject('Feature2Function', 'from-link' => $fid, 'to-link' => $funcID,
+                         comment => $comment, security => $p);
+                 $stats->Add(featureFunction => 1);
+             }
+         }
+     }
+     print "Processing protein features.\n";
+     my $pegHash = $funcLoader->ReadFeatures($genome, "$genomeDir/peg-info");
+     $funcLoader->ConnectPegFunctions($genome, $genomeDir, $pegHash, priv => $priv);
+}
+
+
 
 =head3 AnalyzeContigFasta
 

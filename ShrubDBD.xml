@@ -27,7 +27,7 @@
     <Diagram height="800" width="800" ratio="0.7" size="90"
         fontSize="12" editable="0" />
     <Entities>
-        <Entity name="Genome" keyType="string">
+        <Entity name="Genome" keyType="short-string">
             <DisplayInfo theme="red" col="3" row="3" />
             <Notes>A genome represents a specific organism with DNA, or a
                 specific meta-genome. All DNA sequences in the database belong to
@@ -49,7 +49,7 @@
                 <Field name="contigs" type="int">
                     <Notes>Number of contigs for this genome.</Notes>
                 </Field>
-                <Field name="md5-identifier" type="string">
+                <Field name="md5-identifier" type="short-string">
                     <Notes>MD5 identifier for this genome, for comparison with genomes
                         in other databases. The MD5 is computed by taking the MD5s of
                         the contigs, lexically sorting them, joining them together with
@@ -129,7 +129,7 @@
                 ID that functions as its ID in this table.
             </Notes>
             <Fields>
-                <Field name="feature-type" type="string">
+                <Field name="feature-type" type="short-string">
                     <Notes>Code indicating the type of this feature. Among the
                         codes currently supported are "peg" for a protein encoding
                         gene, "bs" for a binding site, "opr" for an operon, and so
@@ -154,7 +154,7 @@
                 </Index>
             </Indexes>
         </Entity>
-        <Entity name="Protein" keyType="string">
+        <Entity name="Protein" keyType="short-string">
             <DisplayInfo theme="green" col="3" row="7" />
             <Notes>A protein sequence is a specific sequence of amino acids.
                 Unlike a DNA sequence, a protein sequence does not belong to a
@@ -170,7 +170,7 @@
                 </Field>
             </Fields>
         </Entity>
-        <Entity name="TaxonomicGrouping" keyType="string">
+        <Entity name="TaxonomicGrouping" keyType="short-string">
             <DisplayInfo row="1" col="3" caption="Taxonomic\nGrouping"
                 theme="red" />
             <Notes>A taxonomic grouping is a segment of the classification for
@@ -220,7 +220,7 @@
                 more.
             </Asides>
         </Entity>
-        <Entity name="Function" keyType="hash-string">
+        <Entity name="Function" keyType="short-string">
             <DisplayInfo theme="blue" row="9" col="1" />
             <Notes>A function is a set of roles that represent the effects of a
                 protein. Most functions consist of a single role, but many can have two or three
@@ -253,13 +253,13 @@
                 </Index>
             </Indexes>
         </Entity>
-        <Entity name="Role" keyType="hash-string">
+        <Entity name="Role" keyType="short-string">
             <DisplayInfo theme="blue" row="9" col="5" />
             <Notes>A role represents a single effect of a protein in a cell. The
                 fundamental	purpose of annotation is to assign roles to proteins.
                 The collection of roles (often only one) associated with a protein
                 is the protein's function. Each role is assigned a short string key.
-                The key remains the same even if the wording of the role changes.
+                The key is a UUID.
             </Notes>
             <Fields>
                 <Field name="description" type="long-string">
@@ -311,7 +311,7 @@
                 </Index>
             </Indexes>
         </Entity>
-        <Entity name="Subsystem" keyType="hash-string">
+        <Entity name="Subsystem" keyType="short-string">
             <DisplayInfo theme="blue" col="7" row="5" />
             <Notes>A subsystem is a collection of roles that work together in a
                 cell. Identification of subsystems is an important tool for
@@ -351,7 +351,8 @@
             <DisplayInfo theme="blue" col="5" row="3" caption="Subsystem\nRow" />
             <Notes>A subsystem row represents an implementation of a subsystem in a genome.
                 A genome could conceivably have more than one such implementation
-                The key is a UUID.
+                The key is the subsystem ID followed by a colon and a unique identifying
+                number.
             </Notes>
             <Asides>A genome could have multiple instances of a subsystem either
                 because they are at different privilege levels (public, privileged,
@@ -378,11 +379,11 @@
                 </Field>
             </Fields>
         </Entity>
-        <Entity name="SubsystemCell" keyType="hash-string">
+        <Entity name="SubsystemCell" keyType="string">
             <DisplayInfo theme="blue" col="5" row="5" caption="Subsystem\nCell" />
             <Notes>A subsystem cell represents a single role in a subsystem row.
                 It contains one or more features from the row's genome. The key is
-                a UUID.
+                the row ID followed by a colon and the role abbreviation.
             </Notes>
         </Entity>
         <Entity name="Reaction" keyType="string">

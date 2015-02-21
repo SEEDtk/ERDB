@@ -19,7 +19,7 @@
 
 =head1 Load Genomes Into the Shrub Database
 
-    ShrubLoadGenomes [options] genome1 genome2 ...
+    ShrubLoadGenomes [options]
 
 This method loads one or more genomes from repository directories into the
 Shrub database. The genome data will be assembled into load files for
@@ -27,7 +27,7 @@ each table, and then the tables loaded directly from the files.
 
 =head2 Parameters
 
-The positional parameters are names of the genomes to be loaded.
+There are no positional parameters.
 
 The command-line options listed in L<Shrub/script_options> are accepted
 as well as the following.
@@ -48,21 +48,17 @@ Re-create the tables before loading.
 
 =item genomes
 
-If specified, the name of a file containing a list of genome IDs. Genomes from this list will be loaded in
-addition to any specified in the argument list. Mutually exclusive with C<all>.
+If specified, the name of a file containing a list of genome IDs. Genomes from this list will be loaded.
+Otherwise, all genomes in the source directory will be loaded.
 
 =item override
 
 If specified, new function assignments will overwrite existing function assignments. Otherwise, new
 function assignments will be ignored.
 
-=item all
-
-Load all of the genomes in the genome directory. Mutually exclusive with C<genomes>.
-
 =item genomeDir
 
-Directory containing the genome source files. If not specified, the default will be
+Directory containing the genome source data in L<ExchangeFormat>. If not specified, the default will be
 computed from information in the L<FIG_Config> module.
 
 =back
@@ -72,27 +68,20 @@ computed from information in the L<FIG_Config> module.
     use strict;
     use Shrub;
     use ShrubLoader;
-    use ShrubFunctionLoader;
     use ShrubGenomeLoader;
     use File::Path ();
     use ScriptUtils;
-
-    # This is the list of tables we are loading.
-    use constant LOADTABLES => qw(Genome Genome2Contig Contig Genome2Feature Feature
-                                  Protein2Feature Protein Protein2Function
-                                  Feature2Contig Feature2Function);
 
     # Start timing.
     my $startTime = time;
     $| = 1; # Prevent buffering on STDOUT.
     # Process the command line.
-    my $opt = ScriptUtils::Opts('genomeDirectory genome1 genome2 ...', Shrub::script_options(),
+    my $opt = ScriptUtils::Opts('', Shrub::script_options(),
             ["slow|s", "use individual inserts rather than table loads"],
             ["genomes=s", "name of a file containing a list of the genomes to load"],
             ["missing|m", "only load genomes not already in the database"],
             ["override|o", "override existing protein function assignments"],
             ["clear|c", "clear the genome tables before loading"],
-            ["all|a", "process all genomes in the genome directory"],
             ["genomeDir|g=s", "genome directory containing the data to load", { default => "$FIG_Config::shrub_dir/Inputs/GenomeData" }]
         );
     # Connect to the database.
@@ -101,12 +90,9 @@ computed from information in the L<FIG_Config> module.
     # We are connected. Create the loader utility object.
     my $loader = ShrubLoader->new($shrub);
     # Create the genome loader utility object.
-    my $genomeLoader = ShrubGenomeLoader->new($loader);
+    my $genomeLoader = ShrubGenomeLoader->new($loader, slow => $opt->slow);
     # Get the statistics object.
     my $stats = $loader->stats;
-    # Get the positional parameters.
-    my @genomes = @ARGV;
-    # Verify the genome directory.
     my $genomeDir = $opt->genomedir;
     if (! -d $genomeDir) {
         die "Invalid genome directory $genomeDir.";
@@ -115,19 +101,10 @@ computed from information in the L<FIG_Config> module.
     # genome IDs to [directory,name] pairs.
     print "Reading genome repository.\n";
     my $genomeHash = $loader->FindGenomeList($genomeDir);
-    if ($opt->all) {
-        if (scalar @genomes || $opt->genomes) {
-            die "ALL option specified along with a list of genome IDs. Use one or the other.";
-        }
-    } else {
-        # Here we are only doing some of the genomes. We'll put them in here.
-        my $genomeList = [@genomes];
-        # First, do we have a list file?
-        if ($opt->genomes) {
-            # Yes. Get the genomes in the list.
-            my $genomeData = $loader->GetNamesFromFile(genome => $opt->genomes);
-            push @$genomeList, @$genomeData;
-        }
+    # First, do we have a list file?
+    if ($opt->genomes) {
+        # Yes. Get the genomes in the list.
+        my $genomeList = $loader->GetNamesFromFile(genome => $opt->genomes);
         # Now run through the genome list. If one of them is not in the repository, throw an error.
         # Otherwise, put it into a hash.
         my %genomeMap;
@@ -157,12 +134,8 @@ computed from information in the L<FIG_Config> module.
             die "Cannot specify MISSING when CLEAR is used.";
         } else {
             print "CLEAR option specified.\n";
-            $loader->Clear(LOADTABLES);
+            $genomeLoader->Clear();
         }
-    }
-    # If we are NOT in slow mode, prepare the tables for loading.
-    if (! $opt->slow) {
-        $loader->Open(LOADTABLES);
     }
     # If we want to override function assignments, put the function relationships in replace mode.
     if ($opt->override) {
@@ -174,68 +147,15 @@ computed from information in the L<FIG_Config> module.
     my $genomeMeta = $genomeLoader->CurateNewGenomes($genomeHash, $opt->missing, $opt->clear);
     # These variables will be used to display progress.
     my ($gCount, $gTotal) = (0, scalar(keys %$genomeMeta));
-    # Get the DNA repository directory.
-    my $dnaRepo = $shrub->DNArepo;
     # Loop through the incoming genomes.
     for my $genome (sort keys %$genomeMeta) {
          my $metaHash = $genomeMeta->{$genome};
          # Display our progress.
          $gCount++;
-         print "Processing $genome ($gCount of $gTotal).\n";
          # Get the input repository directory.
          my $genomeLoc = $genomeHash->{$genome};
-         # Form the repository directory for the DNA.
-         my $relPath = $loader->RepoPath($metaHash->{name});
-         my $absPath = "$dnaRepo/$relPath";
-         if (! -d $absPath) {
-             print "Creating directory $relPath for DNA file.\n";
-             File::Path::make_path($absPath);
-         }
-         # Now we read the contig file and analyze the DNA for gc-content, number
-         # of bases, and the list of contigs. We also copy it to the output
-         # repository.
-         print "Analyzing contigs.\n";
-         my ($contigList, $genomeHash) = $genomeLoader->AnalyzeContigFasta("$genomeLoc/contigs", "$absPath/$genome.fa");
-         # Get the annotation privilege level for this genome.
-         my $priv = $metaHash->{privilege};
-         # Now we can create the genome record.
-         print "Storing $genome in database.\n";
-         $loader->InsertObject('Genome', id => $genome, %$genomeHash,
-                 core => $metaHash->{type}, name => $metaHash->{name}, prokaryotic => $metaHash->{prokaryotic},
-                 'contig-file' => "$relPath/$genome.fa");
-         $stats->Add(genomeInserted => 1);
-         # Connect the contigs to it.
-         for my $contigDatum (@$contigList) {
-             # Fix the contig ID.
-             $contigDatum->{id} = "$genome:$contigDatum->{id}";
-             # Connect the genome to the contig.
-             $loader->InsertObject('Genome2Contig', 'from-link' => $genome, 'to-link' => $contigDatum->{id});
-             # Create the contig.
-             $loader->InsertObject('Contig', %$contigDatum);
-             $stats->Add(contigInserted => 1);
-         }
-         # Process the non-protein features.
-         my $npFile = "$genomeLoc/non-peg-info";
-         if (-f $npFile) {
-             # Read the feature data.
-             print "Processing non-protein features.\n";
-             my $pegHash = $funcLoader->ReadFeatures($genome, $npFile);
-             # Connect the functions.
-             print "Connecting to functions.\n";
-             for my $fid (keys %$pegHash) {
-                 # Compute this function's ID.
-                 my ($funcID, $comment) = @{$pegHash->{$fid}};
-                 # Make the connection at each privilege level.
-                 for (my $p = $priv; $p >= 0; $p--) {
-                     $loader->InsertObject('Feature2Function', 'from-link' => $fid, 'to-link' => $funcID,
-                             comment => $comment, security => $p);
-                     $stats->Add(featureFunction => 1);
-                 }
-             }
-         }
-         print "Processing protein features.\n";
-         my $pegHash = $funcLoader->ReadFeatures($genome, "$genomeLoc/peg-info");
-         $funcLoader->ConnectPegFunctions($genome, $genomeLoc, $pegHash, priv => $priv);
+         print "Processing $genome ($gCount of $gTotal).\n";
+         $genomeLoader->LoadGenome($genome, $genomeLoc, $metaHash);
      }
      # Unspool the load files.
      $loader->Close();
