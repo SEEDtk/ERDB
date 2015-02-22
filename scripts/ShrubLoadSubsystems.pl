@@ -69,10 +69,6 @@ will have no effect.
 If specified, each table record will be inserted individually. Otherwise, new records will be spooled to a
 flat file and uploaded at the end of the run.
 
-=item all
-
-Implies C<links>, C<pegs>, and C<roles>.
-
 =item genomeDir
 
 Directory containing the genome source data in L<ExchangeFormat>. If not specified, the default will be
