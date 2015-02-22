@@ -201,7 +201,6 @@ sub Submit {
     my $parmCount = ERDB::CountParameterMarks($filterString);
     # Count the parameters.
     my $suppliedParms = scalar(@$parms);
-    Trace("$suppliedParms parameters found.") if T(3);
     # Verify the various parameters.
     if (! $objects) {
         $self->Error("No object list specified. Query aborted.");
@@ -245,26 +244,22 @@ sub Submit {
                 # if there is not already a limit in the filter clause.
                 if ($limitNumber && $filterString !~ /(?:^|\s)LIMIT\s/) {
                     $limitClause = " LIMIT $limitNumber";
-                    Trace("Limit clause for $limitNumber rows added to query.") if T(2);
                 }
             }
             # Now we need to find things out about the fields. For each one,
             # we need a column name and a cell format. To get that, we
             # start the query and analyze the fields.
-            Trace("Preparing query.") if T(3);
             my $query = eval('$db->Prepare($objects, "$filterString$limitClause", $parms)');
             if ($@) {
                 # Here the query preparation failed for some reason. This is usually an
                 # SQL syntax error.
                 $self->Error("QUERY ERROR: $@");
             } else {
-                Trace("Parsing field list.") if T(3);
                 # We need to get the necessary data for each field in the field list.
                 # This will be set to TRUE if a valid field is found.
                 my $found;
                 # Now loop through the field names.
                 for my $field (@$fields) {
-                    Trace("Processing field name \"$field\".") if T(3);
                     # Get the data for this field.
                     my ($objectName, $fieldName, $type) = $query->CheckFieldName($field);
                     if (! defined $objectName) {

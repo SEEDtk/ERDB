@@ -143,7 +143,6 @@ sub new {
     # Compute the user name and password.
     my ($user, $pass) = split '/', $userData, 2;
     $pass = "" if ! defined $pass;
-    Trace("Connecting to shrub database.") if T(2);
     # Connect to the database, if desired.
     my $dbh;
     if (! $options{offline}) {

@@ -115,9 +115,6 @@ sub Fetch {
             my $msg = $dbh->ErrorMessage($sth);
             # Throw an error with it.
             Confess($msg);
-        } else {
-            # Trace the number of results returned.
-            Trace("$self->{_results} rows processed by query.") if T(SQL => 4);
         }
     } else {
         # Here we have a result, so we need to turn it into an instance object.

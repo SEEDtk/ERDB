@@ -66,15 +66,12 @@ sub NewSessionID {
     # Declare the return variable.
     my $retVal;
     # Get a digest encoder.
-    Trace("Retrieving digest encoder.") if T(3);
     my $md5 = Digest::MD5->new();
     # Add the PID, the IP, and the time stamp. Note that the time stamp is
     # actually two numbers, and we get them both because we're in list
     # context.
-    Trace("Assembling pieces.") if T(3);
     $md5->add($$, $ENV{REMOTE_ADDR}, $ENV{REMOTE_PORT}, gettimeofday());
     # Hash up all this identifying data.
-    Trace("Producing result.") if T(3);
     $retVal = $md5->hexdigest();
     # Return the result.
     return $retVal;

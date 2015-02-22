@@ -1139,13 +1139,6 @@ sub GetEntity {
     my $query = $self->Get($entityType, "$entityType(id) = ?", [$coded]);
     # Get the first (and only) object.
     my $retVal = $query->Fetch();
-    if (T(3)) {
-        if ($retVal) {
-            Trace("Entity $entityType \"$ID\" found.");
-        } else {
-            Trace("Entity $entityType \"$ID\" not found.");
-        }
-    }
     # Return the result.
     return $retVal;
 }
@@ -1309,10 +1302,8 @@ sub GetAll {
     # list is a scalar we convert it into a singleton list.
     my @parmList = ();
     if (ref $parameterList eq "ARRAY") {
-        Trace("GetAll parm list is an array.") if T(4);
         @parmList = @{$parameterList};
     } else {
-        Trace("GetAll parm list is a scalar: $parameterList.") if T(4);
         push @parmList, $parameterList;
     }
     # Insure the counter has a value.
@@ -1393,10 +1384,8 @@ sub PutAll {
     # list is a scalar we convert it into a singleton list.
     my @parmList = ();
     if (ref $parameterList eq "ARRAY") {
-        Trace("GetAll parm list is an array.") if T(4);
         @parmList = @{$parameterList};
     } else {
-        Trace("GetAll parm list is a scalar: $parameterList.") if T(4);
         push @parmList, $parameterList;
     }
     # Add the row limit to the filter clause.
@@ -1444,7 +1433,6 @@ sub Exists {
     # Get the parameters.
     my ($self, $entityName, $entityID) = @_;
     # Check for the entity instance.
-    Trace("Checking existence of $entityName with ID=$entityID.") if T(4);
     my $testInstance = $self->GetEntity($entityName, $entityID);
     # Return an existence indicator.
     my $retVal = ($testInstance ? 1 : 0);
@@ -1772,7 +1760,6 @@ sub Search {
         my @fields = @{$object1Structure->{searchFields}};
         # Clean the search expression.
         my $actualKeywords = $self->CleanKeywords($searchExpression);
-        Trace("Actual keywords for search are\n$actualKeywords") if T(3);
         # We need two match expressions, one for the filter clause and one in
         # the query itself. Both will use a parameter mark, so we need to push
         # the search expression onto the front of the parameter list twice.
@@ -2197,7 +2184,6 @@ sub ReadMetaXML {
     my ($fileName) = @_;
     # Read the XML.
     my $retVal = XML::Simple::XMLin($fileName, %XmlOptions, %XmlInOpts);
-    Trace("XML metadata loaded from file $fileName.") if T(1);
     # Return the result.
     return $retVal;
 }
@@ -2376,11 +2362,9 @@ sub ValidateFieldName {
     # Look for bad stuff in the name.
     if ($fieldName =~ /--/) {
         # Here we have a doubled minus sign.
-        Trace("Field name $fieldName has a doubled hyphen.") if T(1);
         $retVal = 0;
     } elsif ($fieldName !~ /^[A-Za-z]/) {
         # Here the field name is missing the initial letter.
-        Trace("Field name $fieldName does not begin with a letter.") if T(1);
         $retVal = 0;
     } else {
         # Strip out the minus signs. Everything remaining must be a letter
@@ -2388,7 +2372,6 @@ sub ValidateFieldName {
         my $strippedName = $fieldName;
         $strippedName =~ s/-//g;
         if ($strippedName !~ /^([a-z]|\d)+$/i) {
-            Trace("Field name $fieldName contains illegal characters.") if T(1);
             $retVal = 0;
         }
     }
@@ -2705,12 +2688,9 @@ sub GetConnectingRelationships {
     # Find the entity.
     my $entity = $self->{_metaData}->{Entities}->{$entityName};
     # Only proceed if the entity exists.
-    if (! defined $entity) {
-        Trace("Entity $entityName not found.") if T(3);
-    } else {
+    if (defined $entity) {
         # Loop through the relationships.
         my @rels = keys %$relationships;
-        Trace(scalar(@rels) . " relationships found in connection search.") if T(3);
         for my $relationshipName (@rels) {
             my $relationship = $relationships->{$relationshipName};
             if ($relationship->{from} eq $entityName) {
@@ -2799,7 +2779,6 @@ sub GetDataTypes {
         if (defined $ERDBExtras::customERDBtypes) {
             push @types, @$ERDBExtras::customERDBtypes;
         }
-        Trace("Type List: " . join(", ", @types)) if T(Types => 3);
         # Initialize the table.
         $TypeTable = {};
         # Loop through all of the types, creating the type objects.
@@ -3029,187 +3008,6 @@ sub DumpMetaData {
     return Data::Dumper::Dumper($self->{_metaData});
 }
 
-=head3 GenerateWikiData
-
-    my @wikiLines = $erdb->GenerateWikiData($wiki);
-
-Build a description of the database for a wiki. The database will be
-organized into a single page, with sections for each entity and relationship.
-The return value is a list of text lines.
-
-The parameter must be an object that mimics the object-based interface of the
-L</WikiTools> object. If it is omitted, L</WikiTools> is used.
-
-=cut
-
-sub GenerateWikiData {
-    # Get the parameters.
-    my ($self, $wiki) = @_;
-    # If there's no Wiki object, use the default one.
-    require WikiTools;
-    $wiki = WikiTools->new() if ! defined $wiki;
-    # We'll build the wiki text in here.
-    my @retVal = ();
-    # Get the metadata object.
-    my $metadata = $self->{_metaData};
-    # Get the title string. This will become the page name.
-    my $title = $metadata->{Title}->{content};
-    # Get the entity and relationship lists.
-    my $entityList = $metadata->{Entities};
-    my $relationshipList = $metadata->{Relationships};
-    my $shapeList = $metadata->{Shapes};
-    # Start with the introductory text.
-    push @retVal, $wiki->Heading(2, "Introduction");
-    if (my $notes = $metadata->{Notes}) {
-        push @retVal, _WikiNote($notes->{content}, $wiki);
-    }
-    # Generate the issue list.
-    if (my $issues = $metadata->{Issues}) {
-        push @retVal, $wiki->Heading(3, 'Issues');
-        push @retVal, $wiki->List(map { $_->{content} } @{$issues});
-    }
-    # Generate the region list.
-    if (my $regions = $metadata->{Regions}) {
-        push @retVal, $wiki->Heading(3, 'Diagram Regions');
-        for my $region (@$regions) {
-            # Check for notes.
-            my $notes = "";
-            if ($region->{Notes}) {
-                $notes = $region->{Notes}->{content};
-            }
-            # Put out the region name as a heading.
-            push @retVal, $wiki->Heading(4, $region->{name});
-            # Output the notes for the region.
-            push @retVal, _WikiNote($notes, $wiki);
-        }
-    }
-    # Generate the type table.
-    push @retVal, $wiki->Heading(2, "Data Types");
-    push @retVal, ShowDataTypes($wiki, $self);
-    # Start the entity section.
-    push @retVal, $wiki->Heading(2, "Entities");
-    # Loop through the entities. Note that unlike the situation with HTML, we
-    # don't need to generate the table of contents manually, just the data
-    # itself.
-    for my $key (sort keys %$entityList) {
-        # Create a header for this entity.
-        push @retVal, "", $wiki->Heading(3, $key);
-        # Get the entity data.
-        my $entityData = $entityList->{$key};
-        # Plant the notes here, if there are any.
-        push @retVal, ObjectNotes($entityData, $wiki);
-        # Now we list the entity's relationships (if any). First, we build a list
-        # of the relationships relevant to this entity.
-        my @rels = ();
-        for my $rel (sort keys %$relationshipList) {
-            my $relStructure = $relationshipList->{$rel};
-            # Find out if this relationship involves this entity.
-            my $dir;
-            if ($relStructure->{from} eq $key) {
-                $dir ='from';
-            } elsif ($relStructure->{to} eq $key) {
-                $dir = 'to';
-            }
-            if ($dir) {
-                # Get the relationship sentence.
-                my $relSentence = _ComputeRelationshipSentence($wiki, $rel, $relStructure, $dir);
-                # Add it to the relationship list.
-                push @rels, $relSentence;
-            }
-        }
-        # Add the relationships as a Wiki list.
-        push @retVal, $wiki->List(@rels);
-        # Finally, the field table.
-        push @retVal, _WikiObjectTable($key, $entityData->{Fields}, $wiki);
-    }
-    # Now the entities are documented. Next we do the relationships.
-    push @retVal, $wiki->Heading(2, "Relationships");
-    for my $key (sort keys %$relationshipList) {
-        my $relationshipData = $relationshipList->{$key};
-        # Create the relationship heading.
-        push @retVal, $wiki->Heading(3, $key);
-        # Describe the relationship arity. Note there's a bit of trickiness
-        # involving recursive many-to-many relationships. In a normal
-        # many-to-many we use two sentences to describe the arity (one for each
-        # direction). This is a bad idea for a recursive relationship, since
-        # both sentences will say the same thing.
-        my $arity = $relationshipData->{arity};
-        my $fromEntity = $relationshipData->{from};
-        my $toEntity = $relationshipData->{to};
-        my @listElements = ();
-        if ($arity eq "11") {
-            push @listElements, "Each " . $wiki->Bold($fromEntity) .
-                " relates to at most one " . $wiki->Bold($toEntity) . ".";
-        } else {
-            push @listElements, "Each " . $wiki->Bold($fromEntity) .
-                " relates to multiple " . $wiki->Bold(Tracer::Pluralize($toEntity)) . ".";
-            if ($arity eq "MM" && $fromEntity ne $toEntity) {
-                push @listElements, "Each " . $wiki->Bold($toEntity) .
-                    " relates to multiple " . $wiki->Bold(Tracer::Pluralize($fromEntity));
-            }
-        }
-        if ($relationshipData->{converse}) {
-            push @listElements, "Converse name is $relationshipData->{converse}."
-        }
-        push @retVal, $wiki->List(@listElements);
-        # Plant the notes here, if there are any.
-        push @retVal, ObjectNotes($relationshipData, $wiki);
-        # Finally, the field table.
-        push @retVal, _WikiObjectTable($key, $relationshipData->{Fields}, $wiki);
-    }
-    # Now loop through the miscellaneous shapes.
-    if ($shapeList) {
-        push @retVal, $wiki->Heading(2, "Miscellaneous");
-        for my $shape (sort keys %$shapeList) {
-            push @retVal, $wiki->Heading(3, $shape);
-            my $shapeData = $shapeList->{$shape};
-            push @retVal, ObjectNotes($shapeData, $wiki);
-        }
-    }
-    # All done. Return the lines.
-    return @retVal;
-}
-
-=head3 ObjectNotes
-
-    my @noteParagraphs = ERDB::ObjectNotes($objectData, $wiki);
-
-Return a list of the notes and asides for an entity or relationship in
-Wiki format.
-
-=over 4
-
-=item objectData
-
-The metadata for the desired entity or relationship.
-
-=item wiki
-
-Wiki object used to render text.
-
-=item RETURN
-
-Returns a list of text paragraphs in Wiki markup form.
-
-=back
-
-=cut
-
-sub ObjectNotes {
-    # Get the parameters.
-    my ($objectData, $wiki) = @_;
-    # Declare the return variable.
-    my @retVal;
-    # Loop through the types of notes.
-    for my $noteType (qw(Notes Asides)) {
-        my $text = $objectData->{$noteType};
-        if ($text) {
-            push @retVal, _WikiNote($text->{content}, $wiki);
-        }
-    }
-    # Return the result.
-    return @retVal;
-}
 
 =head3 CheckObjectNames
 
@@ -3421,7 +3219,6 @@ sub LoadTable {
     # Create the statistical return object.
     my $retVal = _GetLoadStats();
     # Trace the fact of the load.
-    Trace("Loading table $relationName from $fileName") if T(2);
     # Get the database handle.
     my $dbh = $self->{_dbh};
     # Get the input file size.
@@ -3430,7 +3227,6 @@ sub LoadTable {
     my $relation = $self->FindRelation($relationName);
     # Check the truncation flag.
     if ($options{truncate}) {
-        Trace("Creating table $relationName") if T(2);
         # Compute the row count estimate. We take the size of the load file,
         # divide it by the estimated row size, and then multiply by 8 to
         # leave extra room. We postulate a minimum row count of 10000 to
@@ -3467,7 +3263,6 @@ sub LoadTable {
     } else {
         # Here we successfully loaded the table.
         my $size = -s $fileName;
-        Trace("$size bytes loaded into $relationName.") if T(2);
         $retVal->Add("bytes-loaded", $size);
         $retVal->Add("tables-loaded" => 1);
         # If we're rebuilding, we need to create the table indexes.
@@ -3486,7 +3281,6 @@ sub LoadTable {
             # The full-text index (if any) is always built last, even for MySQL.
             # First we need to see if this table HAS a full-text index. Only
             # primary relations are allowed that privilege.
-            Trace("Checking for full-text index on $relationName.") if T(2);
             if ($self->_IsPrimary($relationName)) {
                 $self->CreateSearchIndex($relationName);
             }
@@ -3498,10 +3292,8 @@ sub LoadTable {
     }
     # Analyze the table to improve performance.
     if (! $options{partial}) {
-        Trace("Analyzing and compacting $relationName.") if T(3);
         $self->Analyze($relationName);
     }
-    Trace("$relationName load completed.") if T(3);
     # Return the statistics.
     return $retVal;
 }
@@ -3688,7 +3480,6 @@ sub CreateSearchIndex {
     my $structure = $self->_GetStructure($objectName);
     # Get the database handle.
     my $dbh = $self->{_dbh};
-    Trace("Checking for search fields in $objectName.") if T(3);
     # Check for a searchable fields list.
     if (exists $structure->{searchFields}) {
         # Here we know that we need to create a full-text search index.
@@ -3697,7 +3488,6 @@ sub CreateSearchIndex {
         # Create the index. If it already exists, it will be dropped.
         $dbh->create_index(tbl => $objectName, idx => "search_idx",
                            flds => $fields, kind => 'fulltext');
-        Trace("Index created for $fields in $objectName.") if T(2);
     }
 }
 
@@ -3725,7 +3515,6 @@ sub DropRelation {
     my $dbh = $self->{_dbh};
     # Drop the relation. The method used here has no effect if the relation
     # does not exist.
-    Trace("Invoking DB Kernel to drop $relationName.") if T(3);
     $dbh->drop_table(tbl => $relationName);
 }
 
@@ -3918,7 +3707,6 @@ sub CreateTables {
     for my $relationName (@relNames) {
         # Create a table for this relation.
         $self->CreateTable($relationName, 1);
-        Trace("Relation $relationName created.") if T(2);
     }
 }
 
@@ -3960,18 +3748,14 @@ sub CreateTable {
     my $fieldThing = $self->ComputeFieldString($relationName);
     # Insure the table is not already there.
     $dbh->drop_table(tbl => $self->{_quote} . $relationName . $self->{_quote});
-    Trace("Table $relationName dropped.") if T(2);
     # Create an estimate of the table size.
     my $estimation;
     if ($estimatedRows) {
         $estimation = [$self->EstimateRowSize($relationName), $estimatedRows];
-        Trace("$estimation->[1] rows of $estimation->[0] bytes each.") if T(3);
     }
     # Create the table.
-    Trace("Creating table $relationName: $fieldThing") if T(2);
     $dbh->create_table(tbl => $self->{_quote} . $relationName . $self->{_quote}, flds => $fieldThing,
                        estimates => $estimation);
-    Trace("Relation $relationName created in database.") if T(2);
     # If we want to build the indexes, we do it here. Note that the full-text
     # search index will not be built until the table has been loaded.
     if ($indexFlag) {
@@ -4218,7 +4002,6 @@ sub DecodeField {
     # Get the field type.
     my $fieldSpec = $self->_FindField($fieldName);
     my $type = $fieldSpec->{type};
-    Trace("Decoding field $fieldName of type $type.") if T(ERDBType => 3);
     # Process according to the type.
     $retVal = $TypeTable->{$type}->decode($coding);
     # Return the result.
@@ -4319,9 +4102,7 @@ sub CreateIndex {
         # Create the index.
         my $rv = $dbh->create_index(idx => "$indexName$relationName", tbl => $self->{_quote} . $relationName . $self->{_quote},
                                     flds => $flds, kind => $unique);
-        if ($rv) {
-            Trace("Index created: $indexName for $relationName ($flds)") if T(1);
-        } else {
+        if (! $rv) {
             Confess("Error creating index $indexName for $relationName using ($flds): " .
                     $dbh->error_message());
         }
@@ -4931,7 +4712,6 @@ sub InsertObject {
                 # Normal case. Stash it in both lists.
                 push @valueList, $fixedHash{$fieldName};
                 push @fieldNameList, "$q$fixedName$q";
-                Trace("Value for $fixedName is \"$fixedHash{$fieldName}\".") if T(SQL => 4);
             }
         } else {
             # Here the field is not present. Check for a default.
@@ -4940,7 +4720,6 @@ sub InsertObject {
                 # Yes, we have a default. Push it into the two lists.
                 push @valueList, $default;
                 push @fieldNameList, "$q$fixedName$q";
-                Trace("Default value for $fixedName is \"$default\".") if T(SQL => 4);
             } else {
                 # No, this field is officially missing.
                 push @missing, $fieldName;
@@ -4971,14 +4750,12 @@ sub InsertObject {
         $statement .= join(', ', @markers) . ")";
         # We have the insert statement, so prepare it.
         my $sth = $dbh->prepare_command($statement);
-        Trace("Insert statement prepared: $statement") if T(Insert => 3);
         # Execute the INSERT statement with the specified parameter list.
         $retVal = $sth->execute(@valueList);
         if (!$retVal) {
             my $errorString = $sth->errstr();
             Confess("Error inserting into $newObjectType: $errorString");
         } else {
-            Trace("Insert successful for $newObjectType.") if T(Insert => 3);
             # Convert a true 0 to a false 0.
             $retVal = 0 if ($retVal < 1);
         }
@@ -4993,7 +4770,6 @@ sub InsertObject {
             my $values = $fieldHash->{$field};
             # Only proceed if it IS there.
             if (defined $values) {
-                Trace("Inserting values for secondary field $field in $newObjectType.") if T(3);
                 # Insure we have a list reference.
                 if (ref $values ne 'ARRAY') {
                     $values = [$values];
@@ -5299,7 +5075,6 @@ sub Delete {
         my @stackedPath = @{$current};
         # Pull off the last item on the path. It will always be an entity.
         my $myEntityName = pop @stackedPath;
-        Trace("Processing entity $myEntityName with path (" . join(", ", @stackedPath) . ").") if T(Delete => 3);
         # Add it to the alreadyFound list.
         $alreadyFound{$myEntityName} = 1;
         # Figure out if we need to delete this entity.
@@ -5309,7 +5084,6 @@ sub Delete {
             # Loop through the entity's relations. A DELETE command will be
             # needed for each of them.
             my $relations = $entityData->{Relations};
-            Trace("Recording delete of relations for $myEntityName.") if T(Delete => 3);
             for my $relation (keys %{$relations}) {
                 my @augmentedList = (@stackedPath, $relation);
                 push @fromPathList, \@augmentedList;
@@ -5323,7 +5097,6 @@ sub Delete {
                 my $relationship = $relationshipList->{$relationshipName};
                 # Check the FROM field. We're only interested if it's us.
                 if ($relationship->{from} eq $myEntityName) {
-                    Trace("Relationship $relationshipName found from $myEntityName.") if T(Delete => 3);
                     # Add the path to this relationship.
                     my @augmentedList = (@stackedPath, $myEntityName, $relationshipName);
                     push @fromPathList, \@augmentedList;
@@ -5335,20 +5108,15 @@ sub Delete {
                         if (! exists $alreadyFound{$toEntity}) {
                             # Here we have a new entity that's dependent on
                             # the current entity, so we need to stack it.
-                            Trace("Stacking request for $toEntity.") if T(Delete => 3);
                             my @stackList = (@augmentedList, $toEntity);
                             push @todoList, \@stackList;
-                        } else {
-                            Trace("$toEntity ignored because it occurred previously.") if T(Delete => 3);
                         }
                     }
                 }
                 # Now check the TO field. In this case only the relationship needs
                 # deletion, and only if it's not already in the path.
                 if ($relationship->{to} eq $myEntityName) {
-                    Trace("Relationship $relationshipName found to $myEntityName.") if T(Delete => 3);
                     if (scalar(grep { $_ eq $relationshipName } @stackedPath) != 0) {
-                        Trace("$relationshipName ignored because it's already in the path.") if T(Delete => 3);
                     } else {
                         my @augmentedList = (@stackedPath, $myEntityName, $relationshipName);
                         push @toPathList, \@augmentedList;
@@ -5366,12 +5134,10 @@ sub Delete {
     for my $keyName ('to_link', 'from_link') {
         # Get the list for this key.
         my @pathList = @{$stackList{$keyName}};
-        Trace(scalar(@pathList) . " entries in path list for $keyName.") if T(Delete => 3);
         # Loop through this list.
         while (my $path = pop @pathList) {
             # Get the table whose rows are to be deleted.
             my @pathTables = @{$path};
-            Trace("Processing delete path (" . join(", ", @pathTables) . ").") if T(Delete => 3);
             # Get ready for the DELETE statement. First we need the table being
             # deleted.
             my $target = $pathTables[$#pathTables];
@@ -5401,7 +5167,6 @@ sub Delete {
                 $stmt = "SELECT $self->{_quote}$target$self->{_quote}.* FROM " .
                     join(", ", map { $self->{_quote} . $_ . $self->{_quote} } @pathTables) .
                     $stmt;
-                Trace("Executing dump from $target using '$idParameter': $stmt.") if T(Delete => 3);
                 my $rows = $db->SQL($stmt, 0, $idParameter);
                 # Compute the number of rows read.
                 my $count = scalar @$rows;
@@ -5423,13 +5188,11 @@ sub Delete {
             } elsif ($options{testMode}) {
                 # Here the user wants to trace without executing.
                 $stmt = $db->SetUsing(@pathTables) . $stmt;
-                Trace($stmt) if T(0);
             } else {
                 # Here we can delete. Note that the SQL method dies with a confession
                 # if an error occurs, so we just go ahead and do it without handling
                 # errors afterward.
                 $stmt = $db->SetUsing(@pathTables) . $stmt;
-                Trace("Executing delete from $target using '$idParameter': $stmt.") if T(Delete => 3);
                 if ($options{'print'}) {
                     print "Deleting using '$idParameter': $stmt\n";
                 }
@@ -5498,7 +5261,6 @@ sub Disconnect {
                 $found = 1;
                 # Here we want to delete all relationship instances on this side of the
                 # entity instance.
-                Trace("Disconnecting in $dir direction with ID \"$idParameter\".") if T(3);
                 # We do this delete in batches to keep it from dragging down the
                 # server.
                 my $limitClause = ($ERDBExtras::delete_limit ? "LIMIT $ERDBExtras::delete_limit" : "");
@@ -5569,7 +5331,6 @@ sub DeleteRow {
         push @filters, $self->{_quote} . _FixName($keyName) . $self->{_quote} . " = ?";
         push @parms, $self->EncodeField("$keyTable($keyName)", $filter{$key});
     }
-    Trace("Parms for delete row are " . join(", ", map { "\"$_\"" } @parms) . ".") if T(SQL => 4);
     my $command = "DELETE FROM $self->{_quote}$relationshipName$self->{_quote} WHERE " .
                   join(" AND ", @filters);
     # Execute it.
@@ -6356,14 +6117,11 @@ sub _SetupSQL {
         $objectNameString =~ s/^\s+//;
         # Now we connect each AND to the object name after it.
         $objectNameString =~ s/\s+AND\s+(\w+)/ AND=$1/g;
-        Trace("Object name string = $objectNameString") if T(4);
         # Split on whitespace to form the final list.
         @objectNameList = split /\s+/, $objectNameString;
-        Trace("Objects are " . join(" ", @objectNameList)) if T(4);
     }
     # Loop through the object name list.
     for my $objectName (@objectNameList) {
-        Trace("Object name is $objectName") if T(4);
         # Parse this object name.
         my $alias;
         if ($objectName =~ /AND=(.+)/) {
@@ -6432,7 +6190,6 @@ sub _SetupSQL {
         # Next, we sort the object names by length. This helps protect us from finding
         # object names inside other object names when we're doing our search and replace.
         my @sortedNames = sort { length($b) - length($a) } @mappedNameList;
-        Trace("Sorted name list is " . join(", ", @sortedNames) . ".") if T(4);
         # The final preparatory step is to create a hash table of relation names. The
         # table begins with the relation names already in the SELECT command. We may
         # need to add relations later if there is filtering on a field in a secondary
@@ -6450,7 +6207,6 @@ sub _SetupSQL {
             my $nameLength = 2 + length $mappedName;
             # Get the real object name for this mapped name.
             my ($objectName, $converse) = @{$mappedNameHash{$mappedName}};
-            Trace("Processing $mappedName for object $objectName.") if T(4);
             # Get the object's field list.
             my $fieldList = $self->GetFieldTable($objectName);
             # Find the field references for this object.
@@ -6469,7 +6225,6 @@ sub _SetupSQL {
                 if (!exists $fieldList->{$fieldName}) {
                     Confess("Field $fieldName not found for object $objectName.");
                 } else {
-                    Trace("Processing $fieldName at position $pos.") if T(4);
                     # Get the field's relation.
                     my $relationName = $fieldList->{$fieldName}->{relation};
                     # This will hold the mapped relation name to be used in the
@@ -6486,7 +6241,6 @@ sub _SetupSQL {
                         $mappedRelationName = "$relationName$mappingSuffix";
                         # Insure the relation is in the FROM clause.
                         if (!exists $fromNames{$mappedRelationName}) {
-                            Trace("Working with $mappedRelationName.") if T(4);
                             # Add the relation to the FROM clause.
                             if ($mappedRelationName eq $relationName) {
                                 # The name is un-mapped, so we add it without
@@ -6540,7 +6294,6 @@ sub _SetupSQL {
     # Add the filter string. We put it in parentheses to avoid operator
     # precedence problems with the match clause or the joins.
     if ($filterString) {
-        Trace("Filter string is \"$filterString\".") if T(4);
         push @joinWhere, "($filterString)";
     }
     # String it all together into a big filter clause.
@@ -6587,14 +6340,6 @@ sub _GetStatementHandle {
     my ($self, $command, $params) = @_;
     Confess("Invalid parameter list.") if (! defined($params) || ref($params) ne 'ARRAY');
     # Trace the query.
-    Trace("SQL query: $command") if T(SQL => 3);
-    if (T(SQL => 4)) {
-        if (! scalar(@$params)) {
-            Trace("PARMS: none");
-        } else {
-            Trace("PARMS: " . join(", ", map { "'$_'" } @$params));
-        }
-    }
     # Get the database handle.
     my $dbh = $self->{_dbh};
     # Prepare the command.
@@ -6612,7 +6357,6 @@ sub _GetStatementHandle {
             Confess($msg);
         } elsif ($msg =~ /^DBServer Error/) {
             # Yes. Wait, then try reconnecting.
-            Trace("SELECT error requires reconnection. $msg") if T(2);
             sleep($ERDBExtras::sleep_time);
             $dbh->Reconnect();
             # Try executing the statement again.
@@ -6916,7 +6660,6 @@ sub _LoadMetaData {
     my $dbh = $self->{_dbh};
     # Check for an internal DBD.
     if (defined $dbh && ! $external && $self->UseInternalDBD()) {
-        Trace("Checking for internal DBD.") if T(3);
         # Check for a metadata table.
         if ($dbh->table_exists(METADATA_TABLE)) {
             # Check for an internal DBD.
@@ -6926,15 +6669,12 @@ sub _LoadMetaData {
                 # Here we found something. The return value is a reference to a
                 # list containing a 1-tuple.
                 my $frozen = $rv->[0][0];
-                Trace(length($frozen) . " characters read from metadata record.") if T(3);
                 ($metadata) = FreezeThaw::thaw($frozen);
-                Trace("DBD loaded  from database.") if T(2);
             }
         }
     }
     # If we didn't get an internal DBD, read the external one.
     if (! defined $metadata) {
-        Trace("Reading DBD from $filename.") if T(2);
         # Slurp the XML file into a variable. Extensive use of options is used to
         # insure we get the exact structure we want.
         $metadata = ReadMetaXML($filename);
@@ -7321,7 +7061,6 @@ sub _FixupFields {
         # Loop through the fields.
         my $fieldStructures = $structure->{Fields};
         for my $fieldName (keys %{$fieldStructures}) {
-            Trace("Processing field $fieldName of $defaultRelationName.") if T(metadata => 4);
             my $fieldData = $fieldStructures->{$fieldName};
             # Store the field name so we can find it when we're looking at a descriptor
             # without its key.
@@ -7333,7 +7072,7 @@ sub _FixupFields {
                 Confess("Field $fieldName of $defaultRelationName has unknown type \"$type\".");
             }
             # Plug in a relation name if one is needed.
-            Tracer::MergeOptions($fieldData, { relation => $defaultRelationName });
+            $fieldData->{relation} //= $defaultRelationName;
             # Check for searchability.
             if ($fieldData->{searchable}) {
                 # Only allow this for a primary relation.
@@ -7631,7 +7370,6 @@ sub _JoinClause {
     # Now we check the types. Note that if one of the object names was in error,
     # the big IF below will not match anything and we'll return undef.
     my $type = join("/", @types);
-    Trace("Join type for $source to $target is $type.") if T(Joins => 3);
     if ($type eq 'Entity/Relationship') {
         $retVal = $self->_BuildJoin(id =>   $source, $descriptors[0],
                                     from => $target, $descriptors[1]);
@@ -7717,7 +7455,6 @@ objects, or C<undef> if no connection is possible.
 sub _BuildJoin {
     # Get the parameters.
     my ($self, $fld1, $source, $sourceData, $fld2, $target, $targetData) = @_;
-    Trace("BuildJoin called for $fld1 => $source against $fld2 => $target,") if T(Joins => 4);
     # Declare the return variable. If we can do this join, we'll put
     # the string in here.
     my $retVal;
@@ -7728,7 +7465,6 @@ sub _BuildJoin {
         # Try to find a direction in which the entity connects.
         for my $dir ($fld2, $FromTo{$fld2}) { last if defined $retVal;
             # Check this direction.
-            Trace("Join check: $dir of $targetData->{$dir} eq $realName.") if T(Joins => 4);
             if ($targetData->{$dir} eq $realName) {
                 # Yes, we can connect.
                 $retVal = "$self->{_quote}$source$self->{_quote}.id = $self->{_quote}$target$self->{_quote}.${dir}_link";
@@ -7740,7 +7476,6 @@ sub _BuildJoin {
         for my $srcDir ($fld1, $FromTo{$fld1}) { last if defined $retVal;
             for my $tgtDir ($fld2, $FromTo{$fld2}) { last if defined $retVal;
                 # Check this pair of directions.
-                Trace("Join check: $srcDir to $tgtDir of $sourceData->{$srcDir} eq $targetData->{$tgtDir}.") if T(Joins => 4);
                 if ($sourceData->{$srcDir} eq $targetData->{$tgtDir}) {
                     # We can connect.
                     $retVal = "$self->{_quote}$source$self->{_quote}.${srcDir}_link = $self->{_quote}$target$self->{_quote}.${tgtDir}_link";
@@ -7808,7 +7543,6 @@ sub InternalizeDBD {
         my $dbh = $self->{_dbh};
         # Insure we have a metadata table.
         if (! $dbh->table_exists(METADATA_TABLE)) {
-            Trace("Creating metadata table.") if T(3);
             $dbh->create_table(tbl => METADATA_TABLE,
                                flds => 'id VARCHAR(20) NOT NULL PRIMARY KEY, data MEDIUMTEXT');
         }
@@ -7817,7 +7551,6 @@ sub InternalizeDBD {
         # Freeze the DBD metadata.
         my $frozen = FreezeThaw::freeze($self->{_metaData});
         # Store it in the database.
-        Trace("Storing DBD in metadata table.") if T(3);
         $dbh->SQL("INSERT INTO " . METADATA_TABLE . " (id, data) VALUES (?, ?)", 0, 'DBD',
                   $frozen);
     }
@@ -7825,6 +7558,10 @@ sub InternalizeDBD {
 
 
 =head2 Internal Documentation-Related Methods
+
+Several of these methods refer to a wiki or a wiki rendering object.
+There is no longer wiki support; however, the L<ERDBPDocPage>
+uses this code to render HTML by supporting wiki-like operations.
 
 =head3 _FindObject
 
@@ -7866,6 +7603,47 @@ sub _FindObject {
     }
     # Return the result.
     return $retVal;
+}
+
+=head3 ObjectNotes
+
+    my @noteParagraphs = ERDB::ObjectNotes($objectData, $wiki);
+
+Return a list of the notes and asides for an entity or relationship in
+Wiki format.
+
+=over 4
+
+=item objectData
+
+The metadata for the desired entity or relationship.
+
+=item wiki
+
+Wiki object used to render text.
+
+=item RETURN
+
+Returns a list of text paragraphs in Wiki markup form.
+
+=back
+
+=cut
+
+sub ObjectNotes {
+    # Get the parameters.
+    my ($objectData, $wiki) = @_;
+    # Declare the return variable.
+    my @retVal;
+    # Loop through the types of notes.
+    for my $noteType (qw(Notes Asides)) {
+        my $text = $objectData->{$noteType};
+        if ($text) {
+            push @retVal, _WikiNote($text->{content}, $wiki);
+        }
+    }
+    # Return the result.
+    return @retVal;
 }
 
 =head3 _WikiNote
@@ -7912,7 +7690,6 @@ sub _WikiNote {
     $retVal =~ s#\[link\s+([^\]]+)\]([^\[]+)\[/link\]#$wiki->LinkMarkup($1, $2)#sge;
     # Finally, we have bullet lists.
     $retVal =~ s#\[list\](.+?)\[/list\]#$wiki->List(split /\[\*\]/, $1)#sge;
-    Trace("Wiki Note is\n$retVal") if T(Wiki => 3);
     # Return the result.
     return $retVal;
 }

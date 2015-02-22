@@ -106,7 +106,6 @@ sub new {
                     erdb => $erdb,
                     fieldHash => $fieldHash,
                  };
-    Trace("Criterion hash:\n" . Data::Dumper::Dumper($fieldHash)) if T(4);
     # Bless and return it.
     bless $retVal, $class;
     return $retVal;
@@ -146,7 +145,6 @@ sub Find {
     my ($self, $criteria) = @_;
     # Create the return hash.
     my %retVal = ();
-    Trace("ERDBFinder now finding.") if T(3);
     # Form a query out of as many criteria as we can.
     my $found = $self->PeelQuery($criteria, \%retVal);
     # Keep performing queries until we run out of criteria or we get an empty set.
@@ -208,7 +206,6 @@ Returns TRUE if at least one criterion was used to make a query, else FALSE.
 sub PeelQuery {
     # Get the parameters.
     my ($self, $criteria, $buffer) = @_;
-    Trace("Incoming criteria are\n" . Data::Dumper::Dumper($criteria)) if T(4);
     # Declare the return variable. We'll set it to TRUE if we find a criterion.
     my $retVal = 0;
     # We need to accumulate a filter clause list and a parameter list for
@@ -225,7 +222,6 @@ sub PeelQuery {
     while (defined($entry = pop @$criteria)) {
         # Grab the criterion data.
         my ($operator, $fieldName, @newParms) = @$entry;
-        Trace("Processing \"$fieldName\" for $operator.") if T(3);
         # Skip operators we don't understand.
         if ($operator ne 'AND' && $operator ne 'NOT') {
             push @saved, $entry;
@@ -243,7 +239,6 @@ sub PeelQuery {
                 # the data from the descriptor.
                 my $newObjectNames = $fieldDescriptor->{objects} || "";
                 my $newFilterClause = $fieldDescriptor->{filter};
-                Trace("New object name string is \"$newObjectNames\".") if T(4);
                 # Before we go too far, we need to do an error check. Does the number of
                 # parameter marks match the number of parameters?
                 my $markCount = grep { $_ eq '?' } split /(\?)/, $newFilterClause;
@@ -273,7 +268,6 @@ sub PeelQuery {
                     if ($okToUse) {
                         # Yes. Add our new object names to the object name string.
                         $objectNames .= " $newObjectNames";
-                        Trace("Updated object name string is \"$objectNames\".") if T(4);
                     }
                 }
                 # Now we know whether or not we can use this criterion.
@@ -297,7 +291,6 @@ sub PeelQuery {
     if ($retVal) {
         # Yes. Organize the filter strings.
         my $filter = join(" AND ", @filters);
-        Trace("Filter = \"$filter\" with " . scalar(@parms) . " parameters.") if T(3);
         my $query = $self->{erdb}->Get($objectNames, join(" AND ", @filters), \@parms);
         # Loop through the results, storing them in the return hash by ID.
         while (my $object = $query->Fetch()) {

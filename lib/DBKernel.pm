@@ -136,7 +136,6 @@ sub new {
         my $opts = join(";", @opts);
         $data_source = "DBI:$dbms(AutoCommit => 1):dbname=$dbname;$opts";
     }
-    Trace("Connect string is: $data_source") if T(3);
     my $dbh = Connect($data_source, $dbuser, $dbpass, $dbms);
     bless {
     _connect => [$data_source, $dbuser, $dbpass],
@@ -347,10 +346,6 @@ throw an exception.
 sub SQL {
     my($self,$sql,$verbose, @bind_values) = @_;
 
-    if ($verbose) {
-        Trace("Executing SQL statement: $sql") if T(0);
-    }
-
     my $dbh  = $self->{_dbh};
     my $retVal;
     if ($sql =~ /^\s*select/i) {
@@ -369,7 +364,6 @@ sub SQL {
         # If we run out of retries, we'll confess. Otherwise, $retVal will get a
         # value put in it.
         while (! defined $retVal) {
-            Trace("Executing SQL query: $sql") if T(SQL => 3);
             eval {
                 $retVal = $dbh->selectall_arrayref($sql, undef, @bind_values);
             };
@@ -393,11 +387,9 @@ sub SQL {
                 }
                 Confess("Query failed: " . $dbh->errstr);
             } else {
-                Trace(@{$retVal} . " rows returned from query.") if T(SQL => 3);
             }
         }
     } else {
-        Trace("Executing SQL command: $sql") if T(SQL => 3);
         eval {
             $retVal = $dbh->do($sql, undef, @bind_values);
         };
@@ -405,8 +397,6 @@ sub SQL {
             Confess("Query '$sql' failed: $@");
         } elsif (! defined $retVal) {
             Confess("Query failed: " . $dbh->errstr);
-        } else {
-            Trace("$retVal rows altered by command.") if T(SQL => 3);
         }
     }
     return $retVal;
@@ -414,10 +404,6 @@ sub SQL {
 
 sub SQL_returning_hash {
     my($self,$sql,$key, $verbose, @bind_values) = @_;
-
-    if ($verbose) {
-        Trace("Executing SQL statement: $sql") if T(0);
-    }
 
     my $dbh  = $self->{_dbh};
     my $retVal;
@@ -437,7 +423,6 @@ sub SQL_returning_hash {
         # If we run out of retries, we'll confess. Otherwise, $retVal will get a
         # value put in it.
         while (! defined $retVal) {
-            Trace("Executing SQL query: $sql") if T(SQL => 3);
             eval {
                 $retVal = $dbh->selectall_hashref($sql, $key, undef, @bind_values);
             };
@@ -460,12 +445,9 @@ sub SQL_returning_hash {
                     Confess("SELECT failed: $msg");
                 }
                 Confess("Query failed: " . $dbh->errstr);
-            } else {
-                Trace(@{$retVal} . " rows returned from query.") if T(SQL => 3);
             }
         }
     } else {
-        Trace("Executing SQL command: $sql") if T(SQL => 3);
         eval {
             $retVal = $dbh->do($sql, undef, @bind_values);
         };
@@ -473,8 +455,6 @@ sub SQL_returning_hash {
             Confess("Query '$sql' failed: $@");
         } elsif (! defined $retVal) {
             Confess("Query failed: " . $dbh->errstr);
-        } else {
-            Trace("$retVal rows altered by command.") if T(SQL => 3);
         }
     }
     return $retVal;
@@ -533,7 +513,6 @@ sub Reconnect {
     # Force a close just in case.
     eval { $dbh->disconnect() };
     # Reconnect.
-    Trace("Reconnecting after error.") if T(1);
     $dbh = Connect(@{$self->{_connect}}, $self->{_dbms});
     # Save the new handle.
     $self->{_dbh} = $dbh;
@@ -588,7 +567,6 @@ sub ErrorMessage {
     # Is this MySQL?
     if ($dbms eq 'mysql') {
         # Yes. Check the error number.
-        Trace("Database error check. Error number is $num.") if T(3);
         if (MYSQL_RETRY_ERRORS->{$num}) {
             # Here it's a server-related error.
             $retVal = "DBServer Error: ";
@@ -605,8 +583,6 @@ sub ErrorMessage {
     # Return the result.
     return $retVal;
 }
-
-
 
 
 =head3 SetUsing
@@ -848,12 +824,7 @@ sub drop_table {
         }
     }
     if ($cmd) {
-        Trace("Executing drop command $cmd.") if T(3);
-        if ($dbh->do($cmd)) {
-            Trace("Table $tbl dropped.") if T(2);
-        } else {
-            Trace("Error dropping table: " . $dbh->errstr) if T(0);
-        }
+        $dbh->do($cmd);
     }
 }
 
@@ -990,7 +961,6 @@ sub create_table {
         }
     }
     my $cmd = "CREATE TABLE $tbl ( $flds )$options;";
-    Trace("Creating table: $cmd") if T(SQL => 2);
     $dbh->do($cmd) ||
         Confess("Error creating table $tbl: " . $dbh->errstr);
 }
@@ -1059,11 +1029,10 @@ sub load_table {
     my $rv;
     # Convert "normal" load mode to null.
     if ($style eq 'normal') {
-    $style = '';
+        $style = '';
     }
     if ($file) {
         if ($dbms eq "mysql") {
-            Trace("Loading $tbl into MySQL using file $file and style $style.") if T(2);
             # Fix the file name for windows.
             $file =~ tr/\\/\//;
             # Decide whether this is a local file or a server file.
@@ -1075,13 +1044,13 @@ sub load_table {
             if ($arg{dup}) {
                 $ignore_mode = uc $arg{dup};
             }
-            my $sql = "LOAD DATA $style $local INFILE '$file' $ignore_mode INTO TABLE $tbl FIELDS TERMINATED BY '$delim';";
-            Trace("SQL command: $sql") if T(SQL => 2);
+            my $sql = "LOAD DATA $style $local INFILE '$file' $ignore_mode INTO TABLE $tbl FIELDS TERMINATED BY '$delim'";
+            if ($FIG_Config::win_mode) {
+                $sql .= " LINES TERMINATED BY '\\r\\n'";
+            }
             $rv = $dbh->do($sql);
         } elsif ($dbms eq "Pg") {
-            Trace("Loading $tbl into PostGres using file $file.") if T(2);
-        my $sql = "COPY $tbl FROM '$file' WITH DELIMITER '$delim' NULL AS '\\N';";
-        Trace("SQL command: $sql") if T(SQL => 2);
+            my $sql = "COPY $tbl FROM '$file' WITH DELIMITER '$delim' NULL AS '\\N';";
             $rv = $dbh->do($sql);
         }
         elsif ($dbms eq 'SQLite')
@@ -1135,15 +1104,6 @@ sub load_table {
         else
         {
             Confess "Attempting load_table on unsupported database $dbms\n";
-        }
-        if (!defined $rv) {
-            my $errno = $dbh->err;
-            my $errorMessage = $dbh->errstr;
-            Trace("Error in $tbl load ($errno): $errorMessage") if T(0);
-        } elsif ($rv >= 0) {
-            Trace("$rv rows loaded into $tbl.") if T(3);
-        } else {
-            Trace("Row loaded into $tbl.") if T(3);
         }
     }
     return $rv;
@@ -1239,7 +1199,6 @@ sub create_index {
     if ($dbms eq "Pg") {
         $cmd =~ s/\s+DESC//g;
     }
-    Trace("Creating index: $cmd") if T(SQL => 2);
     my $rv = $dbh->do($cmd);
     return $rv;
 }
@@ -1341,49 +1300,6 @@ sub truncate_table {
     }
 }
 
-=head3 lock_tables
-
-    $dbh->lock_tables(@tables);
-
-Lock access to the specified tables. This method obtains write locks,
-which lock the tables completely.
-
-=over 4
-
-=item tables
-
-A list of the names of the tables to lock.
-
-=back
-
-=cut
-
-sub lock_tables {
-    # Get the parameters.
-    my ($self, @tables) = @_;
-    # Construct the SQL statement.
-    my @pieces = map { "$_ WRITE" } @tables;
-    my $command = "LOCK TABLES " . join(", ", @pieces);
-    # Execute the lock.
-    $self->SQL($command);
-}
-
-
-=head3 unlock_tables
-
-    $dbh->unlock_tables();
-
-Release all current table locks.
-
-=cut
-
-sub unlock_tables {
-    # Get the parameters.
-    my ($self, @tables) = @_;
-    # Unlock the tables.
-    $self->SQL("UNLOCK TABLES");
-}
-
 
 =head3 DESTROY
 
@@ -1427,7 +1343,7 @@ sub prepare_command {
     my $dbh = $self->{_dbh};
     # Prepare the command.
     my $sth = $dbh->prepare($commandText, $attrs) ||
-        Confess("Command failed: $commandText\n");
+    Confess("Command failed: $commandText\n");
     # Return it to the caller.
     return $sth;
 }
@@ -1459,7 +1375,6 @@ sub set_demand_driven {
         my $flagValue = ($flag ? 1 : 0);
         # Store it in the handle.
         $self->{_dbh}->{mysql_use_result} = $flagValue;
-        Trace("Queries will be demand-driven.") if $flag && T(SQL => 2);
     }
 }
 
@@ -1593,14 +1508,13 @@ sub reload_table {
     eval {
         # If we're in ALL mode, we drop and re-create the table. Otherwise,
         # we delete the obsolete objects.
-    #
-    # Before deleting the obsolete objs, we need to see if the table already exists.
-    # We could have  updated the code such that we are now doing a reload on a
-    # portion of a table that we haven't made yet.
-    #
+        #
+        # Before deleting the obsolete objs, we need to see if the table already exists.
+        # We could have  updated the code such that we are now doing a reload on a
+        # portion of a table that we haven't made yet.
+        #
 
         if ( $mode eq 'all') {
-            Trace("Recreating $table.") if T(Load => 2);
             $self->drop_table( tbl  => $table );
             $self->create_table( tbl  => $table, flds => $flds, estimates => $estimates );
             # For pre-indexed DBMSs, we want to create the indexes here.
@@ -1614,7 +1528,6 @@ sub reload_table {
                 $self->create_indexes($table, $xflds);
             }
         } else {
-            Trace("Clearing obsolete data from $table.") if T(Load => 2);
             foreach my $key ( @{$keyList} ) {
                 local $self->{_dbh}->{RaiseError} = 1;
                 my $qry = "DELETE FROM $table WHERE ( $keyName = \'$key\' )";
@@ -1631,12 +1544,8 @@ sub reload_table {
         # Only proceed if we want to load the table here.
         if ($fileName) {
             # The table is now ready for loading.
-            Trace("Loading $table from $fileName.") if T(Load => 2);
-            if (! -s $fileName) {
-                Trace("Load file \'$fileName\' empty or not found.") if T(Load => 2);
-            } else {
+            if (-s $fileName) {
                 my $count = $self->load_table( tbl  => $table, file => $fileName );
-                Trace("$table loaded with $count rows.") if T(Load => 2);
             }
             # Do the post-processing. This will create the indexes if
             # we have not already done so.
@@ -1754,10 +1663,8 @@ by creation date in reverse chronological order, and one for ID.
 sub create_indexes {
     # Get the parameters.
     my ($self, $table, $indexes) = @_;
-    Trace("Creating indexes for $table.") if T(Load => 2);
     # Loop through the indexes in the index hash.
     for my $idxName (keys %{$indexes}) {
-        Trace("Creating index $idxName.") if T(Load => 3);
         # Insure we can recover from errors.
         eval {
             $self->create_index( idx  => $idxName,
@@ -1801,7 +1708,6 @@ sub vacuum_it {
         }
     } else {
         foreach $table (@tables) {
-            Trace("Analyzing table $table.") if T(2);
             if ($dbms eq "Pg") {
                 $self->SQL("VACUUM ANALYZE $table");
             } elsif ($dbms eq "mysql") {
@@ -1900,8 +1806,7 @@ sub estimate_table_size
     return ($row_size, $max_rows);
 }
 
-sub dbh
-{
+sub dbh {
     my($self) = @_;
     return $self->{_dbh};
 }

@@ -273,7 +273,6 @@ Returns a value of the desired type.
 sub decode {
     # Get the parameters.
     my ($self, $string) = @_;
-    Trace("Decoding DNA string of length " . length($string) . ":  " . substr($string, 0, 6) . "...") if T(3);
     # Declare the return variable.
     my $retVal = "";
     # Loop through the string.

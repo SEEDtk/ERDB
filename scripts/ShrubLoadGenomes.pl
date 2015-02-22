@@ -124,9 +124,6 @@ computed from information in the L<FIG_Config> module.
     for my $genome (keys %$genomeHash) {
         $genomeHash->{$genome} = $genomeHash->{$genome}[0];
     }
-    print "Initializing function and role tables.\n";
-    # Create the function loader utility object.
-    my $funcLoader = ShrubFunctionLoader->new($loader, slow => $opt->slow);
     # Are we clearing?
     if ($opt->clear) {
         # Yes. The MISSING option is invalid.
