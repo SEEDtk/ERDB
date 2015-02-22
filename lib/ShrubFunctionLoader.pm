@@ -19,7 +19,6 @@
 
 package ShrubFunctionLoader;
 
-    require 5.14.0;   ## for ${^GLOBAL_PHASE}
     use strict;
     use ShrubLoader;
     use Shrub;
