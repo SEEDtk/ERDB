@@ -154,7 +154,7 @@ sub Value {
     my $helper = $self->{_helper};
     my $erdb = $helper->db;
     # Get the quote character.
-    my $q = $erdb->{_quote};
+    my $q = $erdb->q;
     # Declare the return variable.
     my @retVal = ();
     # Parse the field name.

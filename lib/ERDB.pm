@@ -14,6 +14,7 @@ package ERDB;
     use Digest::MD5 qw(md5_base64);
     use CGI qw(-nosticky);
     use ERDB::Helpers::SQLBuilder;
+    use ERDB::Helpers::ObjectPath;
     use ERDBExtras;
     use FreezeThaw;
 
@@ -220,7 +221,9 @@ further back in the list.
 
 You can specify an object name more than once. If it is intended to
 be a different instance of the same object, simply put a number at the
-end. Each distinct number indicates a distinct instance.
+end. Each distinct number indicates a distinct instance. The numbers
+must all be less than 100. (Numbers 100 and greater are reserved for
+internal use).
 
 =item *
 
@@ -1138,8 +1141,10 @@ sub GetChoices {
     my $type = $fieldData->{type};
     # Get the database handle.
     my $dbh = $self->{_dbh};
+    # Get the quote character.
+    my $q = $self->q;
     # Query the database.
-    my $results = $dbh->SQL("SELECT DISTINCT $self->{_quote}$realName$self->{_quote} FROM $self->{_quote}$relation$self->{_quote}");
+    my $results = $dbh->SQL("SELECT DISTINCT $q$realName$q FROM $q$relation$q");
     # Clean the results. They are stored as a list of lists,
     # and we just want the one list. Also, we want to decode the values.
     my @retVal = sort map { $TypeTable->{$type}->decode($_->[0]) } @{$results};
@@ -1596,10 +1601,11 @@ relation is nonempty and FALSE otherwise.
 sub IsUsed {
     # Get the parameters.
     my ($self, $relationName) = @_;
-    # Get the data base handle.
+    # Get the data base handle and quote character.
+    my $q = $self->q;
     my $dbh = $self->{_dbh};
     # Construct a query to count the records in the relation.
-    my $cmd = "SELECT COUNT(*) FROM $self->{_quote}$relationName$self->{_quote}";
+    my $cmd = "SELECT COUNT(*) FROM $q$relationName$q";
     my $results = $dbh->SQL($cmd);
     # We'll put the count in here.
     my $retVal = 0;
@@ -1611,6 +1617,19 @@ sub IsUsed {
 }
 
 =head2 Documentation and Metadata Methods
+
+=item q
+
+    my $q = $erdb->q;
+
+Return the quote character used to protect SQL identifiers.
+
+=cut
+
+sub q {
+    return $_[0]->{_quote};
+}
+
 
 =head3 ComputeFieldTable
 
@@ -2034,6 +2053,83 @@ sub FindRelation {
     return $retVal;
 }
 
+=head3 GetRelationOwner
+
+    my $objectName = $erdb->GetRelationOwner($relationName);
+
+Return the name of the entity or relationship that owns the specified relation.
+
+=over 4
+
+=item relationName
+
+Relation of interest.
+
+=item RETURN
+
+Returns the name of the owning entity or relationship.
+
+=back
+
+=cut
+
+sub GetRelationOwner {
+    # Get the parameters.
+    my ($self, $relationName) = @_;
+    # Declare the return variable.
+    my $retVal;
+    # Get the relation's descriptor.
+    my $descriptor = $self->FindRelation($relationName);
+    if (! $descriptor) {
+        Confess("Relation name $relationName not found in database.");
+    } else {
+        # Get the owner name.
+        $retVal = $descriptor->{owner};
+    }
+    # Return the owner name found.
+    return $retVal;
+}
+
+=head3 GetSecondaryRelations
+
+    my @secondaries = $erdb->GetSecondaryRelations($objectName);
+
+Get the list of secondary relations for the specified object. There are
+none if it is a relationship. There may be one or more for an entity.
+These are the names of the relations containing the secondary fields.
+
+=over 4
+
+=item objectName
+
+Name of the relevant entity or relationship.
+
+=item RETURN
+
+Returns a list of the names of the secondary relations.
+
+=back
+
+=cut
+
+sub GetSecondaryRelations {
+    # Get the parameters.
+    my ($self, $objectName) = @_;
+    # Declare the return variable,
+    my @retVal;
+    # Look for the object in the entity table.
+    my $descriptor = $self->FindEntity($objectName);
+    # Only proceed if we found it. If we didn't, there can't
+    # be any secondaries.
+    if ($descriptor) {
+        # Get the list of relation names, removing the primary.
+        @retVal = grep { $_ ne $objectName } keys %{$descriptor->{Relations}};
+    }
+    # Return the list found.
+    return @retVal;
+}
+
+
 =head3 GetRelationshipEntities
 
     my ($fromEntity, $toEntity) = $erdb->GetRelationshipEntities($relationshipName);
@@ -2217,7 +2313,7 @@ Returns the sort command to use for sorting the relation, suitable for piping.
 =back
 
 =cut
-#: Return Type $;
+
 sub SortNeeded {
     # Get the parameters.
     my ($self, $relationName) = @_;
@@ -2889,6 +2985,42 @@ sub GetMetaFileName {
     return $self->{_metaFileName};
 }
 
+=head3 IsEmbedded
+
+    my $flag = $erdb->IsEmbedded($objectName);
+
+Returns TRUE if the specified object is an embedded relationship, else
+FALSE.
+
+=over 4
+
+=item objectName
+
+Name of the object (entity or relationship) whose embedded status is desired.
+
+=item RETURN
+
+Returns TRUE if the object is an embedded relationship, else FALSE.
+
+=back
+
+=cut
+
+sub IsEmbedded {
+    # Get the parameters.
+    my ($self, $objectName) = @_;
+    # Declare the return variable.
+    my $retVal;
+    # Is this a relationship?
+    my $relData = $self->FindRelationship($objectName);
+    if ($relData) {
+        # Yes, return the embed flag.
+        $retVal = $relData->{embedded};
+    }
+    # Return the result.
+    return $retVal;
+}
+
 
 =head2 Database Administration and Loading Methods
 
@@ -3070,6 +3202,8 @@ sub InsertNew {
     my ($self, $entityName, %fields) = @_;
     # Declare the return variable.
     my $retVal;
+    # Get the quote character.
+    my $q = $self->q;
     # If this is our first insert, we update the ID field definition.
     if (! exists $self->{_autonumber}->{$entityName}) {
         # Check to see if this is an autonumbered entity.
@@ -3079,7 +3213,7 @@ sub InsertNew {
         } else {
             # Create the alter table command.
             my $fieldString = $self->_FieldString($entityData->{Fields}->{id});
-            my $command = "ALTER TABLE $self->{_quote}$entityName$self->{_quote} CHANGE COLUMN id $fieldString AUTO_INCREMENT";
+            my $command = "ALTER TABLE $q$entityName$q CHANGE COLUMN id $fieldString AUTO_INCREMENT";
             # Execute the command.
             my $dbh = $self->{_dbh};
             $dbh->SQL($command);
@@ -3294,8 +3428,11 @@ sub DumpRelations {
     # Next, we loop through the relationships.
     my $relationships = $metaData->{Relationships};
     for my $relationshipName (keys %{$relationships}) {
-        # Dump this relationship's relation.
-        $self->_DumpRelation($outputDirectory, $relationshipName);
+        # Are we embedded?
+        if (! $self->IsEmbedded($relationshipName)) {
+            # No. Dump this relationship's relation.
+            $self->_DumpRelation($outputDirectory, $relationshipName);
+        }
     }
 }
 
@@ -3483,19 +3620,21 @@ sub CreateTable {
     my ($self, $relationName, $indexFlag, $estimatedRows) = @_;
     # Get the database handle.
     my $dbh = $self->{_dbh};
+    # Get the quote character.
+    my $q = $self->q;
     # Determine whether or not the relation is primary.
     my $rootFlag = $self->_IsPrimary($relationName);
     # Create a list of the field data.
     my $fieldThing = $self->ComputeFieldString($relationName);
     # Insure the table is not already there.
-    $dbh->drop_table(tbl => $self->{_quote} . $relationName . $self->{_quote});
+    $dbh->drop_table(tbl => $q . $relationName . $q);
     # Create an estimate of the table size.
     my $estimation;
     if ($estimatedRows) {
         $estimation = [$self->EstimateRowSize($relationName), $estimatedRows];
     }
     # Create the table.
-    $dbh->create_table(tbl => $self->{_quote} . $relationName . $self->{_quote}, flds => $fieldThing,
+    $dbh->create_table(tbl => $q . $relationName . $q, flds => $fieldThing,
                        estimates => $estimation);
     # If we want to build the indexes, we do it here. Note that the full-text
     # search index will not be built until the table has been loaded.
@@ -3802,6 +3941,8 @@ sub CreateIndex {
     my $relationData = $self->FindRelation($relationName);
     # Get the database handle.
     my $dbh = $self->{_dbh};
+    # Get the quote character.
+    my $q = $self->q;
     # Now we need to create this relation's indexes. We do this by looping
     # through its index table.
     my $indexHash = $relationData->{Indexes};
@@ -3829,12 +3970,10 @@ sub CreateIndex {
                 # to work. This means we need to insert it between the
                 # field name and the ordering suffix. Note we make sure the
                 # suffix is defined.
-                $rawFields[$i] =  join(" ", $dbh->index_mod($self->{_quote} .
-                    $field . $self->{_quote}, $mod), $suffix);
+                $rawFields[$i] =  join(" ", $dbh->index_mod($q . $field . $q, $mod), $suffix);
             } else {
                 # Here we have a normal field, so we quote it.
-                $rawFields[$i] = join(" ", $self->{_quote} . $field .
-                    $self->{_quote}, $suffix);
+                $rawFields[$i] = join(" ", $q . $field . $q, $suffix);
             }
         }
         my @fieldList = _FixNames(@rawFields);
@@ -3842,7 +3981,7 @@ sub CreateIndex {
         # Get the index's uniqueness flag.
         my $unique = ($indexData->{primary} ? 'primary' : ($indexData->{unique} ? 'unique' : undef));
         # Create the index.
-        my $rv = $dbh->create_index(idx => "$indexName$relationName", tbl => $self->{_quote} . $relationName . $self->{_quote},
+        my $rv = $dbh->create_index(idx => "$indexName$relationName", tbl => $q . $relationName . $q,
                                     flds => $flds, kind => $unique);
         if (! $rv) {
             Confess("Error creating index $indexName for $relationName using ($flds): " .
@@ -4302,6 +4441,8 @@ New value to be put in the field.
 sub InsertValue {
     # Get the parameters.
     my ($self, $entityID, $fieldName, $value) = @_;
+    # Get the quote character.
+    my $q = $self->q;
     # Parse the entity name and the real field name.
     my ($entityName, $fieldTitle) = ERDB::ParseFieldName($fieldName);
     if (! defined $entityName) {
@@ -4324,7 +4465,7 @@ sub InsertValue {
                     # Now we can create an INSERT statement.
                     my $dbh = $self->{_dbh};
                     my $fixedName = _FixName($fieldTitle);
-                    my $statement = "INSERT INTO $self->{_quote}$relation$self->{_quote} (id, $self->{_quote}$fixedName$self->{_quote}) VALUES(?, ?)";
+                    my $statement = "INSERT INTO $q$relation$q (id, $q$fixedName$q) VALUES(?, ?)";
                     # Execute the command.
                     my $codedValue = $self->EncodeField($fieldName, $value);
                     $dbh->SQL($statement, 0, $entityID, $codedValue);
@@ -4436,7 +4577,7 @@ sub InsertObject {
     my @valueList = ();
     my @missing = ();
     # Get the quote character.
-    my $q = $self->{_quote};
+    my $q = $self->q;
     # Loop through the fields in the relation.
     for my $fieldDescriptor (@{$relationData->{Fields}}) {
         # Get the field name and save it. Note we need to fix it up so the hyphens
@@ -4570,6 +4711,8 @@ reference and not a raw hash.
 sub UpdateEntity {
     # Get the parameters.
     my ($self, $entityName, $id, $first, @leftovers) = @_;
+    # Get the quote character.
+    my $q = $self->q;
     # Get the field hash and optional-update flag.
     my ($fields, $optional);
     if (ref $first eq 'HASH') {
@@ -4595,11 +4738,11 @@ sub UpdateEntity {
     my @sets = ();
     my @valueList = ();
     for my $field (@fieldList) {
-        push @sets, $self->{_quote} . _FixName($field) . $self->{_quote} . " = ?";
+        push @sets, $q . _FixName($field) . $q . " = ?";
         my $value = $self->EncodeField("$entityName($field)", $fields->{$field});
         push @valueList, $value;
     }
-    my $command = "UPDATE $self->{_quote}$entityName$self->{_quote} SET " . join(", ", @sets) . " WHERE id = ?";
+    my $command = "UPDATE $q$entityName$q SET " . join(", ", @sets) . " WHERE id = ?";
     # Add the ID to the list of binding values.
     push @valueList, $id;
     # This will be the return value.
@@ -4656,10 +4799,12 @@ sub Reconnect {
     my ($self, $relName, $linkType, $oldID, $newID) = @_;
     # Get the database handle.
     my $dbh = $self->{_dbh};
+    # Get the quote character.
+    my $q = $self->q;
     # Compute the link name.
     my $linkName = $linkType . "_link";
     # Create the update statement.
-    my $stmt = "UPDATE $relName SET $linkName = ? WHERE $linkName = ?";
+    my $stmt = "UPDATE $q$relName$q SET $linkName = ? WHERE $linkName = ?";
     # Apply the update.
     my $retVal = $dbh->SQL($stmt, 0, $newID, $oldID);
     # Return the number of rows changed.
@@ -4759,21 +4904,10 @@ The permissible options for this method are as follows.
 
 =over 4
 
-=item testMode
-
-If TRUE, then the delete statements will be traced, but no changes will be made
-to the database. If C<dump>, then the data is dumped to load files instead
-of being traced.
-
 =item keepRoot
 
 If TRUE, then the entity instances will not be deleted, only the dependent
 records.
-
-=item print
-
-If TRUE, then all of the DELETE statements will be written to the standard
-output.
 
 =item onlyRoot
 
@@ -4789,6 +4923,8 @@ sub Delete {
     my ($self, $entityName, $objectID, %options) = @_;
     # Declare the return variable.
     my $retVal = Stats->new();
+    # Get the quote character.
+    my $q = $self->q;
     # Encode the object ID.
     my $idParameter = $self->EncodeField("$entityName(id)", $objectID);
     # Get the DBKernel object.
@@ -4812,26 +4948,14 @@ sub Delete {
     # last item on a path in the to-do list is always an entity.
     my @todoList = ([$entityName]);
     while (@todoList) {
-        # Get the current path.
+        # Get the current path tuple.
         my $current = pop @todoList;
         # Copy it into a list.
-        my @stackedPath = @{$current};
+        my @stackedPath = $current->path;
         # Pull off the last item on the path. It will always be an entity.
         my $myEntityName = pop @stackedPath;
         # Add it to the alreadyFound list.
         $alreadyFound{$myEntityName} = 1;
-        # Figure out if we need to delete this entity.
-        if ($myEntityName ne $entityName || ! $options{keepRoot}) {
-            # Get the entity data.
-            my $entityData = $self->_GetStructure($myEntityName);
-            # Loop through the entity's relations. A DELETE command will be
-            # needed for each of them.
-            my $relations = $entityData->{Relations};
-            for my $relation (keys %{$relations}) {
-                my @augmentedList = (@stackedPath, $relation);
-                push @fromPathList, \@augmentedList;
-            }
-        }
         # Now we need to look for relationships connected to this entity. We skip
         # this if "onlyRoot" is specified.
         if (! $options{onlyRoot}) {
@@ -4873,78 +4997,20 @@ sub Delete {
     # the to-list may need to pass through some of the entities the
     # from-list would delete.
     my %stackList = ( from_link => \@fromPathList, to_link => \@toPathList );
-    # Now it's time to do the deletes. We do it in two passes.
     for my $keyName ('to_link', 'from_link') {
         # Get the list for this key.
         my @pathList = @{$stackList{$keyName}};
         # Loop through this list.
         while (my $path = pop @pathList) {
-            # Get the table whose rows are to be deleted.
-            my @pathTables = @{$path};
-            # Get ready for the DELETE statement. First we need the table being
-            # deleted.
-            my $target = $pathTables[$#pathTables];
-            # We start with the WHERE. The first thing is the ID field from the starting
-            # table. That starting table will either be the entity relation or one of
-            # the entity's sub-relations.
-            my $stmt = " WHERE $self->{_quote}$pathTables[0]$self->{_quote}.id = ?";
-            # Now we run through the remaining entities in the path, connecting them up.
-            for (my $i = 1; $i <= $#pathTables; $i += 2) {
-                # Connect the current relationship to the preceding entity.
-                my ($entity, $rel) = @pathTables[$i-1,$i];
-                if ($i + 1 <= $#pathTables) {
-                    # Here there's a next entity, so connect from the relationship's from-link
-                    # and through its to-link.
-                    $stmt .= " AND $self->{_quote}$entity$self->{_quote}.id = $self->{_quote}$rel$self->{_quote}.from_link";
-                    my $entity2 = $pathTables[$i+1];
-                    $stmt .= " AND $self->{_quote}$rel$self->{_quote}.to_link = $self->{_quote}$entity2$self->{_quote}.id";
-                } else {
-                    # Here theres no next entity, so we connect according to the style of the path.
-                    $stmt .= " AND $self->{_quote}$entity$self->{_quote}.id = $self->{_quote}$rel$self->{_quote}.$keyName";
-                }
-            }
-            # Now we have the WHERE clause of our desired DELETE statement.
-            if ($options{testMode} eq 'dump') {
-                # Here the user wants to dump the data without deleting it.
-                # First we get the data.
-                $stmt = "SELECT $self->{_quote}$target$self->{_quote}.* FROM " .
-                    join(", ", map { $self->{_quote} . $_ . $self->{_quote} } @pathTables) .
-                    $stmt;
-                my $rows = $db->SQL($stmt, 0, $idParameter);
-                # Compute the number of rows read.
-                my $count = scalar @$rows;
-                # If we found any rows, dump them.
-                if ($count > 0) {
-                    # Open the dump file.
-                    my $fileName = $self->LoadDirectory() . "/$target.dtx";
-                    my $oh = Tracer::Open(undef, ">>$fileName");
-                    # Write the rows.
-                    for my $row (@$rows) {
-                        my $line = join("\t", @$row);
-                        print $oh "$line\n";
-                        $retVal->Add("rows-$target" => 1);
-                        $retVal->Add("data-$target" => length $line);
-                    }
-                    # Close the file.
-                    close $oh;
-                }
-            } elsif ($options{testMode}) {
-                # Here the user wants to trace without executing.
-                $stmt = $db->SetUsing(@pathTables) . $stmt;
-            } else {
-                # Here we can delete. Note that the SQL method dies with a confession
-                # if an error occurs, so we just go ahead and do it without handling
-                # errors afterward.
-                $stmt = $db->SetUsing(@pathTables) . $stmt;
-                if ($options{'print'}) {
-                    print "Deleting using '$idParameter': $stmt\n";
-                }
-                my $rv = $db->SQL($stmt, 0, $idParameter);
-                # Accumulate the statistics for this delete. The only rows deleted
-                # are from the target table, so we use its name to record the
-                # statistic.
-                $retVal->Add("delete-$target", $rv);
-            }
+            # Set up for the delete.
+            my $pathThing = ERDB::Helpers::ObjectPath->new($self, @$path);
+            my ($target) = $pathThing->lastObject();
+            # Execute the deletion.
+            my $count = $pathThing->Delete("$entityName(id) = ?", [$idParameter]);
+            # Accumulate the statistics for this delete. The only rows deleted
+            # are from the target table, so we use its name to record the
+            # statistic.
+            $retVal->Add("delete-$target", $count);
         }
     }
     # Return the result.
@@ -4986,6 +5052,8 @@ sub Disconnect {
     my ($self, $relationshipName, $originEntityName, $originEntityID) = @_;
     # Initialize the return count.
     my $retVal = 0;
+    # Get the quote character.
+    my $q = $self->q;
     # Encode the entity ID.
     my $idParameter = $self->EncodeField("$originEntityName(id)", $originEntityID);
     # Get the relationship descriptor.
@@ -5010,7 +5078,7 @@ sub Disconnect {
                 my $done = 0;
                 while (! $done) {
                     # Do the delete.
-                    my $rows = $dbh->SQL("DELETE FROM $self->{_quote}$relationshipName$self->{_quote} WHERE ${dir}_link = ? $limitClause", 0, $idParameter);
+                    my $rows = $dbh->SQL("DELETE FROM $q$relationshipName$q WHERE ${dir}_link = ? $limitClause", 0, $idParameter);
                     $retVal += $rows;
                     # See if we're done. We're done if no rows were found or the delete is unlimited.
                     $done = ($rows == 0 || ! $limitClause);
@@ -5059,6 +5127,8 @@ Reference to a hash of other values to be used for filtering the delete.
 sub DeleteRow {
     # Get the parameters.
     my ($self, $relationshipName, $fromLink, $toLink, $values) = @_;
+    # Get the quote character.
+    my $q = $self->q;
     # Create a hash of all the filter information.
     my %filter = ('from-link' => $fromLink, 'to-link' => $toLink);
     if (defined $values) {
@@ -5071,10 +5141,10 @@ sub DeleteRow {
     my @parms = ();
     for my $key (keys %filter) {
         my ($keyTable, $keyName) = ERDB::ParseFieldName($key, $relationshipName);
-        push @filters, $self->{_quote} . _FixName($keyName) . $self->{_quote} . " = ?";
+        push @filters, $q . _FixName($keyName) . $q . " = ?";
         push @parms, $self->EncodeField("$keyTable($keyName)", $filter{$key});
     }
-    my $command = "DELETE FROM $self->{_quote}$relationshipName$self->{_quote} WHERE " .
+    my $command = "DELETE FROM $q$relationshipName$q WHERE " .
                   join(" AND ", @filters);
     # Execute it.
     my $dbh = $self->{_dbh};
@@ -5189,6 +5259,8 @@ Returns the number of rows deleted.
 sub DeleteValue {
     # Get the parameters.
     my ($self, $entityName, $id, $fieldName, $fieldValue) = @_;
+    # Get the quote character.
+    my $q = $self->q;
     # Declare the return value.
     my $retVal = 0;
     # We need to set up an SQL command to do the deletion. First, we
@@ -5202,7 +5274,7 @@ sub DeleteValue {
         Confess("Cannot delete values of $fieldName for $entityName.");
     } else {
         # Set up the SQL command to delete all values.
-        my $sql = "DELETE FROM $self->{_quote}$relation$self->{_quote}";
+        my $sql = "DELETE FROM $q$relation$q";
         # Build the filter.
         my @filters = ();
         my @parms = ();
@@ -5213,7 +5285,7 @@ sub DeleteValue {
         }
         # Check for a filter by value.
         if (defined $fieldValue) {
-            push @filters, $self->{_quote} . _FixName($fieldName) . $self->{_quote} . " = ?";
+            push @filters, $q . _FixName($fieldName) . $q . " = ?";
             push @parms, encode($field->{type}, $fieldValue);
         }
         # Append the filters to the command.
@@ -5351,6 +5423,8 @@ Returns the SQL declaration string for the field.
 sub _FieldString {
     # Get the parameters.
     my ($self, $descriptor) = @_;
+    # Get the quote character.
+    my $q = $self->q;
     # Get the fixed-up name.
     my $fieldName = _FixName($descriptor->{name});
     # Compute the SQL type.
@@ -5366,7 +5440,7 @@ sub _FieldString {
         }
     }
     # Assemble the result.
-    my $retVal = "$self->{_quote}$fieldName$self->{_quote} $fieldType $nullFlag";
+    my $retVal = "$q$fieldName$q $fieldType $nullFlag";
     # Return the result.
     return $retVal;
 }
@@ -5672,12 +5746,12 @@ sub _AnalyzeObjectName {
     # Denote that so far it appears we are not embedded.
     my $embedFlag = 0;
     # Get the alias of the object name.
-    my $tableName = $self->{AliasTable}{$baseName};
+    my $tableName = $self->{_metaData}{AliasTable}{$baseName};
     if (! $tableName) {
         Confess("Unknown object name $baseName");
     } elsif ($tableName ne $baseName) {
         # Here we must have a relationship. Is it embedded?
-        my $relThing = $self->FindRelationship($tableName);
+        my $relThing = $self->FindRelationship($baseName);
         if ($relThing->{embedded}) {
             $embedFlag = 1;
         }
@@ -5718,7 +5792,7 @@ sub _GetCrossing {
     # Get the parameters.
     my ($self, $table1, $table2) = @_;
     # Get the crossing information. It's in a two-dimensional hash.
-    my $retVal = $self->{CrossingTable}{$table1}{$table2};
+    my $retVal = $self->{_metaData}{CrossingTable}{$table1}{$table2};
     # Return the result.
     return $retVal;
 }
@@ -6227,12 +6301,14 @@ sub _LoadMetaData {
             }
             # Now that we've organized all our fields by relation name we need to do
             # some serious housekeeping. We must add the C<id> field to every
-            # relation and convert each relation to a list of fields. First, we need
-            # the ID field itself.
+            # relation, convert each relation to a list of fields, and add a pointer
+            # to the parent entity. First, we need  the ID field itself.
             my $idField = $fieldList->{id};
             # Loop through the relations.
             for my $relationName (keys %{$relationTable}) {
                 my $relation = $relationTable->{$relationName};
+                # Point this relation to its parent entity.
+                $relation->{owner} = $entityName;
                 # Get the relation's field list.
                 my $relationFieldList = $relation->{Fields};
                 # Add the ID field to it. If the field's already there, it will not make any
@@ -6326,7 +6402,7 @@ sub _LoadMetaData {
                 _AddFromToFields($relationshipStructure, $entityList, $relationshipName);
                 # Create an index-free relation from the fields.
                 my $thisRelation = { Fields => _ReOrderRelationTable($relationshipStructure->{Fields}),
-                                     Indexes => { } };
+                                     Indexes => { }, owner => $relationshipName };
                 $relationshipStructure->{Relations} = { $relationshipName => $thisRelation };
                 # Put the relationship in the alias table.
                 $aliasTable{$relationshipName} = $relationshipName;
@@ -6818,11 +6894,11 @@ sub _IsPrimary {
     # Get the parameters.
     my ($self, $relationName) = @_;
     # Check for the relation in the entity table.
-    my $entityTable = $self->{_metaData}->{Entities};
+    my $entityTable = $self->{_metaData}{Entities};
     my $retVal = exists $entityTable->{$relationName};
     if (! $retVal) {
         # Check for it in the relationship table.
-        my $relationshipTable = $self->{_metaData}->{Relationships};
+        my $relationshipTable = $self->{_metaData}{Relationships};
         $retVal = exists $relationshipTable->{$relationName};
     }
     # Return the determination indicator.
@@ -6902,7 +6978,7 @@ sub _FindObject {
     # Declare the return variable.
     my $retVal;
     # If the object exists, return its descriptor.
-    my $thingHash = $self->{_metaData}->{$list};
+    my $thingHash = $self->{_metaData}{$list};
     if (exists $thingHash->{$name}) {
         $retVal = $thingHash->{$name};
     }

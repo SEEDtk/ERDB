@@ -20,6 +20,7 @@ package ERDB::Helpers::SQLBuilder;
 
     use strict;
     use warnings;
+    use Tracer;
 
 
 =head1 ERDB SQL Statement Builder
@@ -44,8 +45,8 @@ The L<ERDB> object for which an SQL statement is being built.
 
 =item fromList
 
-Reference to a list of FROM-clause specifiers. Each specifier consists of a table name followed by a
-space and an alias.
+Reference to a list of FROM-clause specifiers. Each specifier consists of a 2-tuple with (0) a table name
+and (1) an alias.
 
 =item aliasMap
 
@@ -70,6 +71,11 @@ position in the return from the query.
 
 Reference to a hash containing the secondary relations currently incorporated into the
 query's FROM and WHERE clauses. Each secondary relation maps to the attached objectname.
+
+=item suffixes
+
+Reference to a hash containing the next available suffix number for a given object name.
+This value is used to generate new object names. The suffixes all start at 100.
 
 =item q
 
@@ -107,27 +113,25 @@ sub new {
     my @fromList;
     my %aliasMap;
     my @joinWhere;
+    my %suffixes;
     # Initialize our object.
     my $retVal = { ERDB => $erdb,
         fromList => \@fromList,
         aliasMap => \%aliasMap,
         joinWhere => \@joinWhere,
         fieldMap => {},
+        suffixes => \%suffixes,
         secondaries => {}
     };
     # Get the quote character.
-    my $q = $erdb->{_quote};
+    my $q = $erdb->q;
     $retVal->{q} = $q;
     # Bless the object.
     bless $retVal, $class;
-    # This hash will track the next available suffix number for generated
-    # object names. We generate such names for embedded relationships and
-    # tables we add to implement direct crossings.
-    my %suffixes;
     # Convert the object name list to an array.
     if (ref $objectNames ne 'ARRAY') {
         # This construct splits the list on \s+ but trims leading spaces first.
-        $objectNames = split ' ', $objectNames;
+        $objectNames = [split(' ', $objectNames)];
     }
     # Save the first object name as the primary.
     $retVal->{primary} = $objectNames->[0];
@@ -174,9 +178,7 @@ sub new {
                         $aliasData = $aliasMap{$prevName};
                     } else {
                         # Here we must generate an alias for the target table.
-                        my $suffix = $suffixes{$tableName} // 100;
-                        $suffixes{$tableName} = $suffix + 1;
-                        my $aliasName = "$tableName$suffix";
+                        my $aliasName = $retVal->NewObjectName($tableName);
                         $aliasData = [$baseName, $aliasName];
                         # Add the alias to the FROM list.
                         $retVal->UpdateFrom($tableName, $aliasName);
@@ -254,7 +256,7 @@ sub ComputeFieldList {
     # into a string at the end.
     my @retVal;
     # Get the ERDB object.
-    my $erdb = $self->{ERDB};
+    my $erdb = $self->db;
     # Get the alias map.
     my $aliasMap = $self->{aliasMap};
     # Get the field map. We fill it in here.
@@ -345,30 +347,16 @@ Returns the SQL statement suffix, including the FROM and WHERE clauses.
 sub SetFilterClause {
     # Get the parameters.
     my ($self, $filterClause) = @_;
-    # Get a copy of the filter clause.
-    my $filter = $filterClause;
-    # Get the alias map.
-    my $aliasMap = $self->{aliasMap};
-    # Loop through the object names.
-    for my $objectName (keys %$aliasMap) {
-        # Get the object's base name.
-        my $baseName = $self->BaseObject($objectName);
-        # Fix up all occurrences of this object name.
-        $filter =~ s/$objectName\(([a-zA-Z\-]+)\)/$self->FixNameWithSecondaryCheck($objectName, $1, $baseName)/sge;
-    }
+    # Fix up the object names in the filter.
+    my $filter = $self->FormatFilter($filterClause, @{$self->{joinWhere}});
+    # Compute the FROM clause.
+    my $fromClause = $self->FromClause(@{$self->{fromList}});
     # Assemble the filter clause and the FROM data into a suffix.
-    my $retVal = "FROM " . join(", ", @{$self->{fromList}});
-    if ($filter) {
-        # Here we have a filter. If it contains a constraint, tack on WHERE.
-        unless ($filter =~ /^(?:LIMIT\s+\d|ORDER\s+BY\s+)/i) {
-            $filter .= "WHERE $filter";
-        }
-        # Add the filter to the suffix.
-        $retVal .= " $filter";
-    }
+    my $retVal = join(" ", "FROM" , $fromClause , $filter);
     # Return the result.
     return $retVal;
 }
+
 
 =head3 UpdateFrom
 
@@ -393,16 +381,260 @@ Name to give the object added.
 sub UpdateFrom {
     # Get the parameters.
     my ($self, $tableName, $alias) = @_;
-    # Get the quote character.
-    my $q = $self->{q};
-    # Form the from-segment in here.
-    my $from = "$q$tableName$q";
-    if ($tableName ne $alias) {
-        # Here we need to state the alias.
-        $from .= " $q$alias$q";
-    }
     # Push the from-segment onto the from-list.
-    push @{$self->{fromList}}, $from;
+    push @{$self->{fromList}}, [$tableName, $alias];
+}
+
+=head3 FixFilter
+
+    my $fixedFilter = $sqlHelper->FixFilter($filterClause);
+
+Convert a filter clause to SQL.
+
+=over 4
+
+=item filterClause
+
+An L<ERDB filter clause|ERDB/Filter Clause> constraining the current query.
+
+=item RETURN
+
+Returns the incoming filter clause with all the field references converted to SQL.
+
+=back
+
+=cut
+
+sub FixFilter {
+    # Get the parameters.
+    my ($self, $filterClause) = @_;
+    # Get a copy of the filter clause.
+    my $retVal = $filterClause;
+    # Get the alias map.
+    my $aliasMap = $self->{aliasMap};
+    # Loop through the object names.
+    for my $objectName (keys %$aliasMap) {
+        # Get the object's base name.
+        my $baseName = $self->BaseObject($objectName);
+        # Fix up all occurrences of this object name.
+        $retVal =~ s/$objectName\(([a-zA-Z\-]+)\)/$self->FixNameWithSecondaryCheck($objectName, $1, $baseName)/sge;
+    }
+    # Return the fixed-up filter.
+    return $retVal;
+}
+
+
+=head3 NewObjectName
+
+    my $aliasName = $sqlHelper->NewObjectName($tableName);
+
+Generate a new object name from the specified table name. The new object
+name will have a suffix to make it unique.
+
+=over 4
+
+=item tableName
+
+Name of the entity, relationship, or secondary table for which a new object name
+is to be generated.
+
+=item RETURN
+
+Returns a name that can be used as an alias to specify a new instance of the desired
+table.
+
+=back
+
+=cut
+
+sub NewObjectName {
+    # Get the parameters.
+    my ($self, $tableName) = @_;
+    # Get the suffix hash.
+    my $suffixes = $self->{suffixes};
+    # Compute the next available suffix.
+    my $suffix = $suffixes->{$tableName} // 100;
+    $suffixes->{$tableName} = $suffix + 1;
+    # Compute the result and return it.
+    my $retVal = "$tableName$suffix";
+    return $retVal;
+}
+
+=head3 FixNameWithSecondaryCheck
+
+    my $fixedName = $sqlBuilder->FixNameWithSecondaryCheck($objectName, $fieldName, $baseName);
+
+This is a version of L</FixName> that serves the special needs of parsing a filter
+clause. The name is converted to SQL format, but if it is a secondary field, then
+we will insure the secondary relation is incorporated into the from-list and join clause.
+
+=over 4
+
+=item objectName
+
+An object name from the current query path.
+
+=item fieldName
+
+A field name from that object.
+
+=item baseName
+
+The name of the object in the database that the specified object belongs to.
+
+=item RETURN
+
+Returns the SQL reference to the field, in the form of the alias name, a period (C<.>)),
+and the SQL version of the field name.
+
+=back
+
+=cut
+
+sub FixNameWithSecondaryCheck {
+    # Get the parameters.
+    my ($self, $objectName, $fieldName, $baseName) = @_;
+    # Get the ERDB object.
+    my $erdb = $self->db;
+    # Get the quote character,
+    my $q = $self->q;
+    # Fix the name.
+    my $retVal = $self->FixName($objectName, $fieldName);
+    # Is this a secondary field?
+    if ($erdb->IsSecondary("$baseName($fieldName)")) {
+        # Yes. Get the secondary relation's name.
+        my $secondaryName = $erdb->GetFieldRelationName($baseName, $fieldName);
+        # Compute its object name. It has the same suffix as the incoming name.
+        my $suffix = '';
+        if ($objectName =~ /(\d+)$/) {
+            $suffix = $1;
+        }
+        my $secondaryAlias = "$secondaryName$suffix";
+        # Is it already in the database?
+        if (! $self->{secondaries}{$secondaryAlias}) {
+            # No. Add a from-clause.
+            $self->UpdateFrom($secondaryName, $secondaryAlias);
+            # Add a join clause.
+            my $qid = $q . 'id' . $q;
+            my $join = "$q$objectName$q.$qid = $q$secondaryAlias$q.$qid";
+            push @{$self->{joinWhere}}, $join;
+            # Insure we know that we have this relation.
+            $self->{secondaries}{$secondaryAlias} = $objectName;
+        }
+    }
+    # Return the fixed name.
+    return $retVal;
+}
+
+
+=head3 GetSecondaryFilter
+
+    my ($suffix, $alias) = $sqlHelper->GetSecondaryFilter($filterClause, $objectName, $secondaryTable);
+
+Compute the SQL suffix for a statement that gets all the records from a particular secondary
+table in addition to the regular filtering for this statement.
+
+=over 4
+
+=item filterClause
+
+An L<ERDB filter clause|ERDB/Filter Clause> constraining the current query.
+
+=item objectName
+
+The object name to which the secondary table is attached. This must be a version
+of the secondary table's primary entity.
+
+=item secondaryTable
+
+The name of a secondary relation that is to be the target of the eventual query.
+
+=item RETURN
+
+Returns a two-element list consisting of (0) the SQL statement suffix for getting all the relevant
+secondary table records and (1) the alias assigned to the secondary.
+
+=back
+
+=cut
+
+sub GetSecondaryFilter {
+    # Get the parameters.
+    my ($self, $filterClause, $objectName, $secondaryTable) = @_;
+    # Get the database object.
+    my $erdb = $self->db;
+    # Get an alias name for the secondary table.
+    my $aliasName = $self->NewObjectName($secondaryTable);
+    # Get the quote character.
+    my $q = $self->q;
+    my $qid = $q . 'id' . $q;
+    # Compute the join clause.
+    my $newJoin = "$q$aliasName$q.$qid = $q$objectName$q.$qid";
+    # Compute the formatted filter clause.
+    my $filter = $self->FormatFilter($filterClause, $newJoin, @{$self->{joinWhere}});
+    # Compute the FROM clause.
+    my $fromClause = $self->FromClause([$secondaryTable, $aliasName], @{$self->{fromList}});
+    # Assemble the filter clause and the FROM data into a suffix.
+    my $retVal = join(" ", "FROM" , $fromClause , $filter);
+    # Return the result.
+    return ($retVal, $aliasName);
+}
+
+
+=head3 FormatFilter
+
+    my $formattedFilter = $self->FormatFilter($filterClause, @joins);
+
+Format a filter clause with a list of joins. The filter is converted to SQL, the
+joins are added to the constraint, and a WHERE is added if it is needed.
+
+=over 4
+
+=item filterClause
+
+An L<ERDB filter clause|ERDB/Filter Clause> constraining the current query.
+
+=item joins
+
+A list of SQL join constraints.
+
+=item RETURN
+
+Returns a fully-formatted SQL filter clause.
+
+=back
+
+=cut
+
+sub FormatFilter {
+    # Get the parameters.
+    my ($self, $filterClause, @joins) = @_;
+    # Convert the filter to SQL.
+    my $sqlFilter = $self->FixFilter($filterClause);
+    # Parse out the constraint part.
+    my ($constraint, $modifier) = ($sqlFilter, '');
+    if ($sqlFilter =~ /^(.*?)\s*(\bLIMIT\s|ORDER\sBY\s.+)/i) {
+         ($constraint, $modifier) = ($1, $2);
+    }
+    # If there is a constraint, add it to the join clause list.
+    if ($constraint) {
+        push @joins, "($constraint)";
+    }
+    # Form the full constraint.
+    $constraint = join(" AND ", @joins);
+    # If there is still no constraint, return just the modifier.
+    my $retVal;
+    if (! $constraint) {
+        $retVal = $modifier;
+    } else {
+        $retVal = "WHERE $constraint";
+        # Add the modifier if we have one.
+        if ($modifier) {
+            $retVal .= " $modifier";
+        }
+    }
+    # Return the formatted filter clause.
+    return $retVal;
 }
 
 
@@ -418,6 +650,18 @@ Return the relevant L<ERDB> object.
 
 sub db {
     return $_[0]->{ERDB};
+}
+
+=head3 q
+
+    my $q = $sqlHelper->q;
+
+Return the quote character. This is the quote for protecting SQL identifiers.
+
+=cut
+
+sub q {
+    return $_[0]->{q};
 }
 
 =head3 ParseFieldName
@@ -514,9 +758,9 @@ sub FixName {
     # Get the parameters.
     my ($self, $objectName, $fieldName) = @_;
     # Get the ERDB object.
-    my $erdb = $self->{ERDB};
+    my $erdb = $self->db;
     # Get the quote character.
-    my $q = $self->{q};
+    my $q = $self->q;
     # Compute the alias name-- that is, the name assigned to the object in the FROM clause--
     # and the table name.
     my $aliasData = $self->{aliasMap}{$objectName};
@@ -525,7 +769,7 @@ sub FixName {
     }
     my ($baseName, $aliasName) = @$aliasData;
     # Find the real field name.
-    my $sqlName = $self->{ERDB}->_SQLFieldName($baseName, $fieldName);
+    my $sqlName = $self->db->_SQLFieldName($baseName, $fieldName);
     if (! $sqlName) {
         Confess("Field $fieldName not found in object $objectName.");
     }
@@ -534,72 +778,6 @@ sub FixName {
     return $retVal;
 }
 
-
-=head3 FixNameWithSecondaryCheck
-
-    my $fixedName = $sqlBuilder->FixNameWithSecondaryCheck($objectName, $fieldName, $baseName);
-
-This is a version of L</FixName> that serves the special needs of parsing a filter
-clause. The name is converted to SQL format, but if it is a secondary field, then
-we will insure the secondary relation is incorporated into the from-list and join clause.
-
-=over 4
-
-=item objectName
-
-An object name from the current query path.
-
-=item fieldName
-
-A field name from that object.
-
-=item baseName
-
-The name of the object in the database that the specified object belongs to.
-
-=item RETURN
-
-Returns the SQL reference to the field, in the form of the alias name, a period (C<.>)),
-and the SQL version of the field name.
-
-=back
-
-=cut
-
-sub FixNameWithSecondaryCheck {
-    # Get the parameters.
-    my ($self, $objectName, $fieldName, $baseName) = @_;
-    # Get the ERDB object.
-    my $erdb = $self->{ERDB};
-    # Get the quote character,
-    my $q = $self->{q};
-    # Fix the name.
-    my $retVal = $self->FixName($objectName, $fieldName);
-    # Is this a secondary field?
-    if ($erdb->IsSecondary("$baseName($fieldName)")) {
-        # Yes. Get the secondary relation's name.
-        my $secondaryName = $erdb->GetFieldRelationName($baseName, $fieldName);
-        # Compute its object name. It has the same suffix as the incoming name.
-        my $suffix = '';
-        if ($objectName =~ /(\d+)$/) {
-            $suffix = $1;
-        }
-        my $secondaryAlias = "$secondaryName$suffix";
-        # Is it already in the database?
-        if (! $self->{secondaries}{$secondaryAlias}) {
-            # No. Add a from-clause.
-            $self->UpdateFrom($secondaryName, $secondaryAlias);
-            # Add a join clause.
-            my $qid = $q . 'id' . $q;
-            my $join = "$q$objectName$q.$qid = $q$secondaryAlias$q.$qid";
-            push @{$self->{joinWhere}}, $join;
-            # Insure we know that we have this relation.
-            $self->{secondaries}{$secondaryAlias} = $objectName;
-        }
-    }
-    # Return the fixed name.
-    return $retVal;
-}
 
 
 =head3 BaseObject
@@ -688,6 +866,53 @@ sub GetFieldIndex {
     my $retVal = $self->{fieldMap}{"$objectName($fieldName)"};
     # Return the result.
     return $retVal;
+}
+
+
+=head2 FromClause
+
+    my $fromClause = $sqlHelper->FromClause(@fromList);
+
+Generate a FROM clause from a list of specifications. The list CANNOT
+be empty-- SQL doesn't allow that possibility.
+
+The information in the from list is a series of 2-tuples. The identifiers
+need to be quoted, and if both are the same, only one needs to be put
+into the output.
+
+=over 4
+
+=item fromList
+
+A list of 2-tuples consisting of SQL table names and their aliases.
+
+=back
+
+=cut
+
+sub FromClause {
+    # Get the parameters.
+    my ($self, @fromList) = @_;
+    # Get the quote character.
+    my $q = $self->q;
+    # The from segements will be put in here.
+    my @retVal;
+    # Loop through the 2-tuples.
+    for my $from (@fromList) {
+        # Get the pieces of this from-segment.
+        my ($tableName, $alias) = @$from;
+        # Format the table name.
+        my $segment = "$q$tableName$q";
+        # Is the alias different?
+        if ($alias ne $tableName) {
+            # Yes, include it.
+            $segment .= " $q$alias$q";
+        }
+        # Save this segment.
+        push @retVal, $segment;
+    }
+    # Return the full from clause.
+    return "FROM " . join(", ", @retVal);
 }
 
 
