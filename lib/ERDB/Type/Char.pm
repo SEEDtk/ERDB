@@ -18,35 +18,31 @@
 #
 
 
-package ERDBTypeProteinData;
+package ERDB::Type::Char;
 
     use strict;
     use Tracer;
     use ERDB;
-    use base qw(ERDBType);
+    use base qw(ERDB::Type);
 
-=head1 ERDB Protein FASTA Data Type Definition
+=head1 ERDB Character Flag Type Definition
 
 =head2 Introduction
 
-This object represents the data type for a list of protein FASTA sequences. Each
-sequence consists of a triple of data items: an ID, a comment, and the actual sequence.
-An individual data value contains a list of these triples. In the database, the
-entire structure is encoded as an escaped string. The individual pieces of a triple
-are tab-separated, and the triples themselves are separated by new-lines.
+This is the primitive ERDB data type for a single-character flag.
 
 =head3 new
 
-    my $et = ERDBTypeProteinData->new();
+    my $et = ERDB::Type::Char->new();
 
-Construct a new ERDBTypeProteinData descriptor.
+Construct a new ERDB::Type::Char descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeProteinData object.
+    # Create the ERDB::Type::Char object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
@@ -65,7 +61,7 @@ database. This value is used to compute the expected size of a database table.
 =cut
 
 sub averageLength {
-    return 100000;
+    return 1;
 }
 
 =head3 prettySortValue
@@ -73,13 +69,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
 sub prettySortValue() {
-    return 5;
+    return 1;
 }
 
 =head3 validate
@@ -110,9 +106,8 @@ sub validate {
     my ($self, $value) = @_;
     # Assume it's valid until we prove otherwise.
     my $retVal = "";
-    # Verify that we're an array.
-    if (ref $value ne 'ARRAY') {
-        $retVal = "Protein data set is not a list reference.";
+    if (! defined $value || length($value) != 1) {
+        $retVal = "Invalid single-character value.";
     }
     # Return the determination.
     return $retVal;
@@ -146,10 +141,8 @@ encoding is the same for both modes.
 sub encode {
     # Get the parameters.
     my ($self, $value, $mode) = @_;
-    # Convert the list to a string.
-    my $retVal = Tracer::Escape(join("\n", map { join("\t", @$_) } @$value));
     # Return the result.
-    return $retVal;
+    return $value;
 }
 
 =head3 decode
@@ -177,10 +170,8 @@ Returns a value of the desired type.
 sub decode {
     # Get the parameters.
     my ($self, $string) = @_;
-    # Unescape and split the string.
-    my $retVal = [map { [split /\t/, $_] } split /\n/, Tracer::UnEscape($string)];
     # Return the result.
-    return $retVal;
+    return $string;
 }
 
 =head3 sqlType
@@ -206,7 +197,7 @@ an SQL table.
 =cut
 
 sub sqlType {
-    return "LONGTEXT";
+    return "CHAR(1)";
 }
 
 =head3 indexMod
@@ -220,7 +211,7 @@ is an empty string, the entire field is indexed. The default is an empty string.
 =cut
 
 sub indexMod {
-    return undef;
+    return '';
 }
 
 =head3 sortType
@@ -247,7 +238,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    return 'Protein FASTA list, encoded';
+    return 'Single-character value.';
 }
 
 =head3 name
@@ -259,7 +250,7 @@ Return the name of this type, as it will appear in the XML database definition.
 =cut
 
 sub name() {
-    return "proteinData";
+    return "char";
 }
 
 =head3 default
@@ -274,36 +265,21 @@ be thrown during the load.
 =cut
 
 sub default {
-    return '';
+    return ' ';
 }
 
-=head3 html
+=head3 align
 
-    my $html = $et->html($value);
+    my $alignment = $et->align();
 
-Return the HTML for displaying the content of a field of this type in an output
-table. The default is the raw value, html-escaped.
+Return the display alignment for fields of this type: either C<left>, C<right>, or
+C<center>. The default is C<left>.
 
 =cut
 
-sub html {
-    # Get the parameters.
-    my ($self, $value) = @_;
-    # We'll build a list in here and then output it later.
-    my @retVal;
-    # Loop through the triples in the list.
-    for my $triple (@$value) {
-        # Split the triple.
-        my ($id, $comment, $sequence) = @$triple;
-        # Adjust the sequence if it's too long.
-        if (length $sequence > 60) {
-            $sequence = substr($sequence, 0, 60) . "...";
-        }
-        # Form the ID and sequence into a string.
-        push @retVal, "$id: $sequence";
-    }
-    # Return the result.
-    return CGI::ul(map { CGI::li($_) } @retVal);
+sub align {
+    return 'center';
 }
+
 
 1;

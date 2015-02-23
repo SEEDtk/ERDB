@@ -17,38 +17,44 @@
 # http://www.theseed.org/LICENSE.TXT.
 #
 
-
-package ERDBTypeFloat;
+package ERDB::Type;
 
     use strict;
     use Tracer;
+    use CGI qw(-nosticky);
     use ERDB;
-    use base qw(ERDBType);
 
-=head1 Double Precision Floating-Point Numeric Type Definition
+
+=head1 ERDB Database Type Definition Base Class
 
 =head2 Introduction
 
-This object represents the primitive data type for IEEE 8-byte floating-point
-numbers. The allowable values are -1.7976931348623157E+308 to
--2.2250738585072014E-308, 0, and 2.2250738585072014E-308 to
-1.7976931348623157E+308.
+This class describes an ERDB type. All ERDB types are defined as subclasses of
+this one. The class itself is purely virtual, and contains no useful methods.
 
+It's important to recognize that an instance of this class represents a type, not
+an item of the specific type. The types provide methods for manipulating and
+describing values in the data base, but those values are usually scalars or
+objects unrelated to the ERDB type classes.
 
 =cut
 
 =head3 new
 
-    my $et = ERDBTypeFloat->new();
+    my $et = ERDB::Type->new();
 
-Construct a new ERDBTypeFloat object.
+Construct a new ERDB::Type object. The following options are supported.
+
+=over 4
+
+=back
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the  object.
+    # Create the ERDB::Type object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
@@ -70,7 +76,7 @@ sub numeric {
     # Get the parameters.
     my ($self) = @_;
     # Return the result.
-    return 1;
+    return 0;
 }
 
 =head3 nullable
@@ -86,7 +92,7 @@ sub nullable {
     # Get the parameters.
     my ($self) = @_;
     # Return the result.
-    return 1;
+    return 0;
 }
 
 =head3 averageLength
@@ -99,7 +105,7 @@ database. This value is used to compute the expected size of a database table.
 =cut
 
 sub averageLength {
-    return 8;
+    Confess("Pure virtual method \"averageLength\" called.");
 }
 
 =head3 prettySortValue
@@ -107,13 +113,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<1> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
-sub prettySortValue() {
-    return 1;
+sub prettySortValue {
+    return 3;
 }
 
 =head3 validate
@@ -140,20 +146,12 @@ otherwise.
 =cut
 
 sub validate {
-    # Get the parameters.
-    my ($self, $value) = @_;
-    # Assume it's valid until we prove otherwise.
-    my $retVal = "";
-    if (not $value =~ /^[+-]?(?:\d+\.?|\d+\.\d+|\.\d+)(?:[Ee][+-]?\d+)?$/) {
-        $retVal = "Floating-point value \"$value\" is not numeric.";
-    }
-    # Return the determination.
-    return $retVal;
+    Confess("Pure virtual method \"validate\" called.");
 }
 
 =head3 encode
 
-    my $string = $et->encode($value, $mode);
+    my $string = $et->encode($value, $mode)
 
 Encode a value of this field type for storage in the database (or in a database load
 file.)
@@ -177,17 +175,7 @@ encoding is the same for both modes.
 =cut
 
 sub encode {
-    # Get the parameters.
-    my ($self, $value, $mode) = @_;
-    # Get the value.
-    my $retVal = $value;
-    # If we are going into a load file and the value is NULL, convert it to an
-    # escape sequence.
-    if ($mode && ! defined $retVal) {
-        $retVal = "\\N";
-    }
-    # Return the result.
-    return $retVal;
+    Confess("Pure virtual method \"encode\" called.");
 }
 
 =head3 decode
@@ -213,11 +201,7 @@ Returns a value of the desired type.
 =cut
 
 sub decode {
-    # Get the parameters.
-    my ($self, $string) = @_;
-    # Declare the return variable.
-    # Return the result.
-    return $string;
+    Confess("Pure virtual method \"decode\" called.");
 }
 
 =head3 sqlType
@@ -243,7 +227,7 @@ an SQL table.
 =cut
 
 sub sqlType {
-    return "DOUBLE PRECISION";
+    Confess("Pure virtual method \"sqlType\" called.");
 }
 
 =head3 indexMod
@@ -257,7 +241,7 @@ is an empty string, the entire field is indexed. The default is an empty string.
 =cut
 
 sub indexMod {
-    return '';
+    return "";
 }
 
 =head3 sortType
@@ -271,7 +255,7 @@ The default is the empty string.
 =cut
 
 sub sortType {
-    return "g";
+    return "";
 }
 
 =head3 documentation
@@ -284,7 +268,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    return "Floating-point number, approximately 15 significant digits, from 10^-308 to 10^+308.";
+    Confess("Pure virtual method \"documentation\" called.");
 }
 
 =head3 name
@@ -296,22 +280,22 @@ Return the name of this type, as it will appear in the XML database definition.
 =cut
 
 sub name() {
-    return "float";
+    Confess("Pure virtual method \"name\" called.");
 }
 
 =head3 default
 
     my $defaultValue = $et->default();
 
-Default value to be used for fields of this type if no default value is
-specified in the database definition or in an L<ERDBLoadGroup/Put>
+Return the default value to be used for fields of this type if no default
+value is specified in the database definition or in an L<ERDBLoadGroup/Put>
 call during a loader operation. The default is undefined, which means
 an error will be thrown during the load.
 
 =cut
 
 sub default {
-    return 0;
+    return undef;
 }
 
 =head3 align
@@ -324,7 +308,7 @@ C<center>. The default is C<left>.
 =cut
 
 sub align {
-    return 'center';
+    return 'left';
 }
 
 =head3 html
@@ -338,11 +322,21 @@ table. The default is the raw value, html-escaped.
 
 sub html {
     my ($self, $value) = @_;
-    my $retVal = "";
-    if (defined $value) {
-        $retVal = sprintf("%.8g", $value);
-    }
+    my $retVal = CGI::escapeHTML($value);
     return $retVal;
+}
+
+=head3 objectType
+
+    my $type = $et->objectType();
+
+Return the PERL type for fields of this type. An undefined value means it's
+a scalar; otherwise, it should be the package name (suitable for a C<use> clause).
+
+=cut
+
+sub objectType {
+    return undef;
 }
 
 

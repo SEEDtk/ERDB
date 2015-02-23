@@ -7,13 +7,13 @@ package ERDB;
     use Tracer;
     use Data::Dumper;
     use XML::Simple;
-    use ERDBQuery;
-    use ERDBObject;
+    use ERDB::Query;
+    use ERDB::Object;
     use Stats;
     use Time::HiRes qw(gettimeofday);
     use Digest::MD5 qw(md5_base64);
     use CGI qw(-nosticky);
-
+    use ERDB::Helpers::SQLBuilder;
     use ERDBExtras;
     use FreezeThaw;
 
@@ -65,6 +65,14 @@ the C<ComesFrom> relationship is called C<ComesFrom> and contains two fields--
 C<from-link>, which contains a genome ID, and C<to-link>, which contains a
 source ID.
 
+A one-to-many relationship can be I<embedded> in the entity on the many side.
+So, for example, A genome contains many features but a feature is in only one
+genom. The C<IsOwnerOf> relationship from C<Genome> to C<Feature> can be
+stored as a field in the C<Feature> entity. The field C<IsOwnerOf(from-link)>
+is a new field in C<Feature>, and the field C<IsOwnerOf(to-link)> is actually
+the feature ID. Embedded relationships cannot have a C<ToIndex> or any other
+alternatate indexes.
+
 A relationship may itself have attributes. These attributes, known as
 I<intersection data attributes>, are implemented as additional fields in the
 relationship's relation. So, for example, the B<IsMadeUpOf> relationship
@@ -80,22 +88,17 @@ provides space for notes describing the data and what it means and information
 about how to display a diagram of the database. These are used to create web
 pages describing the data.
 
-Special support is provided for text searching. An entity field can be marked as
-I<searchable>, in which case it will be used to generate a text search
-index in which the user searches for words in the field instead of a particular
-field value.
-
 =head2 Data Types, Queries and Filtering
 
 =head3 Data Types
 
 The ERDB system supports many different data types. It is possible to
 configure additional user-defined types by adding PERL modules to the
-code. Each new type must be a subclass of L<ERDBType>. Standard
+code. Each new type must be a subclass of L<ERDB::Type>. Standard
 types are listed in the compile-time STANDARD_TYPES constant. Custom
 types should be listed in the C<$ERDBExtras::customERDBtypes> variable
 of the configuration file. The variable must be a list reference
-containing the names of the ERDBType subclasses for the custom
+containing the names of the ERDB::Type subclasses for the custom
 types.
 
 To get complete documentation of all the types, use
@@ -430,13 +433,6 @@ followed by a qualifying word (e.g. C<GenomeGroup>). In an entity, the fields
 without a relation attribute are said to belong to the I<primary relation>. This
 relation has the same name as the entity itself.
 
-=item searchable
-
-If specified, then the field is a candidate for full-text searching. A single
-full-text index will be created for each relation with at least one searchable
-field in it. For best results, this option should only be used for string or
-text fields.
-
 =item special
 
 This attribute allows the subclass to assign special meaning for certain fields.
@@ -535,7 +531,7 @@ Name of the region.
 
 The diagram tag allows you to specify options for generating a diagram. If the
 tag is present, then it will be used to configure diagram display in the
-documentation widget (see L<ERDBPDocPage>). the tag has the following
+documentation widget (see L<ERDB::PDocPage>). the tag has the following
 attributes. It should not have any content; that is, it is not a container
 tag.
 
@@ -747,6 +743,14 @@ side. All many-to-many relationships are automatically loose. A one-to-many
 relationship is generally not loose, but specifying this attribute can make
 it so.
 
+item embedded
+
+If TRUE (C<1>), the relationship is embedded in the entity described in the
+Cto> attribute. The relationship's C<from-link> and all its attributes are
+fields in the entity, while the entity's C<id> field serves as the relationship's
+C<to-link>. In this case, the relationship can only have a C<FromIndex>. It cannot
+have any alternate indexes.
+
 =back
 
 =head3 Shapes
@@ -790,9 +794,7 @@ and C<to> directives.
 # Table of information about our datatypes.
 my $TypeTable;
 
-my @StandardTypes = qw(ERDBTypeBoolean ERDBTypeChar ERDBTypeCounter ERDBTypeDate
-                       ERDBTypeFloat ERDBTypeHashString ERDBTypeInteger ERDBTypeString
-                       ERDBTypeText);
+my @StandardTypes = qw(Boolean Char Counter Date Float HashString Integer String Text);
 
 # Table translating arities into natural language.
 my %ArityTable = ( '1M' => 'one-to-many',
@@ -906,55 +908,6 @@ sub new {
     $self->{_metaData} = _LoadMetaData($self, $metaFileName, $options{externalDBD});
     # Return the object.
     return $self;
-}
-
-=head3 SplitKeywords
-
-    my @keywords = ERDB::SplitKeywords($keywordString);
-
-This method returns a list of the positive keywords in the specified
-keyword string. All of the operators will have been stripped off,
-and if the keyword is preceded by a minus operator (C<->), it will
-not be in the list returned. The idea here is to get a list of the
-keywords the user wants to see. The list will be processed to remove
-duplicates.
-
-It is possible to create a string that confuses this method. For example
-
-    frog toad -frog
-
-would return both C<frog> and C<toad>. If this is a problem we can deal
-with it later.
-
-=over 4
-
-=item keywordString
-
-The keyword string to be parsed.
-
-=item RETURN
-
-Returns a list of the words in the keyword string the user wants to
-see.
-
-=back
-
-=cut
-
-sub SplitKeywords {
-    # Get the parameters.
-    my ($keywordString) = @_;
-    # Make a safety copy of the string. (This helps during debugging.)
-    my $workString = $keywordString;
-    # Convert operators we don't care about to spaces.
-    $workString =~ tr/+"()<>/ /;
-    # Split the rest of the string along space boundaries. Note that we
-    # eliminate any words that are zero length or begin with a minus sign.
-    my @wordList = grep { $_ && substr($_, 0, 1) ne "-" } split /\s+/, $workString;
-    # Use a hash to remove duplicates.
-    my %words = map { $_ => 1 } @wordList;
-    # Return the result.
-    return sort keys %words;
 }
 
 =head3 GetDatabase
@@ -1123,7 +1076,7 @@ ID of the desired entity.
 
 =item RETURN
 
-Returns a L<ERDBObject> object representing the desired entity instance, or
+Returns a L<ERDB::Object> object representing the desired entity instance, or
 an undefined value if no instance is found with the specified key.
 
 =back
@@ -1315,7 +1268,7 @@ sub GetAll {
         $filterClause .= " LIMIT $count";
     }
     # Create the query.
-    my $query = $self->Get($objectNames, $filterClause, \@parmList);
+    my $query = $self->Get($objectNames, $filterClause, \@parmList, $fields);
     # Set up a counter of the number of records read.
     my $fetched = 0;
     # Convert the field names to a list if they came in as a string.
@@ -1330,78 +1283,6 @@ sub GetAll {
     }
     # Return the resulting list.
     return @retVal;
-}
-
-=head3 PutAll
-
-    $erdb->PutAll($oh, \@objectNames, $filterClause, \@parameters, \@fields, $count);
-
-Output a list of values taken from the objects returned by a query. The
-output will be in the form of a tab-delimited sequential file. The first
-parameter is the output file handle; the remaining parameters correspond to those
-of the L</GetAll> method.
-
-=over 4
-
-=item oh
-
-Open output file handle.
-
-=item objectNames
-
-List containing the names of the entity and relationship objects to be retrieved.
-See L</Object Name List>.
-
-=item filterClause
-
-WHERE/ORDER BY clause (without the WHERE) to be used to filter and sort the query.
-See L</Filter Clause>.
-
-=item parameterList
-
-List of the parameters to be substituted in for the parameters marks
-in the filter clause. See L</Parameter List>.
-
-=item fields
-
-List of the fields to be returned in each element of the list returned, or a
-string containing a space-delimited list of field names. The field names should
-be in L</Standard Field Name Format>.
-
-=item count
-
-Maximum number of records to return. If omitted or 0, all available records will
-be returned.
-
-=back
-
-=cut
-
-sub PutAll {
-    # Get the parameters.
-    my ($self, $oh, $objectNames, $filterClause, $parameterList, $fields, $count) = @_;
-    # Translate the parameters from a list reference to a list. If the parameter
-    # list is a scalar we convert it into a singleton list.
-    my @parmList = ();
-    if (ref $parameterList eq "ARRAY") {
-        @parmList = @{$parameterList};
-    } else {
-        push @parmList, $parameterList;
-    }
-    # Add the row limit to the filter clause.
-    if (defined $count && $count > 0) {
-        $filterClause .= " LIMIT $count";
-    }
-    # Create the query.
-    my $query = $self->Get($objectNames, $filterClause, \@parmList);
-    # Convert the field names to a list if they came in as a string.
-    my $fieldList = (ref $fields ? $fields : [split /\s+/, $fields]);
-    # Loop through the records returned, writing the fields. Note that if the
-    # counter is non-zero, we stop when the number of records read hits the count.
-    while (my $row = $query->Fetch()) {
-        my @rowData = $row->Values($fieldList);
-        print $oh join("\t", @rowData) . "\n";
-    }
 }
 
 
@@ -1499,24 +1380,22 @@ sub GetCount {
     }
     # Declare the return variable.
     my $retVal;
-    # Create the SQL command suffix to get the desired records.
-    my ($suffix, $mappedNameListRef, $mappedNameHashRef) =
-        $self->_SetupSQL($objectNames, $filter);
-    # Get the object we're counting.
-    my $firstObject = $mappedNameListRef->[0];
-    # Find out if we're counting an entity or a relationship.
+    # Create an SQL helper for this query path.
+    my $sqlHelper = ERDB::Hekpers::SQLHelper->new($self, $objectNames);
+    # Get the suffix from the filter clause.
+    my $suffix = $sqlHelper->SetFilterClause($filter);
+    # Compute the field we want to count.
     my $countedField;
-    if ($self->IsEntity($mappedNameHashRef->{$firstObject}->[0])) {
-        $countedField = "id";
+    my ($objectName, $baseName) = $sqlHelper->PrimaryInfo();
+    if ($self->IsEntity($baseName)) {
+        $countedField = "$objectName(id)";
     } else {
-        # For a relationship we count the to-link because it's usually more
-        # numerous. Note we're automatically converting to the SQL form
-        # of the field name (to_link vs. to-link), and we're not worried
-        # about converses.
-        $countedField = "to_link";
+        $countedField = "$objectName(to-link)";
     }
-    # Prefix it with text telling it we want a record count.
-    my $command = "SELECT COUNT($self->{_quote}$firstObject$self->{_quote}.$countedField) $suffix";
+    # Compute the field list.
+    my $fieldList = $sqlHelper->ComputeFieldList($countedField);
+    # Create the SQL command suffix to get the desired records.
+    my $command = "SELECT COUNT($fieldList) $suffix";
     # Prepare and execute the command.
     my $sth = $self->_GetStatementHandle($command, $params);
     # Get the count value.
@@ -1535,11 +1414,12 @@ sub GetCount {
     return $retVal;
 }
 
+
 =head3 GetList
 
     my @dbObjects = $erdb->GetList(\@objectNames, $filterClause, \@params);
 
-Return a list of L<ERDBObject> objects for the specified query.
+Return a list of L<ERDB::Object> objects for the specified query.
 
 This method is essentially the same as L</Get> except it returns a list of
 objects rather than a query object that can be used to get the results one
@@ -1566,7 +1446,7 @@ See L</Parameter List>.
 
 =item RETURN
 
-Returns a list of L<ERDBObject> objects that satisfy the query conditions.
+Returns a list of L<ERDB::Object> objects that satisfy the query conditions.
 
 =back
 
@@ -1611,9 +1491,14 @@ L</Filter Clause>.
 Reference to a list of parameter values to be substituted into the filter
 clause. See L</Parameter List>.
 
+=item fields
+
+A list of fields in L</Standard Field Name Format>. Only the fields in the
+list will be retrieved from the database.
+
 =item RETURN
 
-Returns an L</ERDBQuery> object that can be used to iterate through all of the
+Returns an L</ERDB::Query> object that can be used to iterate through all of the
 results.
 
 =back
@@ -1622,165 +1507,16 @@ results.
 
 sub Get {
     # Get the parameters.
-    my ($self, $objectNames, $filterClause, $params) = @_;
-    # Process the SQL stuff.
-    my ($suffix, $mappedNameListRef, $mappedNameHashRef) =
-        $self->_SetupSQL($objectNames, $filterClause);
+    my ($self, $objectNames, $filterClause, $params, $fields) = @_;
+    # Compute the SQL components of the query.
+    my $sqlHelper = ERDB::Helpers::SQLBuilder->new($self, $objectNames);
+    my $suffix = $sqlHelper->SetFilterClause($filterClause);
+    my $fieldList = $sqlHelper->ComputeFieldList($fields);
     # Create the query.
-    my $command = "SELECT " . join(", ", map { "$self->{_quote}$_$self->{_quote}.*" } @$mappedNameListRef) .
-        " $suffix";
+    my $command = "SELECT $fieldList $suffix";
     my $sth = $self->_GetStatementHandle($command, $params);
-    # Now we create the relation map, which enables ERDBQuery to determine the
-    # order, name and mapped name for each object in the query.
-    my @relationMap = _RelationMap($mappedNameHashRef, $mappedNameListRef);
     # Return the statement object.
-    my $retVal = ERDBQuery::_new($self, $sth, \@relationMap);
-    return $retVal;
-}
-
-=head3 Prepare
-
-    my $query = $erdb->Prepare($objects, $filterString, $parms);
-
-Prepare a query for execution but do not create a statement handle. This
-is useful if you have a query that you want to validate but you do not
-yet want to acquire the resources to run it.
-
-=over 4
-
-=item objects
-
-List containing the names of the entity and relationship objects to be retrieved,
-or a string containing a space-delimited list of names. See L</Object Name List>.
-
-=item filterString
-
-WHERE clause (without the WHERE) to be used to filter and sort the query. See
-L</Filter Clause>.
-
-=item parms
-
-Reference to a list of parameter values to be substituted into the filter
-clause. See L</Parameter List>.
-
-=item RETURN
-
-Returns an L<ERDBQuery> object that can be used to check field names
-or that can be populated with artificial data.
-
-=back
-
-=cut
-
-sub Prepare {
-    # Get the parameters.
-    my ($self, $objects, $filterString, $parms) = @_;
-    # Process the SQL stuff.
-    my ($suffix, $mappedNameListRef, $mappedNameHashRef) =
-        $self->_SetupSQL($objects, $filterString);
-    # Create the query.
-    my $command = "SELECT " . join(".*, ", @{$mappedNameListRef}) .
-        ".* $suffix";
-    # Now we create the relation map, which enables ERDBQuery to determine the
-    # order, name and mapped name for each object in the query.
-    my @relationMap = _RelationMap($mappedNameHashRef, $mappedNameListRef);
-    # Create the query object without a statement handle.
-    my $retVal = ERDBQuery::_new($self, undef, \@relationMap);
-    # Cache the command and the parameters.
-    $retVal->_Prepare($command, $parms);
-    # Return the result.
-    return $retVal;
-}
-
-=head3 Search
-
-    my $query = $erdb->Search($searchExpression, $idx, \@objectNames, $filterClause, \@params);
-
-Perform a full text search with filtering. The search will be against a
-specified object in the object name list. That object will get an extra field
-containing the search relevance. Note that except for the search expression, the
-parameters of this method are the same as those for L</Get> and follow the same
-rules.
-
-=over 4
-
-=item searchExpression
-
-Boolean search expression for the text fields of the target object. The default
-mode for a Boolean search expression is OR, but we want the default to be AND,
-so we will add a C<+> operator to each word with no other operator before it.
-
-=item idx
-
-Name of the object to be searched in full-text mode. If the object name list is
-a list reference, you can also specify the index into the list.
-
-=item objectNames
-
-List containing the names of the entity and relationship objects to be retrieved,
-or a string containing a space-delimited list of names. See L</Object Name List>.
-
-=item filterClause
-
-WHERE clause (without the WHERE) to be used to filter and sort the query. See
-L</Filter Clause>.
-
-=item params
-
-Reference to a list of parameter values to be substituted into the filter
-clause. See L</Parameter List>.
-
-=item RETURN
-
-Returns an L<ERDBQuery> object for the specified search.
-
-=back
-
-=cut
-
-sub Search {
-    # Get the parameters.
-    my ($self, $searchExpression, $idx, $objectNames, $filterClause, $params) = @_;
-    # Declare the return variable.
-    my $retVal;
-    # Create a safety copy of the parameter list. Note we have to be careful to
-    # insure a parameter list exists before we copy it.
-    my @myParams = ();
-    if (defined $params) {
-        @myParams = @{$params};
-    }
-    # Get the first object's structure so we have access to the searchable fields.
-    my $object1Name = ($idx =~ /^\d+$/ ? $objectNames->[$idx] : $idx);
-    my $object1Structure = $self->_GetStructure($object1Name);
-    # Get the field list.
-    if (! exists $object1Structure->{searchFields}) {
-        Confess("No searchable index for $object1Name.");
-    } else {
-        # Get the field list.
-        my @fields = @{$object1Structure->{searchFields}};
-        # Clean the search expression.
-        my $actualKeywords = $self->CleanKeywords($searchExpression);
-        # We need two match expressions, one for the filter clause and one in
-        # the query itself. Both will use a parameter mark, so we need to push
-        # the search expression onto the front of the parameter list twice.
-        unshift @myParams, $actualKeywords, $actualKeywords;
-        # Build the match expression.
-        my @matchFilterFields = map { "$object1Name." . _FixName($_) } @fields;
-        my $matchClause = "MATCH (" . join(", ", @matchFilterFields) . ") AGAINST (? IN BOOLEAN MODE)";
-        # Process the SQL stuff.
-        my ($suffix, $mappedNameListRef, $mappedNameHashRef) =
-            $self->_SetupSQL($objectNames, $filterClause, $matchClause);
-        # Create the query. Note that the match clause is inserted at the front of
-        # the select fields.
-        my $command = "SELECT $matchClause, " . join(".*, ", @{$mappedNameListRef}) .
-            ".* $suffix";
-        my $sth = $self->_GetStatementHandle($command, \@myParams);
-        # Now we create the relation map, which enables ERDBQuery to determine the order, name
-        # and mapped name for each object in the query.
-        my @relationMap = _RelationMap($mappedNameHashRef, $mappedNameListRef);
-        # Return the statement object.
-        $retVal = ERDBQuery::_new($self, $sth, \@relationMap, $object1Name);
-    }
+    my $retVal = ERDB::Query::_new($self, $sth, $sqlHelper);
     return $retVal;
 }
 
@@ -1825,7 +1561,7 @@ sub GetFlat {
     # Get the parameters.
     my ($self, $objectNames, $filterClause, $parameterList, $field) = @_;
     # Construct the query.
-    my $query = $self->Get($objectNames, $filterClause, $parameterList);
+    my $query = $self->Get($objectNames, $filterClause, $parameterList, $field);
     # Create the result list.
     my @retVal = ();
     # Loop through the records, adding the field values found to the result list.
@@ -2192,7 +1928,7 @@ sub ReadMetaXML {
 
     my $type = $erdb->FieldType($string, $defaultName);
 
-Return the L<ERDBType> object for the specified field.
+Return the L<ERDB::Type> object for the specified field.
 
 =over 4
 
@@ -2255,10 +1991,15 @@ sub IsSecondary {
     my ($self, $string, $defaultName) = @_;
     # Get the field's name and object.
     my ($objName, $fieldName) = ERDB::ParseFieldName($string, $defaultName);
-    # Retrieve its descriptor from the metadata.
-    my $fieldData = $self->_FindField($fieldName, $objName);
-    # Compare the table name to the object name.
-    my $retVal = ($fieldData->{relation} ne $objName);
+    # This will be the return value.
+    my $retVal;
+    # Only entities can have secondary fields.
+    if ($self->IsEntity($objName)) {
+        # Retrieve its descriptor from the metadata.
+        my $fieldData = $self->_FindField($fieldName, $objName);
+        # Compare the table name to the object name.
+        $retVal = ($fieldData->{relation} ne $objName);
+    }
     # Return the result.
     return $retVal;
 }
@@ -2766,7 +2507,7 @@ sub GetConnectingRelationshipData {
     my $types = ERDB::GetDataTypes();
 
 Return a table of ERDB data types. The table returned is a hash of
-L</ERDBType> objects keyed by type name.
+L</ERDB::Type> objects keyed by type name.
 
 =cut
 
@@ -2786,8 +2527,8 @@ sub GetDataTypes {
             # Create the type object.
             my $typeObject;
             eval {
-                require "$type.pm";
-                $typeObject = eval("$type->new()");
+                require "ERDB/Type/$type.pm";
+                $typeObject = eval("ERDB::Type::$type->new()");
             };
             # Ensure we didn't have an error.
             if ($@) {
@@ -4008,6 +3749,7 @@ sub DecodeField {
     return $retVal;
 }
 
+
 =head3 DigestKey
 
     my $digested = ERDB::DigestKey($longString);
@@ -4496,7 +4238,6 @@ sub UpdateField {
     my ($self, $fieldName, $oldValue, $newValue, $filter, $parms) = @_;
     # Get the object and field names from the field name parameter.
     my ($objectName, $realFieldName) = ERDB::ParseFieldName($fieldName);
-    $realFieldName = _FixName($realFieldName);
     # Add the old value to the filter. Note we allow the possibility that no
     # filter was specified.
     my $realFilter = "$fieldName = ?";
@@ -4504,12 +4245,14 @@ sub UpdateField {
         $realFilter .= " AND $filter";
     }
     # Format the query filter.
-    my ($suffix) = $self->_SetupSQL([$objectName], $realFilter);
-    # Create the query. Since there is only one object name, the mapped-name
-    # data is not necessary. Neither is the FROM clause.
+    my $sqlHelper = ERDB::Helpers::SQLBuilder->new($self, $objectName);
+    my $suffix = $sqlHelper->SetFilterClause($realFilter);
+    # Create the update statement. Note we need to get rid of the FROM clause
+    # and the field list is a single name.
     $suffix =~ s/^FROM.+WHERE\s+//;
+    my $fieldList = $sqlHelper->ComputeFieldList($fieldName);
     # Create the update statement.
-    my $command = "UPDATE $self->{_quote}$objectName$self->{_quote} SET $self->{_quote}$realFieldName$self->{_quote} = ? WHERE $suffix";
+    my $command = "UPDATE $fieldList SET $fieldList = ? WHERE $suffix";
     # Get the database handle.
     my $dbh = $self->{_dbh};
     # Add the old and new values to the parameter list. Note we allow the
@@ -5382,7 +5125,8 @@ sub DeleteLike {
         Confess("Cannot use DeleteLike on $objectName, because it is not a relationship.");
     } else {
         # Create the SQL command suffix to get the desierd records.
-        my ($suffix) = $self->_SetupSQL([$objectName], $filter);
+        my $sqlHelper = ERDB::Helpers::SQLBuilder->new($self, $objectName);
+        my $suffix = $sqlHelper->SetFilterClause($filter);
         # Convert it to a DELETE command.
         my $command = "DELETE $suffix";
         # Execute the command.
@@ -5484,159 +5228,6 @@ sub DeleteValue {
     return $retVal;
 }
 
-
-=head2 Data Mining Methods
-
-=head3 GetUsefulCrossValues
-
-    my @attrNames = $sprout->GetUsefulCrossValues($sourceEntity, $relationship);
-
-Return a list of the useful attributes that would be returned by a B<Cross> call
-from an entity of the source entity type through the specified relationship.
-This means it will return the fields of the target entity type and the
-intersection data fields in the relationship. Only primary table fields are
-returned. In other words, the field names returned will be for fields where
-there is always one and only one value.
-
-=over 4
-
-=item sourceEntity
-
-Name of the entity from which the relationship crossing will start.
-
-=item relationship
-
-Name of the relationship being crossed.
-
-=item RETURN
-
-Returns a list of field names in L</Standard Field Name Format>.
-
-=back
-
-=cut
-
-sub GetUsefulCrossValues {
-    # Get the parameters.
-    my ($self, $sourceEntity, $relationship) = @_;
-    # Declare the return variable.
-    my @retVal = ();
-    # Determine the target entity for the relationship. This is whichever entity
-    # is not the source entity. So, if the source entity is the FROM, we'll get
-    # the name of the TO, and vice versa.
-    my $relStructure = $self->_GetStructure($relationship);
-    my $targetEntityType = ($relStructure->{from} eq $sourceEntity ? "to" : "from");
-    my $targetEntity = $relStructure->{$targetEntityType};
-    # Get the field table for the entity.
-    my $entityFields = $self->GetFieldTable($targetEntity);
-    # The field table is a hash. The hash key is the field name. The hash value
-    # is a structure. For the entity fields, the key aspect of the target
-    # structure is that the {relation} value must match the entity name.
-    my @fieldList = map { "$targetEntity($_)" } grep { $entityFields->{$_}->{relation} eq $targetEntity }
-                        keys %{$entityFields};
-    # Push the fields found onto the return variable.
-    push @retVal, sort @fieldList;
-    # Get the field table for the relationship.
-    my $relationshipFields = $self->GetFieldTable($relationship);
-    # Here we have a different rule. We want all the fields other than
-    # "from-link" and "to-link". This may end up being an empty set.
-    my @fieldList2 = map { "$relationship($_)" } grep { $_ ne "from-link" && $_ ne "to-link" }
-                        keys %{$relationshipFields};
-    # Push these onto the return list.
-    push @retVal, sort @fieldList2;
-    # Return the result.
-    return @retVal;
-}
-
-=head3 FindColumn
-
-    my $colIndex = ERDB::FindColumn($headerLine, $columnIdentifier);
-
-Return the location a desired column in a data mining header line. The data
-mining header line is a tab-separated list of column names. The column
-identifier is either the numerical index of a column or the actual column
-name.
-
-=over 4
-
-=item headerLine
-
-The header line from a data mining command, which consists of a tab-separated
-list of column names.
-
-=item columnIdentifier
-
-Either the ordinal number of the desired column (1-based), or the name of the
-desired column.
-
-=item RETURN
-
-Returns the array index (0-based) of the desired column.
-
-=back
-
-=cut
-
-sub FindColumn {
-    # Get the parameters.
-    my ($headerLine, $columnIdentifier) = @_;
-    # Declare the return variable.
-    my $retVal;
-    # Split the header line into column names.
-    my @headers = ParseColumns($headerLine);
-    # Determine whether we have a number or a name.
-    if ($columnIdentifier =~ /^\d+$/) {
-        # Here we have a number. Subtract 1 and validate the result.
-        $retVal = $columnIdentifier - 1;
-        if ($retVal < 0 || $retVal > $#headers) {
-            Confess("Invalid column identifer \"$columnIdentifier\": value out of range.");
-        }
-    } else {
-        # Here we have a name. We need to find it in the list.
-        for (my $i = 0; $i <= $#headers && ! defined($retVal); $i++) {
-            if ($headers[$i] eq $columnIdentifier) {
-                $retVal = $i;
-            }
-        }
-        if (! defined($retVal)) {
-            Confess("Invalid column identifier \"$columnIdentifier\": value not found.");
-        }
-    }
-    # Return the result.
-    return $retVal;
-}
-
-=head3 ParseColumns
-
-    my @columns = ERDB::ParseColumns($line);
-
-Convert the specified data line to a list of columns.
-
-=over 4
-
-=item line
-
-A data mining input, consisting of a tab-separated list of columns terminated by a
-new-line.
-
-=item RETURN
-
-Returns a list consisting of the column values.
-
-=back
-
-=cut
-
-sub ParseColumns {
-    # Get the parameters.
-    my ($line) = @_;
-    # Chop off the line-end.
-    chomp $line;
-    # Split it into a list.
-    my @retVal = split(/\t/, $line);
-    # Return the result.
-    return @retVal;
-}
 
 =head2 Virtual Methods
 
@@ -6007,7 +5598,7 @@ sub _CheckField {
     my @relationMap = _RelationMap($mappedNameHashRef, $mappedNameListRef);
 
 Create the relation map for an SQL query. The relation map is used by
-L</ERDBObject> to determine how to interpret the results of the query.
+L</ERDB::Object> to determine how to interpret the results of the query.
 
 =over 4
 
@@ -6024,7 +5615,7 @@ SELECT list.
 
 Returns a list of 3-tuples. Each tuple consists of an object name alias followed
 by the actual name of that object and a flag that is TRUE if the alias is a converse.
-This enables the L</ERDBObject> to determine the order of the tables in the
+This enables the L</ERDB::Object> to determine the order of the tables in the
 query and which object name belongs to each object alias name. Most of the time
 the object name and the alias name are the same; however, if an object occurs
 multiple times in the object name list, the second and subsequent occurrences
@@ -6049,264 +5640,89 @@ sub _RelationMap {
 }
 
 
-=head3 _SetupSQL
+=head3 _AnalyzeObjectName
 
-    my ($suffix, $nameList, $nameHash) = $erdb->_SetupSQL($objectNames, $filterClause, $matchClause);
+    my ($tableName, $embedFlag) = $erdb->_AnalyzeObjectName($baseName);
 
-Process a list of object names and a filter clause so that they can be used to
-build an SQL statement. This method takes in an object name list and a
-filter clause. It will return a corrected filter clause, a list of mapped names
-and the mapped name hash.
-
-This is an instance method.
+This method looks at an object name (with the suffix removed) and
+determines which table contains it and whether or not it is embedded.
+This information is used to determine how to access the object when
+forming queries.
 
 =over 4
 
-=item objectNames
+=item baseName
 
-Object name list from a query. See L</Object Name List>.
-
-=item filterClause
-
-A string containing the WHERE clause for the query (without the C<WHERE>) and also
-optionally the C<ORDER BY> and C<LIMIT> clauses. See L</Filter Clause>.
-
-=item matchClause
-
-An optional full-text search clause. If specified, it will be inserted at the
-front of the WHERE clause. It should already be SQL-formatted; that is, the
-field names should be in the form I<table>C<.>I<fieldName>.
+The relevant object name from an L<Object Name List>, without the numeric'
+suffix.
 
 =item RETURN
 
-Returns a three-element list. The first element is the SQL statement suffix,
-beginning with the FROM clause. The second element is a reference to a list of
-the names to be used in retrieving the fields. The third element is a hash
-mapping the names to 2-tuples consisting of the real name of the object and
-a flag indicating whether or not the mapping is via a converse relationship name.
+Returns a two-element list consisting of (0) the name of the table containing
+the object and (1) a flag that is TRUE if the object is embedded and FALSE
+otherwise.
 
 =back
 
 =cut
 
-sub _SetupSQL {
-    my ($self, $objectNames, $filterClause, $matchClause) = @_;
-    # This list will contain the object names as they are to appear in the
-    # FROM list.
-    my @fromList = ();
-    # This list contains the object alias name for each object.
-    my @mappedNameList = ();
-    # This hash translates from an object alias name to the real object name.
-    my %mappedNameHash = ();
-    # This will be used to build the join clauses.
-    my @joinWhere = ();
-    # Finally, this variable contains the previous object encountered in the
-    # name list. It is used to create the joins. An empty string means we
-    # don't need a join yet.
-    my $previousObject = "";
-    # Get pointers to the alias and join tables.
-    my $aliasTable = $self->{_metaData}->{AliasTable};
-    # Get a list of the object names.
-    my @objectNameList;
-    if (ref $objectNames eq 'ARRAY') {
-        push @objectNameList, @$objectNames;
-    } else {
-        # Here we need to convert a name string into a list. We start by
-        # trimming excess whitespace at the front.
-        my $objectNameString = $objectNames;
-        $objectNameString =~ s/^\s+//;
-        # Now we connect each AND to the object name after it.
-        $objectNameString =~ s/\s+AND\s+(\w+)/ AND=$1/g;
-        # Split on whitespace to form the final list.
-        @objectNameList = split /\s+/, $objectNameString;
-    }
-    # Loop through the object name list.
-    for my $objectName (@objectNameList) {
-        # Parse this object name.
-        my $alias;
-        if ($objectName =~ /AND=(.+)/) {
-            # Here we have an AND situation. We blank the previous-object
-            # indicator to insure we don't try to set up a join.
-            $previousObject = "";
-            # Save the object name itself.
-            $alias = $1;
-        } else {
-            # Here we need have a normal object name.
-            $alias = $objectName;
-        }
-        # Have we seen this object name before?
-        if (! exists $mappedNameHash{$alias}) {
-            # No, so we need to compute its real name, put it in the
-            # map hash, and add it to the FROM list. First, we strip
-            # off any number suffix the caller supplied.
-            if ($alias =~ /^(.+?)(\d*)$/) {
-                my ($baseName, $suffix) = ($1, $2);
-                # Does the base name exist in the database?
-                my $realName = $aliasTable->{$baseName};
-                if (! defined $realName) {
-                    Confess("Invalid name in query: \"$baseName\".");
-                } else {
-                    # Yes. Put the real name in the map.
-                    $mappedNameHash{$alias} = [$realName, $baseName ne $realName];
-                    # Put the alias and its real name into the FROM list. This
-                    # informs SQL of the mapping.
-                    my $tableSpec = $self->{_quote} . $realName . $self->{_quote};
-                    if ($alias ne $realName) {
-                        $tableSpec .= " $self->{_quote}$alias$self->{_quote}";
-                    }
-                    push @fromList, $tableSpec;
-                    # Add the alias to the mapped name list.
-                    push @mappedNameList, $alias;
-                }
-            } else {
-                # Here the alias parse failed.
-                Confess("Invalid name in query: \"$alias\".");
-            }
-        }
-        # Do we need a join here?
-        if ($previousObject) {
-            # Yes. Compute the join clause.
-            my $joinClause = $self->_JoinClause($previousObject, $alias);
-            if (! $joinClause) {
-                Confess("There is no path from $previousObject to $alias.");
-            }
-            push @joinWhere, $joinClause;
-        }
-        # Save this object as the last object for the next iteration.
-        $previousObject = $alias;
-    }
-    # Begin the SELECT suffix. It starts with
-    #
-    # FROM name1, name2, ... nameN
-    #
-    my $suffix = "FROM " . join(', ', @fromList);
-    # Now for the WHERE. First, we need a place for the filter string.
-    my $filterString = "";
-    # Check for a filter clause.
-    if ($filterClause) {
-        # We have one, so we convert its field names and add it to the query. First,
-        # We create a copy of the filter string we can work with.
-        $filterString = $filterClause;
-        # Next, we sort the object names by length. This helps protect us from finding
-        # object names inside other object names when we're doing our search and replace.
-        my @sortedNames = sort { length($b) - length($a) } @mappedNameList;
-        # The final preparatory step is to create a hash table of relation names. The
-        # table begins with the relation names already in the SELECT command. We may
-        # need to add relations later if there is filtering on a field in a secondary
-        # relation. The secondary relations are the ones that contain multiply-
-        # occurring or optional fields.
-        my %fromNames = map { $_ => 1 } @sortedNames;
-        # We are ready to begin. We loop through the object names, replacing each
-        # object name's field references by the corresponding SQL field reference.
-        # Along the way, if we find a secondary relation, we will need to add it
-        # to the FROM clause.
-        for my $mappedName (@sortedNames) {
-            # Get the length of the object name plus 2. This is the value we add to the
-            # size of the field name to determine the size of the field reference as a
-            # whole.
-            my $nameLength = 2 + length $mappedName;
-            # Get the real object name for this mapped name.
-            my ($objectName, $converse) = @{$mappedNameHash{$mappedName}};
-            # Get the object's field list.
-            my $fieldList = $self->GetFieldTable($objectName);
-            # Find the field references for this object.
-            while ($filterString =~ m/$mappedName\(([^)]*)\)/g) {
-                # At this point, $1 contains the field name, and the current position
-                # is set immediately after the final parenthesis. We pull out the name of
-                # the field and the position and length of the field reference as a whole.
-                my $fieldName = $1;
-                my $len = $nameLength + length $fieldName;
-                my $pos = pos($filterString) - $len;
-                # Convert any underscores in the field name to hyphens.
-                # This is to allow users to specify the real SQL field name
-                # instead of its ERDB name.
-                $fieldName =~ tr/_/-/;
-                # Insure the field exists.
-                if (!exists $fieldList->{$fieldName}) {
-                    Confess("Field $fieldName not found for object $objectName.");
-                } else {
-                    # Get the field's relation.
-                    my $relationName = $fieldList->{$fieldName}->{relation};
-                    # This will hold the mapped relation name to be used in the
-                    # filter clause. The default is the mapped name.
-                    my $mappedRelationName = $mappedName;
-                    # We may have a secondary relation.
-                    if ($relationName ne $objectName) {
-                        # This adds a bit of complexity, because we need to insure
-                        # the secondary relation is pulled in. First, we peel off
-                        # the suffix from the mapped name.
-                        my $mappingSuffix = substr $mappedName, length($objectName);
-                        # Put the mapping suffix onto the relation name to get the
-                        # mapped relation name.
-                        $mappedRelationName = "$relationName$mappingSuffix";
-                        # Insure the relation is in the FROM clause.
-                        if (!exists $fromNames{$mappedRelationName}) {
-                            # Add the relation to the FROM clause.
-                            if ($mappedRelationName eq $relationName) {
-                                # The name is un-mapped, so we add it without
-                                # any frills.
-                                $suffix .= ", $relationName";
-                                push @joinWhere, "$self->{_quote}$objectName$self->{_quote}.id = $self->{_quote}$relationName$self->{_quote}.id";
-                            } else {
-                                # Here we have a mapping situation.
-                                $suffix .= ", $self->{_quote}$relationName$self->{_quote} $self->{_quote}$mappedRelationName$self->{_quote}";
-                                push @joinWhere, "$self->{_quote}$mappedRelationName$self->{_quote}.id = $self->{_quote}$mappedName$self->{_quote}.id";
-                            }
-                            # Denote we have this relation available for future fields.
-                            $fromNames{$mappedRelationName} = 1;
-                        }
-                    }
-                    # Is this a converse mapping? Form an SQL field reference
-                    # from the relation name and the field name.
-                    my $sqlReference = "$self->{_quote}$mappedRelationName$self->{_quote}.$self->{_quote}" . _FixName($fieldName,
-                                                                         $converse) . $self->{_quote};
-                    # Put it into the filter string in place of the old value.
-                    substr($filterString, $pos, $len) = $sqlReference;
-                    # Reposition the search.
-                    pos $filterString = $pos + length $sqlReference;
-                }
-            }
+sub _AnalyzeObjectName {
+    # Get the parameters.
+    my ($self, $baseName) = @_;
+    # Denote that so far it appears we are not embedded.
+    my $embedFlag = 0;
+    # Get the alias of the object name.
+    my $tableName = $self->{AliasTable}{$baseName};
+    if (! $tableName) {
+        Confess("Unknown object name $baseName");
+    } elsif ($tableName ne $baseName) {
+        # Here we must have a relationship. Is it embedded?
+        my $relThing = $self->FindRelationship($tableName);
+        if ($relThing->{embedded}) {
+            $embedFlag = 1;
         }
     }
-    # Now we need to handle the whole ORDER BY / LIMIT thing. The important part
-    # here is we want the filter clause to be empty if there's no WHERE filter.
-    # We'll put the ORDER BY / LIMIT clauses in the following variable.
-    my $orderClause = "";
-    # This is only necessary if we have a filter string in which the ORDER BY
-    # and LIMIT clauses can live.
-    if ($filterString) {
-        # Locate the ORDER BY or LIMIT verbs (if any). We use a non-greedy
-        # operator so that we find the first occurrence of either verb.
-        if ($filterString =~ m/^(.*?)\s*(ORDER BY|LIMIT)(.+)/) {
-            # Here we have an ORDER BY or LIMIT verb. Split it off of the filter string.
-            $orderClause = $2 . $3;
-            $filterString = $1;
-        }
-    }
-    # All the things that are supposed to be in the WHERE clause of the
-    # SELECT command need to be put into @joinWhere so we can string them
-    # together. We begin with the match clause. It gets put at the end of
-    # the join section so that the match clause's parameter mark precedes
-    # any parameter marks in the filter string.
-    if ($matchClause) {
-        push @joinWhere, $matchClause;
-    }
-    # Add the filter string. We put it in parentheses to avoid operator
-    # precedence problems with the match clause or the joins.
-    if ($filterString) {
-        push @joinWhere, "($filterString)";
-    }
-    # String it all together into a big filter clause.
-    if (@joinWhere) {
-        $suffix .= " WHERE " . join(' AND ', @joinWhere);
-    }
-    # Add the sort or limit clause (if any).
-    if ($orderClause) {
-        $suffix .= " $orderClause";
-    }
-    # Return the suffix, the mapped name list, and the mapped name hash.
-    return ($suffix, \@mappedNameList, \%mappedNameHash);
+    # Return the results.
+    return ($tableName, $embedFlag);
 }
+
+
+=head3 _GetCrossing
+
+    my $joinList = $erdb->_GetCrossing($table1, $table2);
+
+Return the list of join instructions for crossing from one table to
+another, or C<undef> if no crossing is possible.
+
+=over 4
+
+=item table1
+
+Name of the table on which the crossing starts.
+
+=item table2
+
+Name of the table on which the crossing ends.
+
+=item RETURN
+
+Returns a reference to a list of join instructions. Each join instruction will be a 4-tuple containins a source table name,
+a source field name, a target table name, and a target field name. Sometimes the referenced list will be empty, indicating
+the two tables are the same and no join is required. If no crossing is possible, this method will return C<undef>.
+
+=back
+
+=cut
+
+sub _GetCrossing {
+    # Get the parameters.
+    my ($self, $table1, $table2) = @_;
+    # Get the crossing information. It's in a two-dimensional hash.
+    my $retVal = $self->{CrossingTable}{$table1}{$table2};
+    # Return the result.
+    return $retVal;
+}
+
 
 =head3 _GetStatementHandle
 
@@ -6687,8 +6103,25 @@ sub _LoadMetaData {
         # We also have a table for mapping alias names to object names. This is
         # useful when processing object name lists.
         my %aliasTable = ();
-        # Loop through the entities.
+        # This table gives us instructions for crossing from one object to another.
+        # For each pair of names that can appear next to each other, we have a list
+        # of 4-tuples that represent (object name, field) pairs to be joined.
+        my %crossings = ();
+        # Get the entity and relationship lists.
         my $entityList = $metadata->{Entities};
+        my $relationshipList = $metadata->{Relationships};
+        # Now we need to find the embedded relationships. For each entity, this hash
+        # will list its embedded relationships.
+        my %embeds;
+        for my $relationshipName (keys %$relationshipList) {
+            my $relData = $relationshipList->{$relationshipName};
+            # Is thie relationship embedded?
+            if ($relData->{embedded}) {
+                # Yes. Add it to the to-entity's list.
+                push @{$embeds{$relData->{to}}}, $relationshipName;
+            }
+        }
+        # Loop through the entities.
         for my $entityName (keys %{$entityList}) {
             my $entityStructure = $entityList->{$entityName};
             #
@@ -6698,7 +6131,8 @@ sub _LoadMetaData {
             # must be inserted, and for entities an B<id> field must be added to
             # each relation. Finally, each field will have a C<PrettySort> attribute
             # added that can be used to pull the implicit fields to the top when
-            # displaying the field documentation.
+            # displaying the field documentation and a realName attribute that tells
+            # field's name in the SQL database.
             #
             # Fix up this entity.
             _FixupFields($entityStructure, $entityName);
@@ -6706,8 +6140,62 @@ sub _LoadMetaData {
             _AddField($entityStructure, 'id', { type => $entityStructure->{keyType},
                                                 name => 'id',
                                                 relation => $entityName,
+                                                realName => [$entityName, 'id'],
                                                 Notes => { content => "Unique identifier for this \[b\]$entityName\[/b\]." },
                                                 PrettySort => 0});
+            # Now we need to add the special fields for the embedded relationships. Such fields
+            # will all have names of the form <relationshipName>_<fieldName>. Since underscores
+            # are not legal in field names, this will not cause a conflict.
+            my $embedList = $embeds{$entityName} // [];
+            for my $embeddedRelationship (@$embedList) {
+                # Get the relationship descriptor.
+                my $relData = $relationshipList->{$embeddedRelationship};
+                # Fix it up.
+                _FixupFields($relData, $entityName, $embeddedRelationship);
+                # Add its from- and to-link fields.
+                _AddFromToFields($relData, $entityList, $entityName);
+                # Get the relationship fields.
+                my $relFields = $relData->{Fields};
+                # Fix the real names on the from- and to-links.
+                my $fromName = join("_", $embeddedRelationship, 'link');
+                $relFields->{'from-link'}{realName} = $fromName;
+                $relFields->{'to-link'}{realName} = 'id';
+                # Add its crossings to the crossings table.
+                my $fromEntity = $relData->{from};
+                my $crossList = [[$fromEntity, 'id', $entityName, $fromName]];
+                $crossings{$fromEntity}{$embeddedRelationship} = $crossList;
+                $crossings{$embeddedRelationship}{$fromEntity} = $crossList;
+                # Add the fields (except the to-link) to this entity.
+                for my $fieldName (keys %$relFields) {
+                    if ($fieldName ne 'to-link') {
+                        my $fieldData = $relFields->{$fieldName};
+                        my $myFieldName = $fieldData->{realName};
+                        _AddField($entityStructure, $myFieldName, $fieldData);
+                    }
+                }
+                # Add the from-index as an index on this entity.
+                my $newIndex = $relData->{FromIndex};
+                if (! $newIndex) {
+                    $newIndex = { IndexFields => [], Notes => { content =>
+                        "This index implements the \[b\]\[link #$embeddedRelationship\]$embeddedRelationship\[/link\]\[/b\] relationship."
+                    }};
+                } else {
+                    # Now we have to map the relationship field names to their real names
+                    # in the entity.
+                    for my $indexField (@{$newIndex->{IndexFields}}) {
+                        my $oldName = $indexField->{name};
+                        $indexField->{name} = $relFields->{$oldName}{realName};
+                    }
+                }
+                # The from-link field has to be added at the beginning and the ID at the end.
+                unshift @{$newIndex->{IndexFields}}, { name => $fromName, order => 'ascending' };
+                push @{$newIndex->{IndexFields}}, { name => 'id', order => 'ascending' };
+                # Add the index to our index list.
+                push @{$entityStructure->{Indexes}}, $newIndex;
+                # Store the relationship and its converse in the alias table.
+                $aliasTable{$embeddedRelationship} = $entityName;
+                $aliasTable{$relData->{converse}} = $entityName;
+            }
             # Store the entity in the alias table.
             $aliasTable{$entityName} = $entityName;
             #
@@ -6778,7 +6266,7 @@ sub _LoadMetaData {
                             Confess("Invalid index: field $fieldName does not belong to $entityName.");
                         } else {
                             # Find the relation containing the current index field.
-                            my $thisName = $fieldList->{$fieldName}->{relation};
+                            my $thisName = $fieldThing->{relation};
                             if ($relationName eq '0') {
                                 # Here we're looking at the first field, so we save its
                                 # relation name.
@@ -6828,56 +6316,46 @@ sub _LoadMetaData {
         # Loop through the relationships. Relationships actually turn out to be much
         # simpler than entities. For one thing, there is only a single constituent
         # relation.
-        my $relationshipList = $metadata->{Relationships};
         for my $relationshipName (keys %{$relationshipList}) {
             my $relationshipStructure = $relationshipList->{$relationshipName};
-            # Fix up this relationship.
-            _FixupFields($relationshipStructure, $relationshipName);
-            # Format a description for the FROM field.
-            my $fromEntity = $relationshipStructure->{from};
-            my $fromComment = "[b]id[/b] of the source [b][link #$fromEntity]$fromEntity\[/link][/b].";
-            # Get the FROM entity's key type.
-            my $fromType = $entityList->{$fromEntity}->{keyType};
-            # Add the FROM field.
-            _AddField($relationshipStructure, 'from-link', { type => $fromType,
-                                                        name => 'from-link',
-                                                        relation => $relationshipName,
-                                                        Notes => { content => $fromComment },
-                                                        PrettySort => 0});
-            # Format a description for the TO field.
-            my $toEntity = $relationshipStructure->{to};
-            my $toComment = "[b]id[/b] of the target [b][link #$toEntity]$toEntity\[/link][/b].";
-            # Get the TO entity's key type.
-            my $toType = $entityList->{$toEntity}->{keyType};
-            # Add the TO field.
-            _AddField($relationshipStructure, 'to-link', { type=> $toType,
-                                                      name => 'to-link',
-                                                      relation => $relationshipName,
-                                                      Notes => { content => $toComment },
-                                                      PrettySort => 0});
-            # Create an index-free relation from the fields.
-            my $thisRelation = { Fields => _ReOrderRelationTable($relationshipStructure->{Fields}),
-                                 Indexes => { } };
-            $relationshipStructure->{Relations} = { $relationshipName => $thisRelation };
-            # Put the relationship in the alias table.
-            $aliasTable{$relationshipName} = $relationshipName;
-            if (exists $relationshipStructure->{converse}) {
+            # Embedded relationships were already handled, so only process this
+            # relationship if it is NOT embedded.
+            if (! $relationshipStructure->{embedded}) {
+                # Fix up this relationship.
+                _FixupFields($relationshipStructure, $relationshipName);
+                _AddFromToFields($relationshipStructure, $entityList, $relationshipName);
+                # Create an index-free relation from the fields.
+                my $thisRelation = { Fields => _ReOrderRelationTable($relationshipStructure->{Fields}),
+                                     Indexes => { } };
+                $relationshipStructure->{Relations} = { $relationshipName => $thisRelation };
+                # Put the relationship in the alias table.
+                $aliasTable{$relationshipName} = $relationshipName;
                 $aliasTable{$relationshipStructure->{converse}} = $relationshipName;
+                # Add the alternate indexes (if any). This MUST be done before the FROM
+                # and TO indexes, because it erases the relation's index list.
+                if (exists $relationshipStructure->{Indexes}) {
+                    _ProcessIndexes($relationshipStructure->{Indexes}, $thisRelation);
+                }
+                # Create the FROM and TO indexes.
+                _CreateRelationshipIndex("From", $relationshipName, $relationshipStructure);
+                _CreateRelationshipIndex("To", $relationshipName, $relationshipStructure);
+                # Add the relation to the master table.
+                $masterRelationTable{$relationshipName} = $thisRelation;
+                # Compute the crossings.
+                my $fromEntity = $relationshipStructure->{from};
+                my $toEntity = $relationshipStructure->{to};
+                my $fromCrossing = [[$fromEntity, 'id', $relationshipName, 'from_link']];
+                my $toCrossing = [[$relationshipName, 'to_link', $toEntity, 'id']];
+                $crossings{$fromEntity}{$relationshipName} = $fromCrossing;
+                $crossings{$relationshipName}{$fromEntity} = $fromCrossing;
+                $crossings{$relationshipName}{$toEntity} = $toCrossing;
+                $crossings{$toEntity}{$relationshipName} = $toCrossing;
             }
-            # Add the alternate indexes (if any). This MUST be done before the FROM
-            # and TO indexes, because it erases the relation's index list.
-            if (exists $relationshipStructure->{Indexes}) {
-                _ProcessIndexes($relationshipStructure->{Indexes}, $thisRelation);
-            }
-            # Create the FROM and TO indexes.
-            _CreateRelationshipIndex("From", $relationshipName, $relationshipStructure);
-            _CreateRelationshipIndex("To", $relationshipName, $relationshipStructure);
-            # Add the relation to the master table.
-            $masterRelationTable{$relationshipName} = $thisRelation;
         }
-        # Now store the master relation table and alias table in the metadata structure.
+        # Now store the master relation table, crossing table, and alias table in the metadata structure.
         $metadata->{RelationTable} = \%masterRelationTable;
         $metadata->{AliasTable} = \%aliasTable;
+        $metadata->{CrossingTable} = \%crossings;
     }
     # Return the metadata structure.
     return $metadata;
@@ -7026,11 +6504,11 @@ sub _AddIndex {
 
 =head3 _FixupFields
 
-    ERDB::_FixupFields($structure, $defaultRelationName);
+    ERDB::_FixupFields($structure, $defaultRelationName, $objectName);
 
 This method fixes the field list for the metadata of an entity or relationship.
-It will add the caller-specified relation name to fields that do not have a name
-and set the C<PrettySort> values.
+It will add the caller-specified relation name to fields that do not have a name,
+the real name to all fields, and set the C<PrettySort> values.
 
 =over 4
 
@@ -7042,6 +6520,11 @@ Entity or relationship structure to be fixed up.
 
 Default relation name to be added to the fields.
 
+=item objectName
+
+If specified, this is an embedded relationship. The objectName is the
+relationship's original name, which is different from the default
+relation name.
 
 =back
 
@@ -7049,15 +6532,12 @@ Default relation name to be added to the fields.
 
 sub _FixupFields {
     # Get the parameters.
-    my ($structure, $defaultRelationName) = @_;
+    my ($structure, $defaultRelationName, $objectName) = @_;
     # Insure the structure has a field list.
     if (!exists $structure->{Fields}) {
         # Here it doesn't, so we create a new one.
         $structure->{Fields} = { };
     } else {
-        # Here we have a field list. We need to track the searchable fields, so
-        # we create a list for stashing them.
-        my @textFields = ();
         # Loop through the fields.
         my $fieldStructures = $structure->{Fields};
         for my $fieldName (keys %{$fieldStructures}) {
@@ -7071,25 +6551,71 @@ sub _FixupFields {
             if (! exists $TypeTable->{$type}) {
                 Confess("Field $fieldName of $defaultRelationName has unknown type \"$type\".");
             }
-            # Plug in a relation name if one is needed.
-            $fieldData->{relation} //= $defaultRelationName;
-            # Check for searchability.
-            if ($fieldData->{searchable}) {
-                # Only allow this for a primary relation.
-                if ($fieldData->{relation} ne $defaultRelationName) {
-                    Confess("Field $fieldName of $defaultRelationName is in secondary relations and cannot be searchable.");
-                } else {
-                    push @textFields, $fieldName;
-                }
+            # Plug in a relation name if one is missing or this is an embedded relationship.
+            if ($objectName || ! exists $fieldData->{relation}) {
+                $fieldData->{relation} = $defaultRelationName;
             }
             # Add the PrettySortValue.
             $fieldData->{PrettySort} = $TypeTable->{$type}->prettySortValue();
-        }
-        # If there are searchable fields, remember the fact.
-        if (@textFields) {
-            $structure->{searchFields} = \@textFields;
+            # Compute the real name. This consists of the relation name followed by the
+            # field name in SQL format. If this is an embedded relationship, the
+            # original object name is added to the field name.
+            my $sqlName = _FixName($fieldName);
+            if ($objectName) {
+                $sqlName = join('_', $objectName, $sqlName);
+            }
+            $fieldData->{realName} = $sqlName;
         }
     }
+}
+
+=head3 _AddFromToFields
+
+    ERDB::_AddFromToFields($relationshipStructure, $entityList, $relationshipName);
+
+Add the from-link and to-link fields to a relationship's field hash.
+
+=over 4
+
+=item relationshipStructure
+
+The relationship structure whose field list needs from- and to-links.
+
+=item entityList
+
+A reference to a hash of the entities in the DBD.
+
+=item relationshipName
+
+The name of the relation containing the fields.
+
+=cut
+
+sub _AddFromToFields{
+    # Get the parameters.
+    my ($relationshipStructure, $entityList, $relationshipName) = @_;
+    # Format a description for the FROM field.
+    my $fromEntity = $relationshipStructure->{from};
+    my $fromComment = "[b]id[/b] of the source [b][link #$fromEntity]$fromEntity\[/link][/b].";
+    # Get the FROM entity's key type.
+    my $fromType = $entityList->{$fromEntity}->{keyType};
+    # Add the FROM field.
+    _AddField($relationshipStructure, 'from-link', { type => $fromType,
+                                                name => 'from-link',
+                                                relation => $relationshipName,
+                                                Notes => { content => $fromComment },
+                                                PrettySort => 1});
+    # Format a description for the TO field.
+    my $toEntity = $relationshipStructure->{to};
+    my $toComment = "[b]id[/b] of the target [b][link #$toEntity]$toEntity\[/link][/b].";
+    # Get the TO entity's key type.
+    my $toType = $entityList->{$toEntity}->{keyType};
+    # Add the TO field.
+    _AddField($relationshipStructure, 'to-link', { type=> $toType,
+                                              name => 'to-link',
+                                              relation => $relationshipName,
+                                              Notes => { content => $toComment },
+                                              PrettySort => 1});
 }
 
 =head3 _FixName
@@ -7303,227 +6829,6 @@ sub _IsPrimary {
     return $retVal;
 }
 
-=head3 _JoinClause
-
-    my $joinClause = $erdb->_JoinClause($source, $target);
-
-Create a join clause that connects the source object to the target
-object. If we are crossing from an entity to a relationship, we key off
-the relationship's from-link. If we are crossing from a relationship to
-an entity, we key off of it's to-link. It is also possible to cross from
-relationship to relationship if the two have an entity in common.
-Finally, we must be aware of converse names for relationships, and for
-nonrecursive relationships we allow crossing via the wrong link.
-
-=over 4
-
-=item source
-
-Name of the object from which we are starting.
-
-=item target
-
-Name of the object to which we are proceeding.
-
-=item RETURN
-
-Returns a string that may be used in an SQL WHERE in order to connect the
-two objects. If no connection is possible, an undefined value will be
-returned.
-
-=back
-
-=cut
-
-sub _JoinClause {
-    # Get the parameters.
-    my ($self, $source, $target) = @_;
-    # Declare the return variable. If no join can be constructed, it will
-    # remain undefined.
-    my $retVal;
-    # We need for both objects (1) an indication of whether it is an entity, a
-    # relationship, or a converse relationship, and (2) its descriptor.
-    my (@types, @descriptors);
-    for my $object ($source, $target) {
-        # Compute this object's real name. We trim off any ending number and
-        # check the alias table.
-        my $realName = $self->_Resolve($object);
-        # If no alias table entry was found, it's an error.
-        if (! defined $realName) {
-            push @types, 'Error';
-        } else {
-            # Is this an entity or a relationship?
-            my $descriptor = $self->FindEntity($realName);
-            if ($descriptor) {
-                # Here it's an entity.
-                push @types, 'Entity';
-                push @descriptors, $descriptor;
-            } else {
-                # Here it's a relationship. If the name doesn't match the
-                # real name, it's a converse.
-                $descriptor = $self->FindRelationship($realName);
-                push @types, ($object =~ /$realName/ ? 'Relationship' : 'Converse');
-                push @descriptors, $descriptor;
-            }
-        }
-    }
-    # Now we check the types. Note that if one of the object names was in error,
-    # the big IF below will not match anything and we'll return undef.
-    my $type = join("/", @types);
-    if ($type eq 'Entity/Relationship') {
-        $retVal = $self->_BuildJoin(id =>   $source, $descriptors[0],
-                                    from => $target, $descriptors[1]);
-    } elsif ($type eq 'Entity/Converse') {
-        $retVal = $self->_BuildJoin(id =>   $source, $descriptors[0],
-                                    to =>   $target, $descriptors[1]);
-    } elsif ($type eq 'Relationship/Entity') {
-        $retVal = $self->_BuildJoin(id =>   $target, $descriptors[1],
-                                    to =>   $source, $descriptors[0]);
-    } elsif ($type eq 'Converse/Entity') {
-        $retVal = $self->_BuildJoin(id =>   $target, $descriptors[1],
-                                    from => $source, $descriptors[0]);
-    } elsif ($type eq 'Relationship/Relationship') {
-        $retVal = $self->_BuildJoin(to =>   $source, $descriptors[0],
-                                    from => $target, $descriptors[1]);
-    } elsif ($type eq 'Converse/Relationship') {
-        $retVal = $self->_BuildJoin(from => $source, $descriptors[0],
-                                    from => $target, $descriptors[1]);
-    } elsif ($type eq 'Relationship/Converse') {
-        $retVal = $self->_BuildJoin(to =>   $source, $descriptors[0],
-                                    to =>   $target, $descriptors[1]);
-    } elsif ($type eq 'Converse/Converse') {
-        $retVal = $self->_BuildJoin(from => $source, $descriptors[0],
-                                    to =>   $target, $descriptors[1]);
-    }
-    # Return the result.
-    return $retVal;
-}
-
-=head3 _BuildJoin
-
-    my $joinString = $erdb->_BuildJoin($fld1 => $source, $sourceData,
-                                       $fld2 => $target, $targetData);
-
-Create a join string between the two objects. The second object must be a
-relationship; the first can be an entity or a relationship. The fields
-indicators specify the nature of the connection: C<id> for an entity
-connection, C<from> for the front of a relationship, and C<to> for the
-back of a relationship. The theory is that if everything is compatible,
-you just connect the indicated fields in the two objects. This may not be
-possible if the second relationship does not match the first object in
-the proper manner. If that is the case, attempts will be made to find a
-workable connection.
-
-=over 4
-
-=item fld1
-
-Join direction for the first object: C<id> if it's an entity, C<from> if it's
-a relationship and we're coming out the front, or C<to> if it's a relationship
-and we're coming out the end.
-
-=item source
-
-Name to use for the first object in constructing the field reference.
-
-=item sourceData
-
-Entity or relationship descriptor for the first object.
-
-=item fld2
-
-Join direction for the second object: C<from> if it's a relationship and we're
-going in the front, or C<to> if it's a relationship and we're going in the end.
-
-=item target
-
-Name to use for the second object in constructing the field reference.
-
-=item targetData
-
-Relationship descriptor for the second object.
-
-=item RETURN
-
-Returns a string that can be used in an SQL WHERE clause to connect the two
-objects, or C<undef> if no connection is possible.
-
-=back
-
-=cut
-
-sub _BuildJoin {
-    # Get the parameters.
-    my ($self, $fld1, $source, $sourceData, $fld2, $target, $targetData) = @_;
-    # Declare the return variable. If we can do this join, we'll put
-    # the string in here.
-    my $retVal;
-    # Are we starting from an entity?
-    if ($fld1 eq 'id') {
-        # Compute the real entity name.
-        my $realName = $self->_Resolve($source);
-        # Try to find a direction in which the entity connects.
-        for my $dir ($fld2, $FromTo{$fld2}) { last if defined $retVal;
-            # Check this direction.
-            if ($targetData->{$dir} eq $realName) {
-                # Yes, we can connect.
-                $retVal = "$self->{_quote}$source$self->{_quote}.id = $self->{_quote}$target$self->{_quote}.${dir}_link";
-            }
-        }
-    } else {
-        # Here we have two relationships. We need to try all four
-        # combinations, stopping at the first match.
-        for my $srcDir ($fld1, $FromTo{$fld1}) { last if defined $retVal;
-            for my $tgtDir ($fld2, $FromTo{$fld2}) { last if defined $retVal;
-                # Check this pair of directions.
-                if ($sourceData->{$srcDir} eq $targetData->{$tgtDir}) {
-                    # We can connect.
-                    $retVal = "$self->{_quote}$source$self->{_quote}.${srcDir}_link = $self->{_quote}$target$self->{_quote}.${tgtDir}_link";
-                }
-            }
-        }
-    }
-    # Return the result.
-    return $retVal;
-}
-
-=head3 _Resolve
-
-    my $realName = $erdb->_Resolve($objectName);
-
-Determine the real object name for a name from an object name list.
-Trailing numbers are peeled off, and the alias table is checked. If the
-incoming name is invalid, the return value will be undefined.
-
-=over 4
-
-=item objectName
-
-Incoming object name to parse.
-
-=item RETURN
-
-Returns the object's real name, or C<undef> if the name is invalid.
-
-=back
-
-=cut
-
-sub _Resolve {
-    # Get the parameters.
-    my ($self, $objectName) = @_;
-    # Declare the return variable.
-    my $retVal;
-    # Parse off any numbers at the end. The pattern below will always match
-    # a valid name.
-    if ($objectName =~ /^(.+?)(\d*)$/) {
-        # Check the alias table. Real names map to themselves, and converse
-        # names map to the real name.
-        $retVal = $self->{_metaData}->{AliasTable}->{$1};
-    }
-    # Return the result.
-    return $retVal;
-}
 
 =head3 InternalizeDBD
 
@@ -7560,7 +6865,7 @@ sub InternalizeDBD {
 =head2 Internal Documentation-Related Methods
 
 Several of these methods refer to a wiki or a wiki rendering object.
-There is no longer wiki support; however, the L<ERDBPDocPage>
+There is no longer wiki support; however, the L<ERDB::PDocPage>
 uses this code to render HTML by supporting wiki-like operations.
 
 =head3 _FindObject
@@ -7740,14 +7045,8 @@ sub _ComputeRelationshipSentence {
         @relWords = ($relationshipStructure->{from}, $relationshipName,
                      $relationshipStructure->{to});
     } else {
-        # Here we're going backward. Compute the relationship name, using
-        # converse if one is available.
-        my $relName;
-        if (exists $relationshipStructure->{converse}) {
-            $relName = $relationshipStructure->{converse};
-        } else {
-            $relName = "($relationshipName)";
-        }
+        # Here we're going backward.
+        my $relName = $relationshipStructure->{converse};
         @relWords = ($relationshipStructure->{to}, $relName,
                      $relationshipStructure->{from});
     }

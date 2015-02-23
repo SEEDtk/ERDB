@@ -51,7 +51,7 @@ specified in the positional parameters.
     use strict;
     use warnings;
     use Shrub;
-    use ShrubLoader;
+    use Shrub::DBLoader;
     use ScriptUtils;
 
     $| = 1; # Prevent buffering on STDOUT.
@@ -63,7 +63,7 @@ specified in the positional parameters.
     print "Connecting to database.\n";
     my $shrub = Shrub->new_for_script($opt);
     # Create a loader helper and get the statistics object.
-    my $loader = ShrubLoader->new($shrub);
+    my $loader = Shrub::DBLoader->new($shrub);
     my $stats = $loader->stats;
     print "Parsing parameters.\n";
     # Get the list of objects on the command line.

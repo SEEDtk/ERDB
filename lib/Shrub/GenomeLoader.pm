@@ -17,11 +17,11 @@
 # http://www.theseed.org/LICENSE.TXT.
 #
 
-package ShrubGenomeLoader;
+package Shrub::GenomeLoader;
 
     use strict;
     use MD5Computer;
-    use ShrubFunctionLoader;
+    use Shrub::FunctionLoader;
     use File::Path;
 
 =head1 Shrub Genome Load Utilities
@@ -35,7 +35,7 @@ The object has the following fields.
 
 =item loader
 
-L<ShrubLoader> object for accessing the database and statistics.
+L<Shrub::DBLoader> object for accessing the database and statistics.
 
 =item md5
 
@@ -43,7 +43,7 @@ L<MD5Computer> object for computing genome and contig MD5s.
 
 =item funcLoader
 
-L<ShrubFunctionLoader> object for computing function and role IDs.
+L<Shrub::FunctionLoader> object for computing function and role IDs.
 
 =item slow
 
@@ -65,7 +65,7 @@ inserts into files for mass loading.
 
 =head3 new
 
-    my $genomeLoader = ShrubGenomeLoader->new($loader, %options);
+    my $genomeLoader = Shrub::GenomeLoader->new($loader, %options);
 
 Construct a new, blank Shrub genome loader object.
 
@@ -73,7 +73,7 @@ Construct a new, blank Shrub genome loader object.
 
 =item loader
 
-L<ShrubLoader> object to be used to access the database and the load utility methods.
+L<Shrub::DBLoader> object to be used to access the database and the load utility methods.
 
 =item options
 
@@ -88,7 +88,7 @@ inserts into files for mass loading. The default is FALSE.
 
 =item funcLoader
 
-A L<ShrubFunctionLoader> object for computing function and role IDs. If none is
+A L<Shrub::FunctionLoader> object for computing function and role IDs. If none is
 provided, one will be created internally.
 
 =back
@@ -106,7 +106,7 @@ sub new {
     my $funcLoader = $options{funcLoader};
     # If the function loader was not provided, create one.
     if (! $funcLoader) {
-        $funcLoader = ShrubFunctionLoader->new($loader, slow => $slow);
+        $funcLoader = Shrub::FunctionLoader->new($loader, slow => $slow);
     }
     # If we are NOT in slow-loading mode, prepare the tables for spooling.
     if (! $slow) {

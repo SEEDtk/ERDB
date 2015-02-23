@@ -17,11 +17,10 @@
 # http://www.theseed.org/LICENSE.TXT.
 #
 
-package ShrubFunctionLoader;
+package Shrub::FunctionLoader;
 
-    require 5.14.0;   ## for ${^GLOBAL_PHASE}
     use strict;
-    use ShrubLoader;
+    use Shrub::DBLoader;
     use Shrub;
     use SeedUtils;
     use BasicLocation;
@@ -39,7 +38,7 @@ This object has the following fields.
 
 =item loader
 
-L<ShrubLoader> object used to access the database and the hash tables.
+L<Shrub::DBLoader> object used to access the database and the hash tables.
 
 =item roleHash
 
@@ -62,7 +61,7 @@ database. At the current time, we have no way to enforce this.
 
 =head3 new
 
-    my $funcLoader = ShrubFunctionLoader->new($loader, %options);
+    my $funcLoader = Shrub::FunctionLoader->new($loader, %options);
 
 Construct a new Shrub function loader object and initialize the hash tables.
 
@@ -70,7 +69,7 @@ Construct a new Shrub function loader object and initialize the hash tables.
 
 =item loader
 
-L<ShrubLoader> object to be used to access the database and the load utility methods.
+L<Shrub::DBLoader> object to be used to access the database and the load utility methods.
 
 =item options
 
@@ -87,7 +86,7 @@ is FALSE.
 =item slow
 
 If TRUE, tables will be loaded with individual inserts instead of file loading
-when the L<ShrubLoader> object is closed.
+when the L<Shrub::DBLoader> object is closed.
 
 =back
 

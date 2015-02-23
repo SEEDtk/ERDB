@@ -16,12 +16,12 @@
 #
 
 
-package ShrubSubsystemLoader;
+package Shrub::SubsystemLoader;
 
     use strict;
     use warnings;
-    use ShrubFunctionLoader;
-    use ShrubLoader;
+    use Shrub::FunctionLoader;
+    use Shrub::DBLoader;
 
 =head1 Shrub Subsystem Load Helper
 
@@ -32,16 +32,16 @@ subsystem repository. It contains the following fields.
 
 =item loader
 
-A L<ShrubLoader> object for manipulating the database and the repository.
+A L<Shrub::DBLoader> object for manipulating the database and the repository.
 
 =item funcLoader
 
-A L<ShrubFunctionLoader> object for computing function and role IDs.
+A L<Shrub::FunctionLoader> object for computing function and role IDs.
 
 =item slow
 
 TRUE if we are to load using individual inserts, FALSE if we are to spool into files for mass insertion.
-(The effect of this option is managed by the L<ShrubLoader> object.)
+(The effect of this option is managed by the L<Shrub::DBLoader> object.)
 
 =back
 
@@ -55,7 +55,7 @@ TRUE if we are to load using individual inserts, FALSE if we are to spool into f
 
 =head3 new
 
-    my $subLoader = ShrubSubsystemLoader->new($loader, %options);
+    my $subLoader = Shrub::SubsystemLoader->new($loader, %options);
 
 Return a new, blank subsystem load helper.
 
@@ -63,7 +63,7 @@ Return a new, blank subsystem load helper.
 
 =item loader
 
-A L<ShrubLoader> object for manipulating the database and the input repository.
+A L<Shrub::DBLoader> object for manipulating the database and the input repository.
 
 =item options
 
@@ -78,7 +78,7 @@ all loading will be performed by spooling into load files. The default is FALSE.
 
 =item funcLoader
 
-A L<ShrubFunctionLoader> object for computing role IDs. If none is provided, an
+A L<Shrub::FunctionLoader> object for computing role IDs. If none is provided, an
 object will be created internally.
 
 =back
@@ -96,7 +96,7 @@ sub new {
     my $funcLoader = $options{funcLoader};
     # If the function loader was not provided, create one.
     if (! $funcLoader) {
-        $funcLoader = ShrubFunctionLoader->new($loader, rolesOnly => 1, slow => $slow);
+        $funcLoader = Shrub::FunctionLoader->new($loader, rolesOnly => 1, slow => $slow);
     }
     # If we are NOT in slow mode, prepare the tables for loading.
     if (! $slow) {

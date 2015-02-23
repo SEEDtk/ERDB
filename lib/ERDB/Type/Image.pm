@@ -18,71 +18,67 @@
 #
 
 
-package ERDBTypeInteger;
+package ERDB::Type::Image;
 
     use strict;
     use Tracer;
     use ERDB;
-    use base qw(ERDBType);
+    use GD;
+    use MIME::Base64;
+    use ERDBExtras;
+    use base qw(ERDB::Type);
 
-=head1 ERDB Integer Type Definition
+=head1 ERDB Image Type Definition
 
 =head2 Introduction
 
-This object represents the primitive data type for 32-bit signed integers. The
-values range from -2147483648 to 2147483647.
+This object represents the data type for images stored in the database. Each
+image must be a PERL B<GD> object. It is stored in the database as a base64 MIME
+string computed from the PNG file format.
 
 =head3 new
 
-    my $et = ERDBTypeInteger->new();
+    my $et = ERDB::Type::Image->new();
 
-Construct a new ERDBTypeInteger descriptor.
+Construct a new ERDB::Type::Image descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeInteger object.
+    # Create the ERDB::Type::Image object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
     return $retVal;
 }
 
+=head3 NewSessionID
+
+    my $id = ERDB::Type::Image::NewSessionID();
+
+Generate a new session ID for the current user.
+
+=cut
+
+sub NewSessionID {
+    # Declare the return variable.
+    my $retVal;
+    # Get a digest encoder.
+    my $md5 = Digest::MD5->new();
+    # Add the PID, the IP, and the time stamp. Note that the time stamp is
+    # actually two numbers, and we get them both because we're in list
+    # context.
+    $md5->add($$, $ENV{REMOTE_ADDR}, $ENV{REMOTE_PORT}, gettimeofday());
+    # Hash up all this identifying data.
+    $retVal = $md5->hexdigest();
+    # Return the result.
+    return $retVal;
+}
+
+
 =head2 Virtual Methods
-
-=head3 numeric
-
-    my $flag = $et->numeric();
-
-Return TRUE if this is a numeric type and FALSE otherwise. The default is
-FALSE.
-
-=cut
-
-sub numeric {
-    # Get the parameters.
-    my ($self) = @_;
-    # Return the result.
-    return 1;
-}
-
-=head3 nullable
-
-    my $flag = $et->nullable();
-
-Return TRUE if this type allows null-valued fields, else FALSE. The default is
-FALSE.
-
-=cut
-
-sub nullable {
-    # Get the parameters.
-    my ($self) = @_;
-    # Return the result.
-    return 1;
-}
 
 =head3 averageLength
 
@@ -94,7 +90,7 @@ database. This value is used to compute the expected size of a database table.
 =cut
 
 sub averageLength {
-    return 4;
+    return 50000;
 }
 
 =head3 prettySortValue
@@ -102,13 +98,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
 sub prettySortValue() {
-    return 1;
+    return 6;
 }
 
 =head3 validate
@@ -139,12 +135,9 @@ sub validate {
     my ($self, $value) = @_;
     # Assume it's valid until we prove otherwise.
     my $retVal = "";
-    if ($value =~ /\./) {
-        $retVal = "Integer values cannot have decimal points.";
-    } elsif (not $value =~ /^[+-]?\d+$/) {
-        $retVal = "Integer value is not numeric.";
-    } elsif ($value > 0x7FFFFFFF || $value <= -0x7FFFFFFF) {
-        $retVal = "Integer value is out of range.";
+    # Only a real GD object is valid.
+    if (! UNIVERSAL::isa($value, 'GD::Image')) {
+        $retVal = "Invalid image value.";
     }
     # Return the determination.
     return $retVal;
@@ -178,13 +171,8 @@ encoding is the same for both modes.
 sub encode {
     # Get the parameters.
     my ($self, $value, $mode) = @_;
-    # Declare the return variable.
-    my $retVal = $value;
-    # If we are going into a load file and the value is NULL, convert it to an
-    # escape sequence.
-    if ($mode && ! defined $retVal) {
-        $retVal = "\\N";
-    }
+    # Encode the value.
+    my $retVal = encode_base64($value->png(), "");
     # Return the result.
     return $retVal;
 }
@@ -214,8 +202,9 @@ Returns a value of the desired type.
 sub decode {
     # Get the parameters.
     my ($self, $string) = @_;
-    # Declare the return variable.
-    my $retVal = $string;
+    # Decode the value.
+    my $pngData = decode_base64($string);
+    my $retVal = GD::Image->newFromPngData($pngData);
     # Return the result.
     return $retVal;
 }
@@ -243,7 +232,12 @@ an SQL table.
 =cut
 
 sub sqlType {
-    return "INT";
+    my ($self, $dbh) = @_;
+    my $retVal = "TEXT";
+    if ($dbh->dbms eq 'mysql') {
+        $retVal = "LONGTEXT";
+    }
+    return $retVal;
 }
 
 =head3 indexMod
@@ -257,7 +251,7 @@ is an empty string, the entire field is indexed. The default is an empty string.
 =cut
 
 sub indexMod {
-    return '';
+    return undef;
 }
 
 =head3 sortType
@@ -271,7 +265,7 @@ The default is the empty string.
 =cut
 
 sub sortType {
-    return "n";
+    return "";
 }
 
 =head3 documentation
@@ -284,7 +278,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    return 'Standard signed integers, ranging from approximately -2 billion to 2 billion.';
+    return 'PNG format graphical image';
 }
 
 =head3 name
@@ -296,7 +290,7 @@ Return the name of this type, as it will appear in the XML database definition.
 =cut
 
 sub name() {
-    return "int";
+    return "image";
 }
 
 =head3 default
@@ -311,7 +305,7 @@ an error will be thrown during the load.
 =cut
 
 sub default {
-    return 0;
+    return undef;
 }
 
 =head3 align
@@ -324,7 +318,7 @@ C<center>. The default is C<left>.
 =cut
 
 sub align {
-    return 'right';
+    return 'center';
 }
 
 =head3 html
@@ -338,12 +332,28 @@ table. The default is the raw value, html-escaped.
 
 sub html {
     my ($self, $value) = @_;
-    my $retVal = "";
-    if (defined $value) {
-        $retVal = $value;
-    }
+    # The incoming value here is a GD graphic image. We need to store it
+    # to a temporary file.
+    my $sessionID = NewSessionID();
+    my $fileName = $sessionID . "image$$.png";
+    my $oh = Open(undef, ">$ERDBExtras::temp/$fileName");
+    print $oh $value->png();
+    close $oh;
+    my $retVal = CGI::img({ src => "$ERDBExtras::temp_url/$fileName" });
     return $retVal;
 }
 
+=head3 objectType
+
+    my $type = $et->objectType();
+
+Return the PERL type for fields of this type. An undefined value means it's
+a scalar; otherwise, it should be the package name (suitable for a C<use> clause).
+
+=cut
+
+sub objectType {
+    return "GD::Image";
+}
 
 1;

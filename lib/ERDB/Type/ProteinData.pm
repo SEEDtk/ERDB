@@ -17,34 +17,36 @@
 # http://www.theseed.org/LICENSE.TXT.
 #
 
-package ERDBTypeCounter;
+
+package ERDB::Type::ProteinData;
 
     use strict;
     use Tracer;
     use ERDB;
-    use base qw(ERDBType);
+    use base qw(ERDB::Type);
 
-=head1 ERDB Counter Type Definition
+=head1 ERDB Protein FASTA Data Type Definition
 
 =head2 Introduction
 
-This object represents the primitive data type for large unsigned integers. The
-values range from 0 to 9223372036854775807. Although it is possible to store
-larger numbers, the MySQL arithmetic is always performed using signed 64-bit
-integers, so it's not really safe.
+This object represents the data type for a list of protein FASTA sequences. Each
+sequence consists of a triple of data items: an ID, a comment, and the actual sequence.
+An individual data value contains a list of these triples. In the database, the
+entire structure is encoded as an escaped string. The individual pieces of a triple
+are tab-separated, and the triples themselves are separated by new-lines.
 
 =head3 new
 
-    my $et = ERDBTypeCounter->new();
+    my $et = ERDB::Type::ProteinData->new();
 
-Construct a new ERDBTypeCounter descriptor.
+Construct a new ERDB::Type::ProteinData descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeCounter object.
+    # Create the ERDB::Type::ProteinData object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
@@ -52,22 +54,6 @@ sub new {
 }
 
 =head2 Virtual Methods
-
-=head3 numeric
-
-    my $flag = $et->numeric();
-
-Return TRUE if this is a numeric type and FALSE otherwise. The default is
-FALSE.
-
-=cut
-
-sub numeric {
-    # Get the parameters.
-    my ($self) = @_;
-    # Return the result.
-    return 1;
-}
 
 =head3 averageLength
 
@@ -79,7 +65,7 @@ database. This value is used to compute the expected size of a database table.
 =cut
 
 sub averageLength {
-    return 8;
+    return 100000;
 }
 
 =head3 prettySortValue
@@ -87,13 +73,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
 sub prettySortValue() {
-    return 1;
+    return 6;
 }
 
 =head3 validate
@@ -124,14 +110,9 @@ sub validate {
     my ($self, $value) = @_;
     # Assume it's valid until we prove otherwise.
     my $retVal = "";
-    if ($value =~ /\./) {
-        $retVal = "Counter values cannot have decimal points.";
-    } elsif ($value =~ /^-/) {
-        $retVal = "Counter values cannot be negative.";
-    } elsif (not $value =~ /^[+]?\d+$/) {
-        $retVal = "Counter value is not numeric.";
-    } elsif ($value > 9223372036854775807 || $value < 0) {
-        $retVal = "Counter value is out of range.";
+    # Verify that we're an array.
+    if (ref $value ne 'ARRAY') {
+        $retVal = "Protein data set is not a list reference.";
     }
     # Return the determination.
     return $retVal;
@@ -165,8 +146,8 @@ encoding is the same for both modes.
 sub encode {
     # Get the parameters.
     my ($self, $value, $mode) = @_;
-    # Declare the return variable.
-    my $retVal = $value;
+    # Convert the list to a string.
+    my $retVal = Tracer::Escape(join("\n", map { join("\t", @$_) } @$value));
     # Return the result.
     return $retVal;
 }
@@ -196,8 +177,8 @@ Returns a value of the desired type.
 sub decode {
     # Get the parameters.
     my ($self, $string) = @_;
-    # Declare the return variable.
-    my $retVal = $string;
+    # Unescape and split the string.
+    my $retVal = [map { [split /\t/, $_] } split /\n/, Tracer::UnEscape($string)];
     # Return the result.
     return $retVal;
 }
@@ -225,12 +206,7 @@ an SQL table.
 =cut
 
 sub sqlType {
-    my ($self, $dbh) = @_;
-    my $retVal = "BIGINT";
-    if ($dbh->dbms eq 'mysql') {
-        $retVal = "BIGINT UNSIGNED";
-    }
-    return $retVal;
+    return "LONGTEXT";
 }
 
 =head3 indexMod
@@ -244,7 +220,7 @@ is an empty string, the entire field is indexed. The default is an empty string.
 =cut
 
 sub indexMod {
-    return '';
+    return undef;
 }
 
 =head3 sortType
@@ -258,7 +234,7 @@ The default is the empty string.
 =cut
 
 sub sortType {
-    return "n";
+    return "";
 }
 
 =head3 documentation
@@ -271,7 +247,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    return 'Large, unsigned integer, ranging from 0 to 9 quintillion.';
+    return 'Protein FASTA list, encoded';
 }
 
 =head3 name
@@ -283,7 +259,7 @@ Return the name of this type, as it will appear in the XML database definition.
 =cut
 
 sub name() {
-    return "counter";
+    return "proteinData";
 }
 
 =head3 default
@@ -298,20 +274,7 @@ be thrown during the load.
 =cut
 
 sub default {
-    return 0;
-}
-
-=head3 align
-
-    my $alignment = $et->align();
-
-Return the display alignment for fields of this type: either C<left>, C<right>, or
-C<center>. The default is C<left>.
-
-=cut
-
-sub align {
-    return 'right';
+    return '';
 }
 
 =head3 html
@@ -324,8 +287,23 @@ table. The default is the raw value, html-escaped.
 =cut
 
 sub html {
+    # Get the parameters.
     my ($self, $value) = @_;
-    return $value;
+    # We'll build a list in here and then output it later.
+    my @retVal;
+    # Loop through the triples in the list.
+    for my $triple (@$value) {
+        # Split the triple.
+        my ($id, $comment, $sequence) = @$triple;
+        # Adjust the sequence if it's too long.
+        if (length $sequence > 60) {
+            $sequence = substr($sequence, 0, 60) . "...";
+        }
+        # Form the ID and sequence into a string.
+        push @retVal, "$id: $sequence";
+    }
+    # Return the result.
+    return CGI::ul(map { CGI::li($_) } @retVal);
 }
 
 1;

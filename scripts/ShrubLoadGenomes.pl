@@ -67,8 +67,8 @@ computed from information in the L<FIG_Config> module.
 
     use strict;
     use Shrub;
-    use ShrubLoader;
-    use ShrubGenomeLoader;
+    use Shrub::DBLoader;
+    use Shrub::GenomeLoader;
     use File::Path ();
     use ScriptUtils;
 
@@ -88,9 +88,9 @@ computed from information in the L<FIG_Config> module.
     print "Connecting to database.\n";
     my $shrub = Shrub->new_for_script($opt);
     # We are connected. Create the loader utility object.
-    my $loader = ShrubLoader->new($shrub);
+    my $loader = Shrub::DBLoader->new($shrub);
     # Create the genome loader utility object.
-    my $genomeLoader = ShrubGenomeLoader->new($loader, slow => $opt->slow);
+    my $genomeLoader = Shrub::GenomeLoader->new($loader, slow => $opt->slow);
     # Get the statistics object.
     my $stats = $loader->stats;
     my $genomeDir = $opt->genomedir;

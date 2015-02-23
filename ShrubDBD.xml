@@ -420,7 +420,8 @@
     </Entities>
     <Relationships>
         <Relationship name="IsInTaxonomicGroup" from="TaxonomicGrouping"
-            to="TaxonomicGrouping" arity="1M" converse="IsTaxonomicGroupOf">
+            to="TaxonomicGrouping" arity="1M" converse="IsTaxonomicGroupOf"
+            embedded="1">
             <DisplayInfo theme="red" caption="Is In\nTaxonomic\nGroup"
                 fixed="1" row="1" col="2" />
             <Notes>This relationship imposes a hierarchy on taxonomic groupings.
@@ -430,7 +431,8 @@
             </Notes>
         </Relationship>
         <Relationship name="Taxonomy2Genome" from="TaxonomicGrouping"
-            to="Genome" arity="1M" converse="Genome2Taxonomy">
+            to="Genome" arity="1M" converse="Genome2Taxonomy"
+            embedded="1">>
             <DisplayInfo theme="red" caption="Taxonomy\nto Genome" />
             <Notes>This relationship connects a genome to the taxonomic group to
                 which it belongs. The taxonomic group is computed from the genome
@@ -448,7 +450,7 @@
             </Fields>
         </Relationship>
         <Relationship name="Set2Genome" from="GenomeSet" to="Genome" arity="1M"
-            converse="Genome2Set">
+            converse="Genome2Set" embedded="1">
             <DisplayInfo theme="red" caption="Set to\nGenome" />
             <Notes>This relationship connects a genome to the single set to
             which it belongs. One of the genomes will be considered a
@@ -469,13 +471,13 @@
             </FromIndex>
         </Relationship>
         <Relationship name="Genome2Feature" from="Genome" to="Feature"
-            arity="1M" converse="Feature2Genome">
+            arity="1M" converse="Feature2Genome" embedded="1">
             <DisplayInfo theme="green" caption="Genome to\nFeature" />
             <Notes>This relationship connects a genomes to the points of
             interest (features) in its DNA.</Notes>
         </Relationship>
         <Relationship name="Protein2Feature" from="Protein" to="Feature"
-            arity="1M" converse="Feature2Protein">
+            arity="1M" converse="Feature2Protein" embedded="1">
             <DisplayInfo theme="green" caption="Feature\nto Protein" />
             <Notes>This relationship connects a feature to its protein
             translation.</Notes>
@@ -569,7 +571,7 @@
             </FromIndex>
         </Relationship>
         <Relationship name="Genome2Contig" from="Genome" to="Contig"
-            arity="1M" converse="Contig2Genome">
+            arity="1M" converse="Contig2Genome" embedded="1">
             <DisplayInfo theme="red" caption="Genome\nto Contig" />
             <Notes>This relationship connects a genome to its constituent
             contigs. The full set of contigs comprises the DNA sequence
@@ -678,7 +680,7 @@
             </ToIndex>
         </Relationship>
         <Relationship name="Genome2Row" from="Genome" to="SubsystemRow"
-            arity="1M" converse="Row2Genome">
+            arity="1M" converse="Row2Genome" embedded="1">
             <DisplayInfo theme="blue" caption="Genome\nto Row" />
             <Notes>This relationship connects a subsystem row to the
                 genome which it populates. A subsystem's occurrence
@@ -693,7 +695,7 @@
                 spreadsheet cells it occupies.</Notes>
         </Relationship>
         <Relationship name="Subsystem2Row" from="Subsystem" to="SubsystemRow"
-            arity="1M" converse="Row2Subsystem">
+            arity="1M" converse="Row2Subsystem" embedded="1">
             <DisplayInfo theme="blue" caption="Row to\nSubsystem" />
             <Notes>This relationship connects a subsystem to its populated
                 spreadsheet rows. Each row represents the implementation
@@ -703,7 +705,7 @@
             </Notes>
         </Relationship>
         <Relationship name="Row2Cell" from="SubsystemRow" to="SubsystemCell"
-            arity="1M" converse="Cell2Row">
+            arity="1M" converse="Cell2Row" embedded="1">
             <DisplayInfo theme="blue" caption="Row to\nCell" />
             <Notes>This relationship yields all the cells (one per role) in
                 a subsystem spreadsheet row.
@@ -723,7 +725,7 @@
             </FromIndex>
         </Relationship>
         <Relationship name="Role2Cell" from="Role" to="SubsystemCell"
-            arity="1M" converse="Cell2Role">
+            arity="1M" converse="Cell2Role" embedded="1">
             <DisplayInfo theme="blue" caption="Cell to\nRole" />
             <Notes>This relationship connects a subsystem cell to the role
                 its features perform.

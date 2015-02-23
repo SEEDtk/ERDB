@@ -18,33 +18,35 @@
 #
 
 
-package ERDBTypeLink;
+package ERDB::Type::String;
 
     use strict;
     use Tracer;
     use ERDB;
-    use HyperLink;
-    use base qw(ERDBType);
+    use base qw(ERDB::Type);
 
-=head1 ERDB Link Type Definition
+=head1 ERDB String Type Definition
 
 =head2 Introduction
 
-This object represents the data type for hyperlinks. Hyperlinks are PERL objects
-(L<HyperLink>) containing a text string and an optional associated URL.
+This object represents the primitive data type for short strings (0 to 250
+characters). These are stored with tabs, newlines, and backslashes escaped, so
+it is possible that a string of exactly 250 characters would not fit in the
+database. The escaping requirement is a consequence of the way the database
+tables are loaded.
 
 =head3 new
 
-    my $et = ERDBTypeLink->new();
+    my $et = ERDB::Type::String->new();
 
-Construct a new ERDBTypeLink descriptor.
+Construct a new ERDB::Type::String descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeLink object.
+    # Create the ERDB::Type::String object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
@@ -63,7 +65,7 @@ database. This value is used to compute the expected size of a database table.
 =cut
 
 sub averageLength {
-    return 200;
+    return 80;
 }
 
 =head3 prettySortValue
@@ -71,7 +73,7 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
@@ -106,10 +108,12 @@ otherwise.
 sub validate {
     # Get the parameters.
     my ($self, $value) = @_;
-    # Only a true hyperlink object is valid here.
+    # Assume it's valid until we prove otherwise.
     my $retVal = "";
-    if (! UNIVERSAL::isa($value, 'HyperLink')) {
-        $retVal = "Invalid link field specified.";
+    # Verify the length after escaping.
+    my $testVal = Tracer::Escape($value);
+    if (length($testVal) > 250) {
+        $retVal = "String too long.";
     }
     # Return the determination.
     return $retVal;
@@ -143,8 +147,8 @@ encoding is the same for both modes.
 sub encode {
     # Get the parameters.
     my ($self, $value, $mode) = @_;
-    # Encode the value.
-    my $retVal = $value->Encode();
+    # Escape the string.
+    my $retVal = Tracer::Escape($value);
     # Return the result.
     return $retVal;
 }
@@ -174,8 +178,8 @@ Returns a value of the desired type.
 sub decode {
     # Get the parameters.
     my ($self, $string) = @_;
-    # Decode the value.
-    my $retVal = HyperLink->Decode($string);
+    # Declare the return variable.
+    my $retVal = Tracer::UnEscape($string);
     # Return the result.
     return $retVal;
 }
@@ -203,7 +207,7 @@ an SQL table.
 =cut
 
 sub sqlType {
-    return "TEXT";
+    return "VARCHAR(250)";
 }
 
 =head3 indexMod
@@ -217,7 +221,7 @@ is an empty string, the entire field is indexed. The default is an empty string.
 =cut
 
 sub indexMod {
-    return 300;
+    return '';
 }
 
 =head3 sortType
@@ -244,7 +248,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    return 'Short character string, with optional associated URL.';
+    return 'Short character string, from 0 to approximately 250 characters.';
 }
 
 =head3 name
@@ -256,7 +260,7 @@ Return the name of this type, as it will appear in the XML database definition.
 =cut
 
 sub name() {
-    return "link";
+    return "string";
 }
 
 =head3 default
@@ -272,47 +276,6 @@ an error will be thrown during the load.
 
 sub default {
     return '';
-}
-
-=head3 align
-
-    my $alignment = $et->align();
-
-Return the display alignment for fields of this type: either C<left>, C<right>, or
-C<center>. The default is C<left>.
-
-=cut
-
-sub align {
-    return 'left';
-}
-
-=head3 html
-
-    my $html = $et->html($value);
-
-Return the HTML for displaying the content of a field of this type in an output
-table. The default is the raw value, html-escaped.
-
-=cut
-
-sub html {
-    my ($self, $value) = @_;
-    my $retVal = $value->html();
-    return $retVal;
-}
-
-=head3 objectType
-
-    my $type = $et->objectType();
-
-Return the PERL type for fields of this type. An undefined value means it's
-a scalar; otherwise, it should be the package name (suitable for a C<use> clause).
-
-=cut
-
-sub objectType {
-    return "HyperLink";
 }
 
 1;

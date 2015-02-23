@@ -540,7 +540,7 @@ Reference to a list of feature IDs.
 =item RETURN
 
 Returns a reference to a hash mapping each feature to a 3-tuple. Each 3-tuple will consist of
-(0) the function ID, (1) the function statement, and (2) the associated comment.
+(0) the function ID, (1) the function description, and (2) the associated comment.
 
 =back
 
@@ -600,7 +600,7 @@ sub Subsystem2Feature {
     my ($self, $sub) = @_;
     # Read the subsystem features from the database. NOTE that right now the ID and name
     # are the same field.
-    my @retVal = $self->GetFlat('Subsystem2Row Row2Cell Cell2Feature', "Subsystem2Row(from-link) = ?", [$sub],
+    my @retVal = $self->GetFlat('Subsystem2Row SubsystemRow Row2Cell SubsystemCell Cell2Feature', "Subsystem2Row(from-link) = ?", [$sub],
             'Cell2Feature(to-link)');
     # Return the result.
     return \@retVal;

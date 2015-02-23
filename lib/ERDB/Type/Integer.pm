@@ -18,38 +18,32 @@
 #
 
 
-package ERDBTypeHashString;
+package ERDB::Type::Integer;
 
     use strict;
     use Tracer;
     use ERDB;
-    use base qw(ERDBType);
+    use base qw(ERDB::Type);
 
-=head1 ERDB Hash String Type Definition
+=head1 ERDB Integer Type Definition
 
 =head2 Introduction
 
-This object represents the data type for keys that are hash codes produced from
-computable strings. Such codes are almost guaranteed to be unique, and are
-considerably shorter than the data from which they are digested. It is not,
-however, possible to reverse the encoding.
-
-There is no encoding or decoding done for this type. Instead, its use serves as
-notice that the real identifier must be computed by feeding something through
-L<ERDB/DigestKey>.
+This object represents the primitive data type for 32-bit signed integers. The
+values range from -2147483648 to 2147483647.
 
 =head3 new
 
-    my $et = ERDBTypeHashString->new();
+    my $et = ERDB::Type::Integer->new();
 
-Construct a new ERDBTypeHashString descriptor.
+Construct a new ERDB::Type::Integer descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeHashString object.
+    # Create the ERDB::Type::Integer object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
@@ -57,6 +51,38 @@ sub new {
 }
 
 =head2 Virtual Methods
+
+=head3 numeric
+
+    my $flag = $et->numeric();
+
+Return TRUE if this is a numeric type and FALSE otherwise. The default is
+FALSE.
+
+=cut
+
+sub numeric {
+    # Get the parameters.
+    my ($self) = @_;
+    # Return the result.
+    return 1;
+}
+
+=head3 nullable
+
+    my $flag = $et->nullable();
+
+Return TRUE if this type allows null-valued fields, else FALSE. The default is
+FALSE.
+
+=cut
+
+sub nullable {
+    # Get the parameters.
+    my ($self) = @_;
+    # Return the result.
+    return 1;
+}
 
 =head3 averageLength
 
@@ -68,7 +94,7 @@ database. This value is used to compute the expected size of a database table.
 =cut
 
 sub averageLength {
-    return 22;
+    return 4;
 }
 
 =head3 prettySortValue
@@ -76,13 +102,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
 sub prettySortValue() {
-    return 1;
+    return 2;
 }
 
 =head3 validate
@@ -113,8 +139,12 @@ sub validate {
     my ($self, $value) = @_;
     # Assume it's valid until we prove otherwise.
     my $retVal = "";
-    if (length($value) != 22) {
-        $retVal = "Invalid hash string field.";
+    if ($value =~ /\./) {
+        $retVal = "Integer values cannot have decimal points.";
+    } elsif (not $value =~ /^[+-]?\d+$/) {
+        $retVal = "Integer value is not numeric.";
+    } elsif ($value > 0x7FFFFFFF || $value <= -0x7FFFFFFF) {
+        $retVal = "Integer value is out of range.";
     }
     # Return the determination.
     return $retVal;
@@ -148,8 +178,15 @@ encoding is the same for both modes.
 sub encode {
     # Get the parameters.
     my ($self, $value, $mode) = @_;
-    # Return the input value.
-    return $value;
+    # Declare the return variable.
+    my $retVal = $value;
+    # If we are going into a load file and the value is NULL, convert it to an
+    # escape sequence.
+    if ($mode && ! defined $retVal) {
+        $retVal = "\\N";
+    }
+    # Return the result.
+    return $retVal;
 }
 
 =head3 decode
@@ -177,8 +214,10 @@ Returns a value of the desired type.
 sub decode {
     # Get the parameters.
     my ($self, $string) = @_;
-    # Return the input value.
-    return $string;
+    # Declare the return variable.
+    my $retVal = $string;
+    # Return the result.
+    return $retVal;
 }
 
 =head3 sqlType
@@ -204,7 +243,7 @@ an SQL table.
 =cut
 
 sub sqlType {
-    return "CHAR(22)";
+    return "INT";
 }
 
 =head3 indexMod
@@ -232,7 +271,7 @@ The default is the empty string.
 =cut
 
 sub sortType {
-    return "";
+    return "n";
 }
 
 =head3 documentation
@@ -245,7 +284,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    return 'A Base64 Digest MD5 code.';
+    return 'Standard signed integers, ranging from approximately -2 billion to 2 billion.';
 }
 
 =head3 name
@@ -257,7 +296,7 @@ Return the name of this type, as it will appear in the XML database definition.
 =cut
 
 sub name() {
-    return "hash-string";
+    return "int";
 }
 
 =head3 default
@@ -272,7 +311,7 @@ an error will be thrown during the load.
 =cut
 
 sub default {
-    return '                      ';
+    return 0;
 }
 
 =head3 align
@@ -285,7 +324,25 @@ C<center>. The default is C<left>.
 =cut
 
 sub align {
-    return 'left';
+    return 'right';
+}
+
+=head3 html
+
+    my $html = $et->html($value);
+
+Return the HTML for displaying the content of a field of this type in an output
+table. The default is the raw value, html-escaped.
+
+=cut
+
+sub html {
+    my ($self, $value) = @_;
+    my $retVal = "";
+    if (defined $value) {
+        $retVal = $value;
+    }
+    return $retVal;
 }
 
 

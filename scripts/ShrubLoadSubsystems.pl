@@ -20,9 +20,9 @@
     use strict;
     use Stats;
     use SeedUtils;
-    use ShrubLoader;
+    use Shrub::DBLoader;
     use Shrub;
-    use ShrubSubsystemLoader;
+    use Shrub::SubsystemLoader;
     use ScriptUtils;
 
 =head1 Load Subsystems Into the Shrub Database
@@ -111,11 +111,11 @@ computed from information in the L<FIG_Config> file.
         die "Invalid subsystem directory $subsysDirectory.";
     }
     # Create the loader utility object.
-    my $loader = ShrubLoader->new($shrub);
+    my $loader = Shrub::DBLoader->new($shrub);
     # Get the statistics object.
     my $stats = $loader->stats;
     # Create the subsystem loader utility object.
-    my $subLoader = ShrubSubsystemLoader->new($loader, slow => $opt->slow);
+    my $subLoader = Shrub::SubsystemLoader->new($loader, slow => $opt->slow);
     # Now we need to get the list of subsystems to process.
     my $subs;
     if ($opt->subsystems) {

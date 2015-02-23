@@ -31,10 +31,8 @@ same name. When a new custom type is created, it should be put in this list.
 
 =cut
 
-our $customERDBtypes        = [qw(ERDBTypeDNA ERDBTypeLink ERDBTypeImage
-                               ERDBTypeLongString ERDBTypeSemiBoolean
-                               ERDBTypeRectangle ERDBTypeCountVector
-                               ERDBTypeProteinData ERDBTypeShortString)];
+our $customERDBtypes        = [qw(DNA Link Image LongString SemiBoolean Rectangle CountVector
+                               ProteinData ShortString)];
 
 =head3 sort_options
 

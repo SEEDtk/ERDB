@@ -17,13 +17,13 @@
 # http://www.theseed.org/LICENSE.TXT.
 #
 
-package ERDBTypeCountVector;
+package ERDB::Type::CountVector;
 
     use strict;
     use Tracer;
     use ERDB;
     use CGI;
-    use base qw(ERDBType);
+    use base qw(ERDB::Type);
 
 
 =head1 ERDB CountVector Descriptor Type Definition
@@ -51,16 +51,16 @@ use constant DIGITS => '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrst
 
 =head3 new
 
-    my $et = ERDBTypeCountVector->new();
+    my $et = ERDB::Type::CountVector->new();
 
-Construct a new ERDBTypeCountVector descriptor.
+Construct a new ERDB::Type::CountVector descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeCountVector object.
+    # Create the ERDB::Type::CountVector object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
@@ -87,13 +87,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
 sub prettySortValue() {
-    return 5;
+    return 6;
 }
 
 =head3 validate
@@ -345,7 +345,7 @@ sub html {
 
 =head3 NumToString
 
-    my $string = ERDBTypeCountVector::NumToString($number);
+    my $string = ERDB::Type::CountVector::NumToString($number);
 
 Convert an unsigned integer into a base-64 character string for encoding into a count
 vector.
@@ -398,7 +398,7 @@ sub NumToString {
 
 =head3 StringToNum
 
-    my $number = ERDBTypeCountVector::StringToNum($string);
+    my $number = ERDB::Type::CountVector::StringToNum($string);
 
 Convert a base-64 character string into an unsigned integer for a count vector.
 
@@ -444,7 +444,7 @@ sub StringToNum {
 
 =head3 VectorLength
 
-    my $length = ERDBTypeCountVector::VectorLength($vector);
+    my $length = ERDB::Type::CountVector::VectorLength($vector);
 
 Return the length of a vector.
 
@@ -478,7 +478,7 @@ sub VectorLength {
 
 =head3 DotProduct
 
-    my $product = ERDBTypeCountVector::DotProduct($vector1, $vector2);
+    my $product = ERDB::Type::CountVector::DotProduct($vector1, $vector2);
 
 Compute the normalized dot product of the two incoming vectors. The result will be C<1>
 if the vectors are parallel and C<0> if they are orthogonal.
