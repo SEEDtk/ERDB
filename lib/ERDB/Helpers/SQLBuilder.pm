@@ -409,8 +409,11 @@ sub FixFilter {
     my $retVal = $filterClause;
     # Get the alias map.
     my $aliasMap = $self->{aliasMap};
+    # Sort the object names from longest to shortest. This insures we don't find a name that is a suffix
+    # of another name when we do our search.
+    my @names = sort { length($b) <=> length($a) } keys %$aliasMap;
     # Loop through the object names.
-    for my $objectName (keys %$aliasMap) {
+    for my $objectName (@names) {
         # Get the object's base name.
         my $baseName = $self->BaseObject($objectName);
         # Fix up all occurrences of this object name.
