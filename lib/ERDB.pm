@@ -1743,7 +1743,8 @@ sub FindEntity {
     my $objectData = $erdb->FindRelationship($name);
 
 Return the structural descriptor of the specified relationship, or an undefined
-value if the relationship does not exist.
+value if the relationship does not exist. The relationship name can be a regular
+name or a converse.
 
 =over 4
 
@@ -1763,8 +1764,10 @@ if the named relationship does not exist.
 sub FindRelationship {
     # Get the parameters.
     my ($self, $name) = @_;
+    # Check for a converse.
+    my $obverse = $self->{_metaData}{ConverseTable}{$name} // $name;
     # Return the result.
-    return $self->_FindObject(Relationships => $name);
+    return $self->_FindObject(Relationships => $obverse);
 }
 
 =head3 ComputeTargetEntity
@@ -4925,6 +4928,8 @@ sub Delete {
     my $retVal = Stats->new();
     # Get the quote character.
     my $q = $self->q;
+    # Get the crossings table.
+    my $crossingTable = $self->{_metaData}{CrossingTable};
     # Encode the object ID.
     my $idParameter = $self->EncodeField("$entityName(id)", $objectID);
     # Get the DBKernel object.
@@ -4932,16 +4937,11 @@ sub Delete {
     # We're going to generate all the paths branching out from the starting
     # entity. One of the things we have to be careful about is preventing loops.
     # We'll use a hash to determine if we've hit a loop.
-    my %alreadyFound = ();
-    # These next lists will serve as our result stack. We start by pushing
-    # object lists onto the stack, and then popping them off to do the deletes.
-    # This means the deletes will start with the longer paths before getting to
-    # the shorter ones. That, in turn, makes sure we don't delete records that
-    # might be needed to forge relationships back to the original item. We have
-    # two lists-- one for TO-relationships, and one for FROM-relationships and
-    # entities.
-    my @fromPathList = ();
-    my @toPathList = ();
+    my %alreadyFound = ($entityName => 1);
+    # This next list will contain the paths to delete. It is actual a list of lists.
+    # Each path is stored in the position determined by its length. We will process
+    # them from longest to shortest.
+    my @pathLists = ();
     # This final list is used to remember what work still needs to be done. We
     # push paths onto the list, then pop them off to extend the paths. We prime
     # it with the starting point. Note that we will work hard to insure that the
@@ -4950,67 +4950,65 @@ sub Delete {
     while (@todoList) {
         # Get the current path tuple.
         my $current = pop @todoList;
+        # Stack it as a deletion request.
+        my $spLen = scalar @$current;
+        push @{$pathLists[$spLen]}, $current;
         # Copy it into a list.
-        my @stackedPath = $current->path;
+        my @stackedPath = @$current;
         # Pull off the last item on the path. It will always be an entity.
         my $myEntityName = pop @stackedPath;
-        # Add it to the alreadyFound list.
-        $alreadyFound{$myEntityName} = 1;
         # Now we need to look for relationships connected to this entity. We skip
         # this if "onlyRoot" is specified.
         if (! $options{onlyRoot}) {
-            my $relationshipList = $self->{_metaData}->{Relationships};
-            for my $relationshipName (keys %{$relationshipList}) {
-                my $relationship = $relationshipList->{$relationshipName};
-                # Check the FROM field. We're only interested if it's us.
-                if ($relationship->{from} eq $myEntityName) {
-                    # Add the path to this relationship.
-                    my @augmentedList = (@stackedPath, $myEntityName, $relationshipName);
-                    push @fromPathList, \@augmentedList;
-                    # Check the arity. If it's MM or loose, we're done. If it's
-                    # 1M and the target hasn't been seen yet, we want to
-                    # stack the entity for future processing.
-                    if ($relationship->{arity} eq '1M' && ! $relationship->{loose}) {
-                        my $toEntity = $relationship->{to};
-                        if (! exists $alreadyFound{$toEntity}) {
-                            # Here we have a new entity that's dependent on
-                            # the current entity, so we need to stack it.
-                            my @stackList = (@augmentedList, $toEntity);
-                            push @todoList, \@stackList;
+            # Get the crossings table for this entity.
+            my $crossings = $crossingTable->{$myEntityName};
+            # Find the relationship that got us here. We don't want to go back.
+            my $reverseRel = '';
+            if (scalar @stackedPath) {
+                $reverseRel = $stackedPath[$#stackedPath];
+            }
+            # Loop through the crossings. They will all be relationships.
+            for my $crossingRel (keys %$crossings) {
+                # Get this relationship's descriptor.
+                my $relData = $self->FindRelationship($crossingRel);
+                # Are we backtracking?
+                if ($reverseRel ne $relData->{obverse} && $reverseRel ne $relData->{converse}) {
+                    # No. Form a new path for this crossing.
+                    my @newPath = (@stackedPath, $myEntityName, $crossingRel);
+                    my $newPathLen = scalar @newPath;
+                    # Push it into the path lists.
+                    push @{$pathLists[$newPathLen]}, \@newPath;
+                    # Are we going in the from-direction and is this relationship
+                    # 1-to-many and tight?
+                    if ($relData->{obverse} eq $crossingRel && $relData->{arity} eq '1M'
+                        && ! $relData->{loose}) {
+                        # Yes. Check the entity on the other end.
+                        my $target = $relData->{to};
+                        if (! $alreadyFound{$target}) {
+                            # It's new. Stack it for future processing.
+                            push @todoList, [@newPath, $target];
+                            $alreadyFound{$target} = 1;
                         }
-                    }
-                }
-                # Now check the TO field. In this case only the relationship needs
-                # deletion, and only if it's not already in the path.
-                if ($relationship->{to} eq $myEntityName) {
-                    if (scalar(grep { $_ eq $relationshipName } @stackedPath) != 0) {
-                    } else {
-                        my @augmentedList = (@stackedPath, $myEntityName, $relationshipName);
-                        push @toPathList, \@augmentedList;
                     }
                 }
             }
         }
     }
-    # We need to make two passes. The first is through the to-list, and
-    # the second through the from-list. The from-list is second because
-    # the to-list may need to pass through some of the entities the
-    # from-list would delete.
-    my %stackList = ( from_link => \@fromPathList, to_link => \@toPathList );
-    for my $keyName ('to_link', 'from_link') {
-        # Get the list for this key.
-        my @pathList = @{$stackList{$keyName}};
-        # Loop through this list.
-        while (my $path = pop @pathList) {
-            # Set up for the delete.
-            my $pathThing = ERDB::Helpers::ObjectPath->new($self, @$path);
-            my ($target) = $pathThing->lastObject();
-            # Execute the deletion.
-            my $count = $pathThing->Delete("$entityName(id) = ?", [$idParameter]);
-            # Accumulate the statistics for this delete. The only rows deleted
-            # are from the target table, so we use its name to record the
-            # statistic.
-            $retVal->Add("delete-$target", $count);
+    # Loop through the path lists in reverse order.
+    while (scalar @pathLists) {
+        my $pathListSet = pop @pathLists;
+        if ($pathListSet) {
+            for my $path (@$pathListSet) {
+                # Set up for the delete.
+                my $pathThing = ERDB::Helpers::ObjectPath->new($self, @$path);
+                my ($target) = $pathThing->lastObject();
+                # Execute the deletion.
+                my $count = $pathThing->Delete("$entityName(id) = ?", [$idParameter]);
+                # Accumulate the statistics for this delete. The only rows deleted
+                # are from the target table, so we use its name to record the
+                # statistic.
+                $retVal->Add("delete-$target", $count);
+            }
         }
     }
     # Return the result.
@@ -6171,6 +6169,8 @@ sub _LoadMetaData {
         # Before we go any farther, we need to validate the field and object names.
         # If an error is found, the method below will fail.
         _ValidateFieldNames($metadata);
+        # This will map each converse to its base relationship name.
+        my %converses;
         # Next we need to create a hash table for finding relations. The entities
         # and relationships are implemented as one or more database relations.
         my %masterRelationTable = ();
@@ -6214,7 +6214,7 @@ sub _LoadMetaData {
             _AddField($entityStructure, 'id', { type => $entityStructure->{keyType},
                                                 name => 'id',
                                                 relation => $entityName,
-                                                realName => [$entityName, 'id'],
+                                                realName => 'id',
                                                 Notes => { content => "Unique identifier for this \[b\]$entityName\[/b\]." },
                                                 PrettySort => 0});
             # Now we need to add the special fields for the embedded relationships. Such fields
@@ -6236,9 +6236,11 @@ sub _LoadMetaData {
                 $relFields->{'to-link'}{realName} = 'id';
                 # Add its crossings to the crossings table.
                 my $fromEntity = $relData->{from};
-                my $crossList = [[$fromEntity, 'id', $entityName, $fromName]];
-                $crossings{$fromEntity}{$embeddedRelationship} = $crossList;
-                $crossings{$embeddedRelationship}{$fromEntity} = $crossList;
+                my $converse = $relData->{converse};
+                $crossings{$fromEntity}{$embeddedRelationship} = [[$fromEntity, 'id', $embeddedRelationship, $fromName]];;
+                $crossings{$converse}{$fromEntity} = [[$converse, $fromName, $fromEntity, 'id']];
+                $crossings{$embeddedRelationship}{$entityName} = [];
+                $crossings{$entityName}{$converse} = [];
                 # Add the fields (except the to-link) to this entity.
                 for my $fieldName (keys %$relFields) {
                     if ($fieldName ne 'to-link') {
@@ -6268,7 +6270,10 @@ sub _LoadMetaData {
                 push @{$entityStructure->{Indexes}}, $newIndex;
                 # Store the relationship and its converse in the alias table.
                 $aliasTable{$embeddedRelationship} = $entityName;
-                $aliasTable{$relData->{converse}} = $entityName;
+                $aliasTable{$converse} = $entityName;
+                # Store the converse in the converse table.
+                $converses{$converse} = $embeddedRelationship;
+                $relData->{obverse} = $embeddedRelationship;
             }
             # Store the entity in the alias table.
             $aliasTable{$entityName} = $entityName;
@@ -6404,9 +6409,14 @@ sub _LoadMetaData {
                 my $thisRelation = { Fields => _ReOrderRelationTable($relationshipStructure->{Fields}),
                                      Indexes => { }, owner => $relationshipName };
                 $relationshipStructure->{Relations} = { $relationshipName => $thisRelation };
+                # Get the converse name.
+                my $converse = $relationshipStructure->{converse};
                 # Put the relationship in the alias table.
                 $aliasTable{$relationshipName} = $relationshipName;
-                $aliasTable{$relationshipStructure->{converse}} = $relationshipName;
+                $aliasTable{$converse} = $relationshipName;
+                # Put the converse in the converse table.
+                $converses{$converse} = $relationshipName;
+                $relationshipStructure->{obverse} = $relationshipName;
                 # Add the alternate indexes (if any). This MUST be done before the FROM
                 # and TO indexes, because it erases the relation's index list.
                 if (exists $relationshipStructure->{Indexes}) {
@@ -6422,16 +6432,17 @@ sub _LoadMetaData {
                 my $toEntity = $relationshipStructure->{to};
                 my $fromCrossing = [[$fromEntity, 'id', $relationshipName, 'from_link']];
                 my $toCrossing = [[$relationshipName, 'to_link', $toEntity, 'id']];
-                $crossings{$fromEntity}{$relationshipName} = $fromCrossing;
-                $crossings{$relationshipName}{$fromEntity} = $fromCrossing;
-                $crossings{$relationshipName}{$toEntity} = $toCrossing;
-                $crossings{$toEntity}{$relationshipName} = $toCrossing;
+                $crossings{$fromEntity}{$relationshipName} = [[$fromEntity, 'id', $relationshipName, 'from_link']];
+                $crossings{$converse}{$fromEntity} = [[$converse, 'from_link', $fromEntity, 'id', ]];
+                $crossings{$relationshipName}{$toEntity} = [[$relationshipName, 'to_link', $toEntity, 'id']];
+                $crossings{$toEntity}{$converse} = [[$toEntity, 'id', $converse, 'to_link']];
             }
         }
-        # Now store the master relation table, crossing table, and alias table in the metadata structure.
+        # Now store the master relation table, crossing table, converse table, and alias table in the metadata structure.
         $metadata->{RelationTable} = \%masterRelationTable;
         $metadata->{AliasTable} = \%aliasTable;
         $metadata->{CrossingTable} = \%crossings;
+        $metadata->{ConverseTable} = \%converses;
     }
     # Return the metadata structure.
     return $metadata;
@@ -6633,9 +6644,8 @@ sub _FixupFields {
             }
             # Add the PrettySortValue.
             $fieldData->{PrettySort} = $TypeTable->{$type}->prettySortValue();
-            # Compute the real name. This consists of the relation name followed by the
-            # field name in SQL format. If this is an embedded relationship, the
-            # original object name is added to the field name.
+            # Compute the real name. This consists of the field name in SQL format.
+            # If this is an embedded relationship, the original object name is added to the field name.
             my $sqlName = _FixName($fieldName);
             if ($objectName) {
                 $sqlName = join('_', $objectName, $sqlName);
@@ -6679,6 +6689,7 @@ sub _AddFromToFields{
     _AddField($relationshipStructure, 'from-link', { type => $fromType,
                                                 name => 'from-link',
                                                 relation => $relationshipName,
+                                                realName => 'from_link',
                                                 Notes => { content => $fromComment },
                                                 PrettySort => 1});
     # Format a description for the TO field.
@@ -6690,13 +6701,14 @@ sub _AddFromToFields{
     _AddField($relationshipStructure, 'to-link', { type=> $toType,
                                               name => 'to-link',
                                               relation => $relationshipName,
+                                              realName => 'to_link',
                                               Notes => { content => $toComment },
                                               PrettySort => 1});
 }
 
 =head3 _FixName
 
-    my $fixedName = ERDB::_FixName($fieldName, $converse);
+    my $fixedName = ERDB::_FixName($fieldName);
 
 Fix the incoming field name so that it is a legal SQL column name.
 
@@ -6705,10 +6717,6 @@ Fix the incoming field name so that it is a legal SQL column name.
 =item fieldName
 
 Field name to fix.
-
-=item converse
-
-If TRUE, then "from" and "to" will be exchanged.
 
 =item RETURN
 
@@ -6723,16 +6731,69 @@ sub _FixName {
     my ($fieldName, $converse) = @_;
     # Replace its minus signs with underscores.
     $fieldName =~ s/-/_/g;
-    # Check for from/to flipping.
-    if ($converse) {
-        if ($fieldName eq 'from_link') {
-            $fieldName = 'to_link';
-        } elsif ($fieldName eq 'to_link') {
-            $fieldName = 'from_link';
-        }
-    }
     # Return the result.
     return $fieldName;
+}
+
+=head3 _SQLFieldName
+
+    my $sqlName = $erdb->_SQLFieldName($baseName, $fieldName);
+
+Compute the real SQL name of the specified field. This method must handle
+flipping from-link and to-link on a converse relationship, and it must
+translate the field name to its real name.
+
+=over 4
+
+=item baseName
+
+The name of the table containing the field.
+
+=item fieldName
+
+The actual field name itself.
+
+=item RETURN
+
+Returns the SQL name of the field, or C<undef> if the field does
+not exist.
+
+=back
+
+=cut
+
+sub _SQLFieldName {
+    # Get the parameters.
+    my ($self, $baseName, $fieldName) = @_;
+    # Declare the return variable.
+    my $retVal;
+    # We'll compute the real field name in here.
+    my $realName = $fieldName;
+    # Allow the use of underscores for hyphens.
+    $realName =~ tr/_/-/;
+    # Is this a converse relationship?
+    my $obverse = $self->{_metaData}{ConverseTable}{$baseName};
+    if ($obverse) {
+        # Yes. Do the from-to flipping.
+        if ($fieldName eq 'from-link') {
+            $realName = 'to-link';
+        } elsif ($fieldName eq 'to-link') {
+            $realName = 'from-link';
+        }
+        # Denote that the object we're looking for is the
+        # obverse.
+        $baseName = $obverse;
+    }
+    # Get the object's field table.
+    my $fieldTable = $self->GetFieldTable($baseName);
+    # Get the field descriptor.
+    my $fieldThing = $fieldTable->{$realName};
+    if ($fieldThing) {
+        # We found the field, so return its real name.
+        $retVal = $fieldThing->{realName};
+    }
+    # Return the result.
+    return $retVal;
 }
 
 =head3 _FixNames

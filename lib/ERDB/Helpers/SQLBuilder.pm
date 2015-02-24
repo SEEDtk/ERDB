@@ -175,7 +175,7 @@ sub new {
                 if ($embedFlag) {
                     if ($tableName eq $prevTable) {
                         # We are embedded in the previous object. Use its alias.
-                        $aliasData = $aliasMap{$prevName};
+                        $aliasData = [$baseName, $aliasMap{$prevName}[1]];
                     } else {
                         # Here we must generate an alias for the target table.
                         my $aliasName = $retVal->NewObjectName($tableName);
@@ -183,9 +183,9 @@ sub new {
                         # Add the alias to the FROM list.
                         $retVal->UpdateFrom($tableName, $aliasName);
                     }
-                } elsif ($prevObject->[1] && $tableName eq $prevObject->[0]) {
+                } elsif ($prevObject->[1] && $tableName eq $prevObject->[2]) {
                     # The previous object is embedded in us. Use its alias.
-                    $aliasData = $aliasMap{$prevName};
+                    $aliasData = [$baseName, $aliasMap{$prevName}[1]];
                 } else {
                     # There is no embedding. Use the object name as the alias.
                     $aliasData = [$baseName, $objectName];
@@ -201,14 +201,14 @@ sub new {
                 # instance. We need to generate a join. Get the join instructions.
                 my $joinList = $erdb->_GetCrossing($prevBase, $baseName);
                 if (! defined $joinList) {
-                    Confess("No path available from $prevTable to $tableName.");
+                    Confess("No path available from $prevBase to $baseName.");
                 } elsif (@$joinList) {
                     # Here we have join instructions to loop through. Get a list of
                     # the available objects. Note that they must be different. If
                     # an object crosses to itself the join list is empty. Most objects
                     # don't cross to themselves.
-                    my %objects = ($prevTable => $aliasMap{$prevName}[1],
-                            $tableName => $aliasData->[1]);
+                    my %objects = ($prevBase => $aliasMap{$prevName}[1],
+                            $baseName => $aliasData->[1]);
                     for my $join (@$joinList) {
                         my ($tab1, $field1, $tab2, $field2) = @$join;
                         push @joinWhere, "$q$objects{$tab1}$q.$q$field1$q = $q$objects{$tab2}$q.$q$field2$q";
@@ -289,7 +289,7 @@ sub ComputeFieldList {
     # Now we have a field list with all our fields in it. Loop through the list.
     for my $field (@fields) {
         # Parse the field name.
-        my ($objectName, $fieldName) = $self->ParsedFieldName($field);
+        my ($objectName, $fieldName) = $self->ParseFieldName($field);
         # Get the base name of the object.
         my $baseName = $self->BaseObject($objectName);
         # Is this a secondary field?
@@ -300,7 +300,7 @@ sub ComputeFieldList {
         } else {
             # Here we have a primary field. This goes in the query.
             # Get the field's real name.
-            my $sqlName = $self->FixName($field);
+            my $sqlName = $self->FixName($objectName, $fieldName);
             # Remember its location.
             $fieldMap->{"$objectName($fieldName)"} = scalar @retVal;
             # Push it into the output string.
@@ -312,7 +312,7 @@ sub ComputeFieldList {
         my $objectID = "$objectName(id)";
         if (! defined $fieldMap->{"$objectID"}) {
             # Get the field's real name.
-            my $sqlName = $self->FixName($objectID);
+            my $sqlName = $self->FixName($objectName, 'id');
             # Remember its location.
             $fieldMap->{"$sqlName"} = scalar @retVal;
             # Push it into the output string.
@@ -352,7 +352,7 @@ sub SetFilterClause {
     # Compute the FROM clause.
     my $fromClause = $self->FromClause(@{$self->{fromList}});
     # Assemble the filter clause and the FROM data into a suffix.
-    my $retVal = join(" ", "FROM" , $fromClause , $filter);
+    my $retVal = join(" ", $fromClause , $filter);
     # Return the result.
     return $retVal;
 }
@@ -460,13 +460,14 @@ sub NewObjectName {
     return $retVal;
 }
 
+
 =head3 FixNameWithSecondaryCheck
 
     my $fixedName = $sqlBuilder->FixNameWithSecondaryCheck($objectName, $fieldName, $baseName);
 
 This is a version of L</FixName> that serves the special needs of parsing a filter
 clause. The name is converted to SQL format, but if it is a secondary field, then
-we will insure the secondary relation is incorporated into the from-list and join clause.
+we will throw an error.
 
 =over 4
 
@@ -498,29 +499,15 @@ sub FixNameWithSecondaryCheck {
     my $erdb = $self->db;
     # Get the quote character,
     my $q = $self->q;
-    # Fix the name.
-    my $retVal = $self->FixName($objectName, $fieldName);
+    # Declare the return variable.
+    my $retVal;
     # Is this a secondary field?
     if ($erdb->IsSecondary("$baseName($fieldName)")) {
-        # Yes. Get the secondary relation's name.
-        my $secondaryName = $erdb->GetFieldRelationName($baseName, $fieldName);
-        # Compute its object name. It has the same suffix as the incoming name.
-        my $suffix = '';
-        if ($objectName =~ /(\d+)$/) {
-            $suffix = $1;
-        }
-        my $secondaryAlias = "$secondaryName$suffix";
-        # Is it already in the database?
-        if (! $self->{secondaries}{$secondaryAlias}) {
-            # No. Add a from-clause.
-            $self->UpdateFrom($secondaryName, $secondaryAlias);
-            # Add a join clause.
-            my $qid = $q . 'id' . $q;
-            my $join = "$q$objectName$q.$qid = $q$secondaryAlias$q.$qid";
-            push @{$self->{joinWhere}}, $join;
-            # Insure we know that we have this relation.
-            $self->{secondaries}{$secondaryAlias} = $objectName;
-        }
+        # Yes. This is an error.
+        Confess("Secondary field $fieldName of $baseName found in filter clause.");
+    } else {
+        # No. Fix the name.
+        $retVal = $self->FixName($objectName, $fieldName);
     }
     # Return the fixed name.
     return $retVal;
@@ -575,7 +562,7 @@ sub GetSecondaryFilter {
     # Compute the FROM clause.
     my $fromClause = $self->FromClause([$secondaryTable, $aliasName], @{$self->{fromList}});
     # Assemble the filter clause and the FROM data into a suffix.
-    my $retVal = join(" ", "FROM" , $fromClause , $filter);
+    my $retVal = join(" ", $fromClause , $filter);
     # Return the result.
     return ($retVal, $aliasName);
 }
@@ -613,7 +600,7 @@ sub FormatFilter {
     my $sqlFilter = $self->FixFilter($filterClause);
     # Parse out the constraint part.
     my ($constraint, $modifier) = ($sqlFilter, '');
-    if ($sqlFilter =~ /^(.*?)\s*(\bLIMIT\s|ORDER\sBY\s.+)/i) {
+    if ($sqlFilter =~ /^(.*?)\s*(\b(?:LIMIT\s|ORDER\sBY\s).+)$/i) {
          ($constraint, $modifier) = ($1, $2);
     }
     # If there is a constraint, add it to the join clause list.
@@ -692,7 +679,7 @@ sub ParseFieldName {
     my ($self, $name) = @_;
     # The return values will go in here.
     my ($objectName, $fieldName);
-    if ($name =~ /^([^(]+)\(([^)])\)/) {
+    if ($name =~ /^([^(]+)\(([^)]+)\)/) {
         # Here an object name was present.
         ($objectName, $fieldName) = ($1, $2);
     } else {
