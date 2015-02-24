@@ -555,18 +555,9 @@ sub Feature2Function {
     for my $feature (@$features) {
         # We'll store the function data in here.
         my $functionData;
-        # Is this a peg?
-        if ($feature =~ /peg/) {
-            # Yes. Get the function via the protein.
-            ($functionData) = $self->GetAll('Feature2Protein Protein Protein2Function Function',
-                    'Feature2Protein(from-link) = ? AND Protein2Function(security) = ?',
-                    [$feature, $priv], 'Function(id) Function(description) Protein2Function(comment)');
-        } else {
-            # No. Get the function directly.
-            ($functionData) = $self->GetAll('Feature2Function Function',
-                    'Feature2Function(from-link) = ? AND Feature2Function(security) = ?',
-                    [$feature, $priv], 'Function(id) Function(description) Feature2Function(comment)');
-        }
+        ($functionData) = $self->GetAll('Feature2Function Function',
+                'Feature2Function(from-link) = ? AND Feature2Function(security) = ?',
+                [$feature, $priv], 'Function(id) Function(description) Feature2Function(comment)');
         # Store the function data in the return hash.
         $retVal{$feature} = $functionData;
     }

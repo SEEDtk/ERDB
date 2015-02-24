@@ -202,17 +202,11 @@ sub new {
                 my $joinList = $erdb->_GetCrossing($prevBase, $baseName);
                 if (! defined $joinList) {
                     Confess("No path available from $prevBase to $baseName.");
-                } elsif (@$joinList) {
-                    # Here we have join instructions to loop through. Get a list of
-                    # the available objects. Note that they must be different. If
-                    # an object crosses to itself the join list is empty. Most objects
-                    # don't cross to themselves.
-                    my %objects = ($prevBase => $aliasMap{$prevName}[1],
-                            $baseName => $aliasData->[1]);
-                    for my $join (@$joinList) {
-                        my ($tab1, $field1, $tab2, $field2) = @$join;
-                        push @joinWhere, "$q$objects{$tab1}$q.$q$field1$q = $q$objects{$tab2}$q.$q$field2$q";
-                    }
+                } elsif ($joinList) {
+                    # Here we have join instructions. Get the names of the left and right objects.
+                    my @objects = ($aliasMap{$prevName}[1], $aliasData->[1]);
+                    my ($field1, $field2) = @$joinList;
+                    push @joinWhere, "$q$objects[0]$q.$q$field1$q = $q$objects[1]$q.$q$field2$q";
                 }
             }
         }
@@ -275,8 +269,11 @@ sub ComputeFieldList {
             my $fields = $erdb->GetFieldTable($baseName);
             # Loop through the fields.
             for my $field (keys %$fields) {
-                # Add this field to the field list.
-                push @fields, "$objectName($field->{name})";
+                # Is this field imported?
+                if (! $fields->{$field}{imported}) {
+                    # No. Add it to the field list.
+                    push @fields, "$objectName($field)";
+                }
             }
         }
     } elsif (ref $fields eq 'ARRAY') {

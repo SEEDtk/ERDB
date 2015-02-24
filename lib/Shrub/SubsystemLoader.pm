@@ -48,8 +48,7 @@ TRUE if we are to load using individual inserts, FALSE if we are to spool into f
 =cut
 
     # This is a list of the tables we are loading.
-    use constant LOAD_TABLES => qw(Subsystem2Row SubsystemRow Genome2Row Row2Cell
-                                   SubsystemCell Role2Cell Subsystem2Role Feature2Cell);
+    use constant LOAD_TABLES => qw(SubsystemRow SubsystemCell Subsystem2Role Feature2Cell);
 
 =head2 Special Methods
 
@@ -236,10 +235,8 @@ sub LoadSubsystem {
         } else {
             # Yes, create a row for it.
             my $rowID = "$retVal:$row";
-            $loader->InsertObject('Subsystem2Row', 'from-link' => $retVal, 'to-link' => $rowID);
             $loader->InsertObject('SubsystemRow', id => $rowID, 'needs-curation' => $needsCuration,
-                    privilege => $rowPrivilege, 'variant-code' => $varCode);
-            $loader->InsertObject('Genome2Row', 'from-link' => $rowID, 'to-link' => $genome);
+                    privilege => $rowPrivilege, 'variant-code' => $varCode, Subsystem2Row_link => $retVal, Genome2Row_link => $genome);
             $stats->Add(genomeConnected => 1);
             # Now build the cells.
             my %cellMap;
@@ -249,10 +246,7 @@ sub LoadSubsystem {
                 # Compute the cell ID.
                 my $cellID = "$rowID:$abbr";
                 # Create the subsystem cell.
-                $loader->InsertObject('Row2Cell', 'from-link' => $rowID, 'ordinal' => $ord,
-                        'to-link' => $cellID);
-                $loader->InsertObject('SubsystemCell', id => $cellID);
-                $loader->InsertObject('Role2Cell', 'from-link' => $roleID, 'to-link' => $cellID);
+                $loader->InsertObject('SubsystemCell', id => $cellID, Row2Cell_link => $rowID, Row2Cell_ordinal => $ord, Role2Cell_link => $roleID);
                 # Put it in the map.
                 $cellMap{$abbr} = $cellID;
             }

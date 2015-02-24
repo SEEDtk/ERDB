@@ -260,7 +260,7 @@ sub CreateTableHash {
     # Format the field name.
     my $textFieldName = "$table($textField)";
     # Create the query to build the hash.
-    my $query = $shrub->Get($table, "", []);
+    my $query = $shrub->Get($table, "", [], "id $textFieldName");
     # We will build the hash in here.
     my %retVal;
     my $count = 0;

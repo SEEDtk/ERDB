@@ -55,9 +55,7 @@ inserts into files for mass loading.
 =cut
 
     # This is the list of tables we are loading.
-    use constant LOAD_TABLES => qw(Genome Genome2Contig Contig Genome2Feature Feature
-                                   Protein2Feature Protein Protein2Function
-                                   Feature2Contig Feature2Function);
+    use constant LOAD_TABLES => qw(Genome Contig Feature Protein Feature2Contig Feature2Function);
 
 
 
@@ -212,9 +210,9 @@ sub CurateNewGenomes {
     # We only need to access the database if it has not been cleared.
     if (! $clearFlag) {
         print "Analyzing genomes currently in database.\n";
-        my $q = $shrub->Get('Genome', '', []);
+        my $q = $shrub->Get('Genome', '', [], 'id md5-identifier core');
         while (my $genomeData = $q->Fetch()) {
-            my ($id, $md5, $core) = $genomeData->Values([qw(id md5-identifier core)]);
+            my ($id, $md5, $core) = $genomeData->Values('id md5-identifier core');
             # Record the genome under its MD5.
             push @{$genomesByMd5{$md5}}, $id;
             # Record the genome's data.
@@ -348,10 +346,8 @@ sub LoadGenome {
      for my $contigDatum (@$contigList) {
          # Fix the contig ID.
          $contigDatum->{id} = "$genome:$contigDatum->{id}";
-         # Connect the genome to the contig.
-         $loader->InsertObject('Genome2Contig', 'from-link' => $genome, 'to-link' => $contigDatum->{id});
          # Create the contig.
-         $loader->InsertObject('Contig', %$contigDatum);
+         $loader->InsertObject('Contig', %$contigDatum, Genome2Contig_link => $genome);
          $stats->Add(contigInserted => 1);
      }
      # Process the non-protein features.
@@ -359,23 +355,13 @@ sub LoadGenome {
      if (-f $npFile) {
          # Read the feature data.
          print "Processing non-protein features.\n";
-         my $pegHash = $funcLoader->ReadFeatures($genome, $npFile);
-         # Connect the functions.
-         print "Connecting to functions.\n";
-         for my $fid (keys %$pegHash) {
-             # Compute this function's ID.
-             my ($funcID, $comment) = @{$pegHash->{$fid}};
-             # Make the connection at each privilege level.
-             for (my $p = $priv; $p >= 0; $p--) {
-                 $loader->InsertObject('Feature2Function', 'from-link' => $fid, 'to-link' => $funcID,
-                         comment => $comment, security => $p);
-                 $stats->Add(featureFunction => 1);
-             }
-         }
+         $funcLoader->ReadFeatures($genome, $npFile, $priv);
      }
+     # Process the protein features.
+     print "Reading proteins.\n";
+     my $protHash = $funcLoader->ReadProteins($genome, $genomeDir);
      print "Processing protein features.\n";
-     my $pegHash = $funcLoader->ReadFeatures($genome, "$genomeDir/peg-info");
-     $funcLoader->ConnectPegFunctions($genome, $genomeDir, $pegHash, priv => $priv);
+     $funcLoader->ReadFeatures($genome, "$genomeDir/peg-info", $priv, $protHash);
 }
 
 

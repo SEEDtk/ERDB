@@ -1474,7 +1474,7 @@ sub GetList {
 
 =head3 Get
 
-    my $query = $erdb->Get(\@objectNames, $filterClause, \@params);
+    my $query = $erdb->Get(\@objectNames, $filterClause, \@params, $fields);
 
 This method returns a query object for entities of a specified type using a
 specified filter.
@@ -4032,57 +4032,6 @@ sub dbName {
     return $retVal;
 }
 
-=head3 FixEntity
-
-    my $stats = $erdb->FixEntity($name);
-
-This method scans an entity and insures that all of the instances
-connect to an owning relationship instance. Any entity that does
-not connect will be deleted.
-
-=over 4
-
-=item name
-
-Name of the one-to-many relationship that owns the entity.
-
-=item RETURN
-
-Returns a L<Stats> object describing the scan results.
-
-=back
-
-=cut
-
-sub FixEntity {
-    # Get the parameters.
-    my ($self, $name) = @_;
-    # Create the statistics object to return.
-    my $retVal = Stats->new();
-    # Compute the name of the to-entity.
-    my (undef, $toEntity) = $self->GetRelationshipEntities($name);
-    # Loop through the relationship instances, memorizing to-keys.
-    my %keys = map { $_ => 1 } $self->GetFlat($name, "", [], 'to-link');
-    $retVal->Add("$name-keysRead" => scalar keys %keys);
-    # Loop through the entity instances, checking the IDs against the
-    # relationship.
-    my $query = $self->Get($toEntity, "", []);
-    while (my $row = $query->Fetch()) {
-        # Get this instance's ID.
-        my ($id) = $row->Value('id');
-        $retVal->Add("$toEntity-rows" => 1);
-        # Check the relationship.
-        if (! $keys{$id}) {
-            # Not found, so delete the entity instance.
-            $retVal->Add("$name-KeyNotFound" => 1);
-            my $subStats = $self->Delete($toEntity, $id);
-            $retVal->Accumulate($subStats);
-        }
-    }
-    # Return the statistics.
-    return $retVal;
-}
-
 =head3 FixRelationship
 
     my $stats = $erdb->FixRelationship($name, $testOnly);
@@ -4121,7 +4070,7 @@ sub FixRelationship {
     # Loop through the relationship, saving the from and to
     # entity ids.
     my %idHash = (from => {}, to => {});
-    my $query = $self->Get($name, "", []);
+    my $query = $self->Get($name, "", [], 'from-link to-link');
     while (my $row = $query->Fetch()) {
         my ($from, $to) = $row->Values('from-link to-link');
         $idHash{from}{$from} = 1;
@@ -4221,7 +4170,7 @@ sub CleanRelationship {
     my @allFields = keys %{$fieldTable};
     # Loop through the possible from-links.
     my ($fromEntity) = $self->GetRelationshipEntities($relName);
-    my $idQry = $self->Get($fromEntity, "", []);
+    my $idQry = $self->Get($fromEntity, "", [], 'id');
     while (my $idRow = $idQry->Fetch()) {
         my $fromID = $idRow->PrimaryValue('id');
         # We will create a list of delete requests. Each consists of a 3-tuple of a from-link,
@@ -4230,7 +4179,7 @@ sub CleanRelationship {
         # This is a list of insert-back requests. Each consists of a hash of field values.
         my @inserts;
         # Set up to loop through the relationship for this from-link value.
-        my $qry = $self->Get($relName, $clause, [$fromID]);
+        my $qry = $self->Get($relName, $clause, [$fromID], ['from-link', 'to-link', @fields]);
         # Create a dummy key for the first row.
         my @key = ("", "", map { "" } @fields);
         # Remember its size.
@@ -5957,15 +5906,14 @@ sub _GetStructure {
     my ($self, $objectName) = @_;
     # Get the metadata structure.
     my $metadata = $self->{_metaData};
-    # Declare the variable to receive the descriptor.
-    my $retVal;
     # Get the descriptor from the metadata.
-    if (exists $metadata->{Entities}->{$objectName}) {
-        $retVal = $metadata->{Entities}->{$objectName};
-    } elsif (exists $metadata->{Relationships}->{$objectName}) {
-        $retVal = $metadata->{Relationships}->{$objectName};
-    } else {
-        Confess("Object $objectName not found in database.");
+    my $retVal = $metadata->{Entities}{$objectName};
+    if (! $retVal) {
+        my $obverse = $metadata->{ConverseTable}{$objectName} // $objectName;
+        $retVal = $metadata->{Relationships}{$obverse};
+        if (! $retVal) {
+            Confess("Object $objectName not found in database.");
+        }
     }
     # Return the descriptor.
     return $retVal;
@@ -6178,8 +6126,9 @@ sub _LoadMetaData {
         # useful when processing object name lists.
         my %aliasTable = ();
         # This table gives us instructions for crossing from one object to another.
-        # For each pair of names that can appear next to each other, we have a list
-        # of 4-tuples that represent (object name, field) pairs to be joined.
+        # For each pair of names that can appear next to each other, we have a 2-tuple
+        # containing a field from the left object and a field from the right object.
+        # If the two objects are the same, we have an empty string.
         my %crossings = ();
         # Get the entity and relationship lists.
         my $entityList = $metadata->{Entities};
@@ -6237,16 +6186,17 @@ sub _LoadMetaData {
                 # Add its crossings to the crossings table.
                 my $fromEntity = $relData->{from};
                 my $converse = $relData->{converse};
-                $crossings{$fromEntity}{$embeddedRelationship} = [[$fromEntity, 'id', $embeddedRelationship, $fromName]];;
-                $crossings{$converse}{$fromEntity} = [[$converse, $fromName, $fromEntity, 'id']];
-                $crossings{$embeddedRelationship}{$entityName} = [];
-                $crossings{$entityName}{$converse} = [];
-                # Add the fields (except the to-link) to this entity.
+                $crossings{$fromEntity}{$embeddedRelationship} = ['id', $fromName];
+                $crossings{$converse}{$fromEntity} = [$fromName, 'id'];
+                $crossings{$embeddedRelationship}{$entityName} = '';
+                $crossings{$entityName}{$converse} = '';
+                # Copy the fields (except the to-link) to this entity and mark them imported.
                 for my $fieldName (keys %$relFields) {
                     if ($fieldName ne 'to-link') {
-                        my $fieldData = $relFields->{$fieldName};
-                        my $myFieldName = $fieldData->{realName};
-                        _AddField($entityStructure, $myFieldName, $fieldData);
+                        my %fieldData = %{$relFields->{$fieldName}};
+                        $fieldData{imported} = 1;
+                        my $myFieldName = $fieldData{realName};
+                        _AddField($entityStructure, $myFieldName, \%fieldData);
                     }
                 }
                 # Add the from-index as an index on this entity.
@@ -6430,12 +6380,40 @@ sub _LoadMetaData {
                 # Compute the crossings.
                 my $fromEntity = $relationshipStructure->{from};
                 my $toEntity = $relationshipStructure->{to};
-                my $fromCrossing = [[$fromEntity, 'id', $relationshipName, 'from_link']];
-                my $toCrossing = [[$relationshipName, 'to_link', $toEntity, 'id']];
-                $crossings{$fromEntity}{$relationshipName} = [[$fromEntity, 'id', $relationshipName, 'from_link']];
-                $crossings{$converse}{$fromEntity} = [[$converse, 'from_link', $fromEntity, 'id', ]];
-                $crossings{$relationshipName}{$toEntity} = [[$relationshipName, 'to_link', $toEntity, 'id']];
-                $crossings{$toEntity}{$converse} = [[$toEntity, 'id', $converse, 'to_link']];
+                $crossings{$fromEntity}{$relationshipName} = ['id', 'from_link'];
+                $crossings{$converse}{$fromEntity} = ['from_link', 'id'];
+                $crossings{$relationshipName}{$toEntity} = ['to_link', 'id'];
+                $crossings{$toEntity}{$converse} = ['id', 'to_link'];
+            }
+        }
+        # Now loop through the relationships, creating jump-crossings, that is, crossings that skip over intervening
+        # entities. We can only do this because the entity between two relationships is unique. To extend
+        # the crossings further, we would need to insure the paths are unambiguous.
+        for my $relationshipName (keys %{$relationshipList}) {
+            # Do the forward direction, then the converse.
+            for my $relVersion ($relationshipName, $relationshipList->{$relationshipName}{converse}) {
+                my @targets = keys %{$crossings{$relVersion}};
+                for my $target (@targets) {
+                    # Now we have an entity we can reach from this relationship. Get our half of the crossing.
+                    my $crossList = $crossings{$relVersion}{$target};
+                    for my $remote (keys %{$crossings{$target}}) {
+                         my $remoteList = $crossings{$target}{$remote};
+                         # We have four cases, depending on which of the relationships is embedded.
+                         # If both are embedded we do nothing.
+                         if ($crossList) {
+                             if ($remoteList) {
+                                 # Both relationships are real.
+                                 $crossings{$relVersion}{$remote} = [$crossList->[0], $remoteList->[1]];
+                             } else {
+                                 # Only the crossing in real.
+                                 $crossings{$relVersion}{$remote} = $crossList;
+                             }
+                         } elsif ($remoteList) {
+                             # Only the remote is real.
+                             $crossings{$relVersion}{$remote}= $remoteList;
+                         }
+                    }
+                }
             }
         }
         # Now store the master relation table, crossing table, converse table, and alias table in the metadata structure.

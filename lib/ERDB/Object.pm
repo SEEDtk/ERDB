@@ -264,7 +264,7 @@ sub Values {
 
 =head3 _new
 
-    my $erdbObject = ERDB::Object->_new($helper, @values);
+    my $erdbObject = ERDB::Object->_new($helper, \@values);
 
 Create an B<ERDB::Object> for the current database row.
 
@@ -276,7 +276,7 @@ L<ERDB::Helpers::SQLBuilder> object for the relevant query.
 
 =item values
 
-A list of the values returned for the current result row.
+Reference to a list of the values returned for the current result row.
 
 =item RETURN
 
@@ -288,11 +288,11 @@ Returns an B<ERDB::Object> that can be used to access fields from this row of da
 
 sub _new {
     # Get the parameters.
-    my ($class, $helper, @values) = @_;
+    my ($class, $helper, $values) = @_;
     # Create this object.
     my $self = {
         _helper => $helper,
-        _row => \@values
+        _row => $values
     };
     # Bless and return it.
     bless $self, $class;
