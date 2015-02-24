@@ -591,7 +591,7 @@ sub Subsystem2Feature {
     my ($self, $sub) = @_;
     # Read the subsystem features from the database. NOTE that right now the ID and name
     # are the same field.
-    my @retVal = $self->GetFlat('Subsystem2Row SubsystemRow Row2Cell SubsystemCell Cell2Feature', "Subsystem2Row(from-link) = ?", [$sub],
+    my @retVal = $self->GetFlat('Subsystem2Row Row2Cell Cell2Feature', "Subsystem2Row(from-link) = ?", [$sub],
             'Cell2Feature(to-link)');
     # Return the result.
     return \@retVal;
