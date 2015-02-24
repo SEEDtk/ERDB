@@ -18,12 +18,12 @@
 #
 
 
-package ERDBTypeDNA;
+package ERDB::Type::DNA;
 
     use strict;
     use Tracer;
     use ERDB;
-    use base qw(ERDBType);
+    use base qw(ERDB::Type);
 
 =head1 ERDB DNA Type Definition
 
@@ -92,16 +92,16 @@ use constant DIGITS64 => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01
 
 =head3 new
 
-    my $et = ERDBTypeDNA->new();
+    my $et = ERDB::Type::DNA->new();
 
-Construct a new ERDBTypeDNA descriptor.
+Construct a new ERDB::Type::DNA descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeDNA object.
+    # Create the ERDB::Type::DNA object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
@@ -128,13 +128,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
 sub prettySortValue() {
-    return 5;
+    return 6;
 }
 
 =head3 validate

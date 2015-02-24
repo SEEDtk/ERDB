@@ -20,7 +20,7 @@
     use strict;
     use warnings;
     use Shrub;
-    use ShrubLoader;
+    use Shrub::DBLoader;
     use ScriptUtils;
 
 =head1 Prototype Shrub Load Script
@@ -55,7 +55,7 @@ the following.
     print "Connecting to the database.\n";
     my $shrub = Shrub->new_for_script($opt);
     # Get the load helper.
-    my $loader = ShrubLoader->new($shrub);
+    my $loader = Shrub::DBLoader->new($shrub);
     # Get the statistics object.
     my $stats = $loader->stats;
 

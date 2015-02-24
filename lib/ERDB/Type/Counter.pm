@@ -17,94 +17,57 @@
 # http://www.theseed.org/LICENSE.TXT.
 #
 
-package ERDBTypeDate;
+package ERDB::Type::Counter;
 
     use strict;
     use Tracer;
     use ERDB;
-    use Time::Local qw(timelocal_nocheck);
-    use POSIX qw(strftime);
-    use base qw(ERDBType);
+    use base qw(ERDB::Type);
 
-    use constant MONTHS => [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-
-=head1 ERDB Date Type Definition
+=head1 ERDB Counter Type Definition
 
 =head2 Introduction
 
-This object represents the primitive data type for dates. Dates are stored as a
-whole number of seconds since the Unix epoch, which was midnight on January 1,
-1970 UCT. Dates prior to 1970 are negative numbers, but bad things happen if you
-try to go back beyond 1800, because of the calendar conversions in the 18th
-century.
-
-As a convenience, if a date is specified as a string of the style
-C<mm/dd/yy hh:mm:ss>, it will be converted from the local time to the internal
-representation. (The hours must be in military time-- 0 to 24.) There is no
-corresponding conversion on the way out.
+This object represents the primitive data type for large unsigned integers. The
+values range from 0 to 9223372036854775807. Although it is possible to store
+larger numbers, the MySQL arithmetic is always performed using signed 64-bit
+integers, so it's not really safe.
 
 =head3 new
 
-    my $et = ERDBTypeDate->new();
+    my $et = ERDB::Type::Counter->new();
 
-Construct a new ERDBTypeDate descriptor.
+Construct a new ERDB::Type::Counter descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeDate object.
+    # Create the ERDB::Type::Counter object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
     return $retVal;
 }
 
-=head2 Public Methods
+=head2 Virtual Methods
 
-=head3 parseDate
+=head3 numeric
 
-    my ($y, $mo, $d, $h, $mi, $s) = $et->parseDate($string);
+    my $flag = $et->numeric();
 
-Parse the string into the constituent date components: month, day, year,
-hour, minute, second. The pieces are not validated in any meaningful way,
-but if the date won't parse, an empty list will be returned.
-
-=over 4
-
-=item string
-
-Input string representing a date. It must in in a standard C<mm/dd/yy hh:mm:ss>
-format with a 24-hour clock.
-
-=item RETURN
-
-Returns the six components of a time stamp, in order from largest significance
-to smallest significance.
-
-=back
+Return TRUE if this is a numeric type and FALSE otherwise. The default is
+FALSE.
 
 =cut
 
-sub parseDate {
+sub numeric {
     # Get the parameters.
-    my ($self, $string) = @_;
-    # Declare the return variables.
-    my ($y, $mo, $d, $h, $mi, $s);
-    # Parse the string. Note that the time and the seconds are optional.
-    # The constructs that make them conditional use the clustering operator
-    # (?:) so that they don't interfere in the grouping results.
-    if ($string =~ m#^\s*(\d+)/(\d+)/(\d+)(?:\s+(\d+):(\d+)(?::(\d+))?)?\s*$#) {
-        # Extract the pieces of the time stamp. Note that the hours, minutes,
-        # and seconds all default to 0 if they weren't found.
-        ($mo, $d, $y, $h, $mi, $s) = ($1, $2, $3, $4 || 0, $5 || 0, $6 || 0);
-    }
-    # Return the results.
-    return ($y, $mo, $d, $h, $mi, $s);
+    my ($self) = @_;
+    # Return the result.
+    return 1;
 }
-
-=head2 Virtual Methods
 
 =head3 averageLength
 
@@ -124,13 +87,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
 sub prettySortValue() {
-    return 1;
+    return 2;
 }
 
 =head3 validate
@@ -161,37 +124,14 @@ sub validate {
     my ($self, $value) = @_;
     # Assume it's valid until we prove otherwise.
     my $retVal = "";
-    if ($value =~ m/^[+-]?\d+$/) {
-        # Here the value is a number, so we just need to verify that
-        # it will fit. No sane date will ever fail this check.
-        if ($value > 9223372036854775807 || $value < -9223372036854775807) {
-            $retVal = "Date number is out of range.";
-        }
-    } else {
-        # Here we have to have a date string. Parse it and complain if it
-        # won't parse.
-        my ($y, $mo, $d, $h, $mi, $s) = $self->parseDate($value);
-        if (! defined $y) {
-            $retVal = "Date has an invalid format.";
-        } else {
-            # Validate the individual pieces of the date.
-            if ($y > 99 && $y < 1800) {
-                $retVal = "Dates cannot be prior to 1800.";
-            } elsif ($mo < 1 || $mo > 12) {
-                $retVal = "Date has an invalid month."
-            } elsif ($d < 1 || $d > MONTHS->[$mo]) {
-                $retVal = "Date has an invalid day of month.";
-            } elsif ($d == 29 && $mo == 2 &&
-                     ($y % 4 != 0 || $y % 100 == 0 && $y % 400 != 0)) {
-                $retVal = "Date is for February 29 in a non-leap year.";
-            } elsif ($h >= 24) {
-                $retVal = "Date has an invalid hour number.";
-            } elsif ($mi >= 60) {
-                $retVal = "Date has an invalid minute number.";
-            } elsif ($s >= 60) {
-                $retVal = "Date has an invalid second number.";
-            }
-        }
+    if ($value =~ /\./) {
+        $retVal = "Counter values cannot have decimal points.";
+    } elsif ($value =~ /^-/) {
+        $retVal = "Counter values cannot be negative.";
+    } elsif (not $value =~ /^[+]?\d+$/) {
+        $retVal = "Counter value is not numeric.";
+    } elsif ($value > 9223372036854775807 || $value < 0) {
+        $retVal = "Counter value is out of range.";
     }
     # Return the determination.
     return $retVal;
@@ -227,12 +167,6 @@ sub encode {
     my ($self, $value, $mode) = @_;
     # Declare the return variable.
     my $retVal = $value;
-    # Is it a date string?
-    my ($y, $mo, $d, $h, $mi, $s) = $self->parseDate($value);
-    if (defined $y) {
-        # Yes. Convert it from local time.
-        $retVal = timelocal_nocheck($s, $mi, $h, $d-1, $mo-1, $y);
-    }
     # Return the result.
     return $retVal;
 }
@@ -291,7 +225,12 @@ an SQL table.
 =cut
 
 sub sqlType {
-    return "BIGINT";
+    my ($self, $dbh) = @_;
+    my $retVal = "BIGINT";
+    if ($dbh->dbms eq 'mysql') {
+        $retVal = "BIGINT UNSIGNED";
+    }
+    return $retVal;
 }
 
 =head3 indexMod
@@ -332,7 +271,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    return 'Date and time stamp, in seconds since 1970.';
+    return 'Large, unsigned integer, ranging from 0 to 9 quintillion.';
 }
 
 =head3 name
@@ -344,22 +283,22 @@ Return the name of this type, as it will appear in the XML database definition.
 =cut
 
 sub name() {
-    return "date";
+    return "counter";
 }
 
 =head3 default
 
     my $defaultValue = $et->default();
 
-Default value to be used for fields of this type if no default value is
-specified in the database definition or in an L<ERDBLoadGroup/Put>
-call during a loader operation. The default is undefined, which means
-an error will be thrown during the load.
+Return the default value to be used for fields of this type if no default value
+is specified in the database definition or in an L<ERDBLoadGroup/Put> call
+during a loader operation. The default is undefined, which means an error will
+be thrown during the load.
 
 =cut
 
 sub default {
-    return time;
+    return 0;
 }
 
 =head3 align
@@ -372,7 +311,7 @@ C<center>. The default is C<left>.
 =cut
 
 sub align {
-    return 'left';
+    return 'right';
 }
 
 =head3 html
@@ -386,12 +325,7 @@ table. The default is the raw value, html-escaped.
 
 sub html {
     my ($self, $value) = @_;
-    # Break the time into its component parts.
-    my @times = localtime($value);
-    # Convert them to a string.
-    my $retVal = strftime("%m/%d/%Y %H:%M:%S", @times);
-    # Return the result.
-    return $retVal;
+    return $value;
 }
 
 1;

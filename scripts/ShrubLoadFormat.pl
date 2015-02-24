@@ -20,7 +20,7 @@
 use strict;
 use Tracer;
 use Shrub;
-use ShrubLoader;
+use Shrub::DBLoader;
 use ScriptUtils;
 
 =head1 Display Shrub Table Load Formats
@@ -55,7 +55,7 @@ related to the entities will be displayed.
     # Connect to the database.
     my $shrub = Shrub->new_for_script($opt);
     # Create the loader helper object.
-    my $loader = ShrubLoader->new($shrub);
+    my $loader = Shrub::DBLoader->new($shrub);
     # Get the hash of entities.
     my $entityHash = $shrub->GetObjectsTable('entity');
     # Get the list of entities of interest.

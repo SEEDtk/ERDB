@@ -17,11 +17,11 @@
 # http://www.theseed.org/LICENSE.TXT.
 #
 
-package ShrubGenomeLoader;
+package Shrub::GenomeLoader;
 
     use strict;
     use MD5Computer;
-    use ShrubFunctionLoader;
+    use Shrub::FunctionLoader;
     use File::Path;
 
 =head1 Shrub Genome Load Utilities
@@ -35,7 +35,7 @@ The object has the following fields.
 
 =item loader
 
-L<ShrubLoader> object for accessing the database and statistics.
+L<Shrub::DBLoader> object for accessing the database and statistics.
 
 =item md5
 
@@ -43,7 +43,7 @@ L<MD5Computer> object for computing genome and contig MD5s.
 
 =item funcLoader
 
-L<ShrubFunctionLoader> object for computing function and role IDs.
+L<Shrub::FunctionLoader> object for computing function and role IDs.
 
 =item slow
 
@@ -55,9 +55,7 @@ inserts into files for mass loading.
 =cut
 
     # This is the list of tables we are loading.
-    use constant LOAD_TABLES => qw(Genome Genome2Contig Contig Genome2Feature Feature
-                                   Protein2Feature Protein Protein2Function
-                                   Feature2Contig Feature2Function);
+    use constant LOAD_TABLES => qw(Genome Contig Feature Protein Feature2Contig Feature2Function);
 
 
 
@@ -65,7 +63,7 @@ inserts into files for mass loading.
 
 =head3 new
 
-    my $genomeLoader = ShrubGenomeLoader->new($loader, %options);
+    my $genomeLoader = Shrub::GenomeLoader->new($loader, %options);
 
 Construct a new, blank Shrub genome loader object.
 
@@ -73,7 +71,7 @@ Construct a new, blank Shrub genome loader object.
 
 =item loader
 
-L<ShrubLoader> object to be used to access the database and the load utility methods.
+L<Shrub::DBLoader> object to be used to access the database and the load utility methods.
 
 =item options
 
@@ -88,7 +86,7 @@ inserts into files for mass loading. The default is FALSE.
 
 =item funcLoader
 
-A L<ShrubFunctionLoader> object for computing function and role IDs. If none is
+A L<Shrub::FunctionLoader> object for computing function and role IDs. If none is
 provided, one will be created internally.
 
 =back
@@ -106,7 +104,7 @@ sub new {
     my $funcLoader = $options{funcLoader};
     # If the function loader was not provided, create one.
     if (! $funcLoader) {
-        $funcLoader = ShrubFunctionLoader->new($loader, slow => $slow);
+        $funcLoader = Shrub::FunctionLoader->new($loader, slow => $slow);
     }
     # If we are NOT in slow-loading mode, prepare the tables for spooling.
     if (! $slow) {
@@ -212,9 +210,9 @@ sub CurateNewGenomes {
     # We only need to access the database if it has not been cleared.
     if (! $clearFlag) {
         print "Analyzing genomes currently in database.\n";
-        my $q = $shrub->Get('Genome', '', []);
+        my $q = $shrub->Get('Genome', '', [], 'id md5-identifier core');
         while (my $genomeData = $q->Fetch()) {
-            my ($id, $md5, $core) = $genomeData->Values([qw(id md5-identifier core)]);
+            my ($id, $md5, $core) = $genomeData->Values('id md5-identifier core');
             # Record the genome under its MD5.
             push @{$genomesByMd5{$md5}}, $id;
             # Record the genome's data.
@@ -348,10 +346,8 @@ sub LoadGenome {
      for my $contigDatum (@$contigList) {
          # Fix the contig ID.
          $contigDatum->{id} = "$genome:$contigDatum->{id}";
-         # Connect the genome to the contig.
-         $loader->InsertObject('Genome2Contig', 'from-link' => $genome, 'to-link' => $contigDatum->{id});
          # Create the contig.
-         $loader->InsertObject('Contig', %$contigDatum);
+         $loader->InsertObject('Contig', %$contigDatum, Genome2Contig_link => $genome);
          $stats->Add(contigInserted => 1);
      }
      # Process the non-protein features.
@@ -359,23 +355,13 @@ sub LoadGenome {
      if (-f $npFile) {
          # Read the feature data.
          print "Processing non-protein features.\n";
-         my $pegHash = $funcLoader->ReadFeatures($genome, $npFile);
-         # Connect the functions.
-         print "Connecting to functions.\n";
-         for my $fid (keys %$pegHash) {
-             # Compute this function's ID.
-             my ($funcID, $comment) = @{$pegHash->{$fid}};
-             # Make the connection at each privilege level.
-             for (my $p = $priv; $p >= 0; $p--) {
-                 $loader->InsertObject('Feature2Function', 'from-link' => $fid, 'to-link' => $funcID,
-                         comment => $comment, security => $p);
-                 $stats->Add(featureFunction => 1);
-             }
-         }
+         $funcLoader->ReadFeatures($genome, $npFile, $priv);
      }
+     # Process the protein features.
+     print "Reading proteins.\n";
+     my $protHash = $funcLoader->ReadProteins($genome, $genomeDir);
      print "Processing protein features.\n";
-     my $pegHash = $funcLoader->ReadFeatures($genome, "$genomeDir/peg-info");
-     $funcLoader->ConnectPegFunctions($genome, $genomeDir, $pegHash, priv => $priv);
+     $funcLoader->ReadFeatures($genome, "$genomeDir/peg-info", $priv, $protHash);
 }
 
 

@@ -18,65 +18,39 @@
 #
 
 
-package ERDBTypeImage;
+package ERDB::Type::ShortString;
 
     use strict;
     use Tracer;
     use ERDB;
-    use GD;
-    use MIME::Base64;
-    use ERDBExtras;
-    use base qw(ERDBType);
+    use base qw(ERDB::Type);
 
-=head1 ERDB Image Type Definition
+=head1 ERDB Short String Type Definition
 
 =head2 Introduction
 
-This object represents the data type for images stored in the database. Each
-image must be a PERL B<GD> object. It is stored in the database as a base64 MIME
-string computed from the PNG file format.
+This object represents the data type for short strings of 32 characters or less
+with no odd control characters needing translation. Such strings are very limited,
+but more of them can be crowded into an index and they do not require encoding or
+decoding.
 
 =head3 new
 
-    my $et = ERDBTypeImage->new();
+    my $et = ERDB::Type::ShortString->new();
 
-Construct a new ERDBTypeImage descriptor.
+Construct a new ERDB::Type::ShortString descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeImage object.
+    # Create the ERDB::Type::ShortString object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
     return $retVal;
 }
-
-=head3 NewSessionID
-
-    my $id = ERDBTypeImage::NewSessionID();
-
-Generate a new session ID for the current user.
-
-=cut
-
-sub NewSessionID {
-    # Declare the return variable.
-    my $retVal;
-    # Get a digest encoder.
-    my $md5 = Digest::MD5->new();
-    # Add the PID, the IP, and the time stamp. Note that the time stamp is
-    # actually two numbers, and we get them both because we're in list
-    # context.
-    $md5->add($$, $ENV{REMOTE_ADDR}, $ENV{REMOTE_PORT}, gettimeofday());
-    # Hash up all this identifying data.
-    $retVal = $md5->hexdigest();
-    # Return the result.
-    return $retVal;
-}
-
 
 =head2 Virtual Methods
 
@@ -90,7 +64,7 @@ database. This value is used to compute the expected size of a database table.
 =cut
 
 sub averageLength {
-    return 50000;
+    return 24;
 }
 
 =head3 prettySortValue
@@ -98,13 +72,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
 sub prettySortValue() {
-    return 5;
+    return 2;
 }
 
 =head3 validate
@@ -135,9 +109,10 @@ sub validate {
     my ($self, $value) = @_;
     # Assume it's valid until we prove otherwise.
     my $retVal = "";
-    # Only a real GD object is valid.
-    if (! UNIVERSAL::isa($value, 'GD::Image')) {
-        $retVal = "Invalid image value.";
+    if (length($value) > 32) {
+        $retVal = "Invalid short string field.";
+    } elsif ($value =~ /[\%\\\x00-\x1F\x80-\xFF]/) {
+        $retVal = "Invalid character in short-string field.";
     }
     # Return the determination.
     return $retVal;
@@ -171,10 +146,8 @@ encoding is the same for both modes.
 sub encode {
     # Get the parameters.
     my ($self, $value, $mode) = @_;
-    # Encode the value.
-    my $retVal = encode_base64($value->png(), "");
-    # Return the result.
-    return $retVal;
+    # Return the input value.
+    return $value;
 }
 
 =head3 decode
@@ -202,11 +175,8 @@ Returns a value of the desired type.
 sub decode {
     # Get the parameters.
     my ($self, $string) = @_;
-    # Decode the value.
-    my $pngData = decode_base64($string);
-    my $retVal = GD::Image->newFromPngData($pngData);
-    # Return the result.
-    return $retVal;
+    # Return the input value.
+    return $string;
 }
 
 =head3 sqlType
@@ -232,12 +202,7 @@ an SQL table.
 =cut
 
 sub sqlType {
-    my ($self, $dbh) = @_;
-    my $retVal = "TEXT";
-    if ($dbh->dbms eq 'mysql') {
-        $retVal = "LONGTEXT";
-    }
-    return $retVal;
+    return "VARCHAR(32)";
 }
 
 =head3 indexMod
@@ -251,7 +216,7 @@ is an empty string, the entire field is indexed. The default is an empty string.
 =cut
 
 sub indexMod {
-    return undef;
+    return '';
 }
 
 =head3 sortType
@@ -278,7 +243,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    return 'PNG format graphical image';
+    return 'A short string of 32 or fewer chaaracters.';
 }
 
 =head3 name
@@ -290,7 +255,7 @@ Return the name of this type, as it will appear in the XML database definition.
 =cut
 
 sub name() {
-    return "image";
+    return "short-string";
 }
 
 =head3 default
@@ -305,7 +270,7 @@ an error will be thrown during the load.
 =cut
 
 sub default {
-    return undef;
+    return '';
 }
 
 =head3 align
@@ -318,42 +283,8 @@ C<center>. The default is C<left>.
 =cut
 
 sub align {
-    return 'center';
+    return 'left';
 }
 
-=head3 html
-
-    my $html = $et->html($value);
-
-Return the HTML for displaying the content of a field of this type in an output
-table. The default is the raw value, html-escaped.
-
-=cut
-
-sub html {
-    my ($self, $value) = @_;
-    # The incoming value here is a GD graphic image. We need to store it
-    # to a temporary file.
-    my $sessionID = NewSessionID();
-    my $fileName = $sessionID . "image$$.png";
-    my $oh = Open(undef, ">$ERDBExtras::temp/$fileName");
-    print $oh $value->png();
-    close $oh;
-    my $retVal = CGI::img({ src => "$ERDBExtras::temp_url/$fileName" });
-    return $retVal;
-}
-
-=head3 objectType
-
-    my $type = $et->objectType();
-
-Return the PERL type for fields of this type. An undefined value means it's
-a scalar; otherwise, it should be the package name (suitable for a C<use> clause).
-
-=cut
-
-sub objectType {
-    return "GD::Image";
-}
 
 1;

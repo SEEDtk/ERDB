@@ -18,40 +18,85 @@
 #
 
 
-package ERDBTypeString;
+package ERDB::Type::SemiBoolean;
 
     use strict;
     use Tracer;
     use ERDB;
-    use base qw(ERDBType);
+    use CGI qw(-nosticky);
+    use base qw(ERDB::Type);
 
-=head1 ERDB String Type Definition
+=head1 ERDB Ternary Value Type Definition
 
 =head2 Introduction
 
-This object represents the primitive data type for short strings (0 to 250
-characters). These are stored with tabs, newlines, and backslashes escaped, so
-it is possible that a string of exactly 250 characters would not fit in the
-database. The escaping requirement is a consequence of the way the database
-tables are loaded.
+This data type allows a ternary boolean value: Yes, No, or Unknown. The value is
+represented as a single character-- C<N>, C<Y>, or C<?>. The type sorts with the
+unknown value first, then NO, then YES.
+
+=head2 Public Methods
 
 =head3 new
 
-    my $et = ERDBTypeString->new();
+    my $et = ERDB::Type::SemiBoolean->new();
 
-Construct a new ERDBTypeString descriptor.
+Construct a new ERDB::Type::SemiBoolean descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeString object.
+    # Create the ERDB::Type::SemiBoolean object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
     return $retVal;
 }
+
+=head3 ComputeFromString
+
+    my $char = ERDB::Type::SemiBoolean::ComputeFromString($string);
+
+Compute a ternary value from a string. C<1>, C<y>, C<t>, C<true> and C<yes>
+all become C<Y>. C<0>, C<n>, C<f>, and C<false> all become C<N>. Anything
+else (including an undefined value) becomes a question mark. The process is
+entirely case-insensitive.
+
+=over 4
+
+=item string
+
+String to convert to a ternary value.
+
+=item RETURN
+
+A single-character ternary value computed from a string.
+
+=back
+
+=cut
+
+sub ComputeFromString {
+    # Get the parameters.
+    my ($string) = @_;
+    # Default the return value to "?".
+    my $retVal = "?";
+    # Insure the string is defined.
+    if (defined $string) {
+        # Convert it to lower case.
+        my $lowerString = lc $string;
+        # Look for yes-like stuff.
+        if ($lowerString =~ /^(y|yes|t|true|1)$/) {
+            $retVal = 'Y';
+        } elsif ($lowerString =~ /^(n|no|false|0)$/) {
+            $retVal = 'N';
+        }
+    }
+    # Return the result.
+    return $retVal;
+}
+
 
 =head2 Virtual Methods
 
@@ -73,7 +118,7 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
@@ -110,10 +155,8 @@ sub validate {
     my ($self, $value) = @_;
     # Assume it's valid until we prove otherwise.
     my $retVal = "";
-    # Verify the length after escaping.
-    my $testVal = Tracer::Escape($value);
-    if (length($testVal) > 250) {
-        $retVal = "String too long.";
+    if (not $value =~ /^[YN\?]$/) {
+        $retVal = 'Illegal semi-boolean (ternary) value.';
     }
     # Return the determination.
     return $retVal;
@@ -147,10 +190,8 @@ encoding is the same for both modes.
 sub encode {
     # Get the parameters.
     my ($self, $value, $mode) = @_;
-    # Escape the string.
-    my $retVal = Tracer::Escape($value);
     # Return the result.
-    return $retVal;
+    return $value;
 }
 
 =head3 decode
@@ -178,10 +219,8 @@ Returns a value of the desired type.
 sub decode {
     # Get the parameters.
     my ($self, $string) = @_;
-    # Declare the return variable.
-    my $retVal = Tracer::UnEscape($string);
     # Return the result.
-    return $retVal;
+    return $string;
 }
 
 =head3 sqlType
@@ -207,7 +246,7 @@ an SQL table.
 =cut
 
 sub sqlType {
-    return "VARCHAR(250)";
+    return "CHAR(1)";
 }
 
 =head3 indexMod
@@ -248,7 +287,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    return 'Short character string, from 0 to approximately 250 characters.';
+    return 'Ternary boolean value-- Y, N, or ?.';
 }
 
 =head3 name
@@ -260,22 +299,55 @@ Return the name of this type, as it will appear in the XML database definition.
 =cut
 
 sub name() {
-    return "string";
+    return "semi-boolean";
 }
 
 =head3 default
 
     my $defaultValue = $et->default();
 
-Default value to be used for fields of this type if no default value is
-specified in the database definition or in an L<ERDBLoadGroup/Put>
-call during a loader operation. The default is undefined, which means
-an error will be thrown during the load.
+Return the default value to be used for fields of this type if no default value
+is specified in the database definition or in an L<ERDBLoadGroup/Put> call
+during a loader operation. The default is undefined, which means an error will
+be thrown during the load.
 
 =cut
 
 sub default {
-    return '';
+    return '?';
+}
+
+=head3 align
+
+    my $alignment = $et->align();
+
+Return the display alignment for fields of this type: either C<left>, C<right>, or
+C<center>. The default is C<left>.
+
+=cut
+
+sub align {
+    return 'center';
+}
+
+=head3 html
+
+    my $html = $et->html($value);
+
+Return the HTML for displaying the content of a field of this type in an output
+table. The default is the raw value, html-escaped.
+
+=cut
+
+sub html {
+    my ($self, $value) = @_;
+    my $retVal = "";
+    if ($value eq 'Y') {
+        $retVal = "Yes";
+    } elsif ($value eq 'N') {
+        $retVal = "No";
+    }
+    return $retVal;
 }
 
 1;

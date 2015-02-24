@@ -16,12 +16,12 @@
 #
 
 
-package ShrubSubsystemLoader;
+package Shrub::SubsystemLoader;
 
     use strict;
     use warnings;
-    use ShrubFunctionLoader;
-    use ShrubLoader;
+    use Shrub::FunctionLoader;
+    use Shrub::DBLoader;
 
 =head1 Shrub Subsystem Load Helper
 
@@ -32,30 +32,29 @@ subsystem repository. It contains the following fields.
 
 =item loader
 
-A L<ShrubLoader> object for manipulating the database and the repository.
+A L<Shrub::DBLoader> object for manipulating the database and the repository.
 
 =item funcLoader
 
-A L<ShrubFunctionLoader> object for computing function and role IDs.
+A L<Shrub::FunctionLoader> object for computing function and role IDs.
 
 =item slow
 
 TRUE if we are to load using individual inserts, FALSE if we are to spool into files for mass insertion.
-(The effect of this option is managed by the L<ShrubLoader> object.)
+(The effect of this option is managed by the L<Shrub::DBLoader> object.)
 
 =back
 
 =cut
 
     # This is a list of the tables we are loading.
-    use constant LOAD_TABLES => qw(Subsystem2Row SubsystemRow Genome2Row Row2Cell
-                                   SubsystemCell Role2Cell Subsystem2Role Feature2Cell);
+    use constant LOAD_TABLES => qw(SubsystemRow SubsystemCell Subsystem2Role Feature2Cell);
 
 =head2 Special Methods
 
 =head3 new
 
-    my $subLoader = ShrubSubsystemLoader->new($loader, %options);
+    my $subLoader = Shrub::SubsystemLoader->new($loader, %options);
 
 Return a new, blank subsystem load helper.
 
@@ -63,7 +62,7 @@ Return a new, blank subsystem load helper.
 
 =item loader
 
-A L<ShrubLoader> object for manipulating the database and the input repository.
+A L<Shrub::DBLoader> object for manipulating the database and the input repository.
 
 =item options
 
@@ -78,7 +77,7 @@ all loading will be performed by spooling into load files. The default is FALSE.
 
 =item funcLoader
 
-A L<ShrubFunctionLoader> object for computing role IDs. If none is provided, an
+A L<Shrub::FunctionLoader> object for computing role IDs. If none is provided, an
 object will be created internally.
 
 =back
@@ -96,7 +95,7 @@ sub new {
     my $funcLoader = $options{funcLoader};
     # If the function loader was not provided, create one.
     if (! $funcLoader) {
-        $funcLoader = ShrubFunctionLoader->new($loader, rolesOnly => 1, slow => $slow);
+        $funcLoader = Shrub::FunctionLoader->new($loader, rolesOnly => 1, slow => $slow);
     }
     # If we are NOT in slow mode, prepare the tables for loading.
     if (! $slow) {
@@ -236,10 +235,8 @@ sub LoadSubsystem {
         } else {
             # Yes, create a row for it.
             my $rowID = "$retVal:$row";
-            $loader->InsertObject('Subsystem2Row', 'from-link' => $retVal, 'to-link' => $rowID);
             $loader->InsertObject('SubsystemRow', id => $rowID, 'needs-curation' => $needsCuration,
-                    privilege => $rowPrivilege, 'variant-code' => $varCode);
-            $loader->InsertObject('Genome2Row', 'from-link' => $rowID, 'to-link' => $genome);
+                    privilege => $rowPrivilege, 'variant-code' => $varCode, Subsystem2Row_link => $retVal, Genome2Row_link => $genome);
             $stats->Add(genomeConnected => 1);
             # Now build the cells.
             my %cellMap;
@@ -249,10 +246,7 @@ sub LoadSubsystem {
                 # Compute the cell ID.
                 my $cellID = "$rowID:$abbr";
                 # Create the subsystem cell.
-                $loader->InsertObject('Row2Cell', 'from-link' => $rowID, 'ordinal' => $ord,
-                        'to-link' => $cellID);
-                $loader->InsertObject('SubsystemCell', id => $cellID);
-                $loader->InsertObject('Role2Cell', 'from-link' => $roleID, 'to-link' => $cellID);
+                $loader->InsertObject('SubsystemCell', id => $cellID, Row2Cell_link => $rowID, Row2Cell_ordinal => $ord, Role2Cell_link => $roleID);
                 # Put it in the map.
                 $cellMap{$abbr} = $cellID;
             }

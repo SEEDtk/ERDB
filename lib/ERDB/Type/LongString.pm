@@ -17,44 +17,37 @@
 # http://www.theseed.org/LICENSE.TXT.
 #
 
-package ERDBType;
+
+package ERDB::Type::LongString;
 
     use strict;
     use Tracer;
-    use CGI qw(-nosticky);
     use ERDB;
+    use CGI qw(-nosticky);
+    use base qw(ERDB::Type);
 
-
-=head1 ERDB Database Type Definition Base Class
+=head1 ERDB Long String Type Definition
 
 =head2 Introduction
 
-This class describes an ERDB type. All ERDB types are defined as subclasses of
-this one. The class itself is purely virtual, and contains no useful methods.
-
-It's important to recognize that an instance of this class represents a type, not
-an item of the specific type. The types provide methods for manipulating and
-describing values in the data base, but those values are usually scalars or
-objects unrelated to the ERDB type classes.
-
-=cut
+This type represents fully-indexable strings up to 500 characters long. Most
+strings in an ERDB system have an indexable length limit of 250, because this
+means that if the database is implemented in MySQL we can have up to four string
+fields in an index. Some chemical names, however, are over 250 characters long,
+so we need this type to store them.
 
 =head3 new
 
-    my $et = ERDBType->new();
+    my $et = ERDB::Type::LongString->new();
 
-Construct a new ERDBType object. The following options are supported.
-
-=over 4
-
-=back
+Construct a new ERDB::Type::LongString descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBType object.
+    # Create the ERDB::Type::LongString object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
@@ -62,38 +55,6 @@ sub new {
 }
 
 =head2 Virtual Methods
-
-=head3 numeric
-
-    my $flag = $et->numeric();
-
-Return TRUE if this is a numeric type and FALSE otherwise. The default is
-FALSE.
-
-=cut
-
-sub numeric {
-    # Get the parameters.
-    my ($self) = @_;
-    # Return the result.
-    return 0;
-}
-
-=head3 nullable
-
-    my $flag = $et->nullable();
-
-Return TRUE if this type allows null-valued fields, else FALSE. The default is
-FALSE.
-
-=cut
-
-sub nullable {
-    # Get the parameters.
-    my ($self) = @_;
-    # Return the result.
-    return 0;
-}
 
 =head3 averageLength
 
@@ -105,7 +66,7 @@ database. This value is used to compute the expected size of a database table.
 =cut
 
 sub averageLength {
-    Confess("Pure virtual method \"averageLength\" called.");
+    return 80;
 }
 
 =head3 prettySortValue
@@ -113,13 +74,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
-sub prettySortValue {
-    return 2;
+sub prettySortValue() {
+    return 5;
 }
 
 =head3 validate
@@ -146,12 +107,22 @@ otherwise.
 =cut
 
 sub validate {
-    Confess("Pure virtual method \"validate\" called.");
+    # Get the parameters.
+    my ($self, $value) = @_;
+    # Assume it's valid until we prove otherwise.
+    my $retVal = "";
+    # Verify the length after escaping.
+    my $testVal = Tracer::Escape($value);
+    if (length($testVal) > 500) {
+        $retVal = "String too long.";
+    }
+    # Return the determination.
+    return $retVal;
 }
 
 =head3 encode
 
-    my $string = $et->encode($value, $mode)
+    my $string = $et->encode($value, $mode);
 
 Encode a value of this field type for storage in the database (or in a database load
 file.)
@@ -175,7 +146,12 @@ encoding is the same for both modes.
 =cut
 
 sub encode {
-    Confess("Pure virtual method \"encode\" called.");
+    # Get the parameters.
+    my ($self, $value, $mode) = @_;
+    # Escape the string.
+    my $retVal = Tracer::Escape($value);
+    # Return the result.
+    return $retVal;
 }
 
 =head3 decode
@@ -201,7 +177,12 @@ Returns a value of the desired type.
 =cut
 
 sub decode {
-    Confess("Pure virtual method \"decode\" called.");
+    # Get the parameters.
+    my ($self, $string) = @_;
+    # Un-escape the string.
+    my $retVal = Tracer::UnEscape($string);
+    # Return the result.
+    return $retVal;
 }
 
 =head3 sqlType
@@ -227,7 +208,7 @@ an SQL table.
 =cut
 
 sub sqlType {
-    Confess("Pure virtual method \"sqlType\" called.");
+    return "VARCHAR(500)";
 }
 
 =head3 indexMod
@@ -241,7 +222,7 @@ is an empty string, the entire field is indexed. The default is an empty string.
 =cut
 
 sub indexMod {
-    return "";
+    return '';
 }
 
 =head3 sortType
@@ -268,7 +249,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    Confess("Pure virtual method \"documentation\" called.");
+    return 'Character string, up to approximately 500 characters long, fully indexable.';
 }
 
 =head3 name
@@ -280,22 +261,22 @@ Return the name of this type, as it will appear in the XML database definition.
 =cut
 
 sub name() {
-    Confess("Pure virtual method \"name\" called.");
+    return "long-string";
 }
 
 =head3 default
 
     my $defaultValue = $et->default();
 
-Return the default value to be used for fields of this type if no default
-value is specified in the database definition or in an L<ERDBLoadGroup/Put>
-call during a loader operation. The default is undefined, which means
-an error will be thrown during the load.
+Return the default value to be used for fields of this type if no default value
+is specified in the database definition or in an L<ERDBLoadGroup/Put> call
+during a loader operation. The default is undefined, which means an error will
+be thrown during the load.
 
 =cut
 
 sub default {
-    return undef;
+    return '';
 }
 
 =head3 align
@@ -310,34 +291,5 @@ C<center>. The default is C<left>.
 sub align {
     return 'left';
 }
-
-=head3 html
-
-    my $html = $et->html($value);
-
-Return the HTML for displaying the content of a field of this type in an output
-table. The default is the raw value, html-escaped.
-
-=cut
-
-sub html {
-    my ($self, $value) = @_;
-    my $retVal = CGI::escapeHTML($value);
-    return $retVal;
-}
-
-=head3 objectType
-
-    my $type = $et->objectType();
-
-Return the PERL type for fields of this type. An undefined value means it's
-a scalar; otherwise, it should be the package name (suitable for a C<use> clause).
-
-=cut
-
-sub objectType {
-    return undef;
-}
-
 
 1;

@@ -18,85 +18,43 @@
 #
 
 
-package ERDBTypeSemiBoolean;
+package ERDB::Type::HashString;
 
     use strict;
     use Tracer;
     use ERDB;
-    use CGI qw(-nosticky);
-    use base qw(ERDBType);
+    use base qw(ERDB::Type);
 
-=head1 ERDB Ternary Value Type Definition
+=head1 ERDB Hash String Type Definition
 
 =head2 Introduction
 
-This data type allows a ternary boolean value: Yes, No, or Unknown. The value is
-represented as a single character-- C<N>, C<Y>, or C<?>. The type sorts with the
-unknown value first, then NO, then YES.
+This object represents the data type for keys that are hash codes produced from
+computable strings. Such codes are almost guaranteed to be unique, and are
+considerably shorter than the data from which they are digested. It is not,
+however, possible to reverse the encoding.
 
-=head2 Public Methods
+There is no encoding or decoding done for this type. Instead, its use serves as
+notice that the real identifier must be computed by feeding something through
+L<ERDB/DigestKey>.
 
 =head3 new
 
-    my $et = ERDBTypeSemiBoolean->new();
+    my $et = ERDB::Type::HashString->new();
 
-Construct a new ERDBTypeSemiBoolean descriptor.
+Construct a new ERDB::Type::HashString descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeSemiBoolean object.
+    # Create the ERDB::Type::HashString object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
     return $retVal;
 }
-
-=head3 ComputeFromString
-
-    my $char = ERDBTypeSemiBoolean::ComputeFromString($string);
-
-Compute a ternary value from a string. C<1>, C<y>, C<t>, C<true> and C<yes>
-all become C<Y>. C<0>, C<n>, C<f>, and C<false> all become C<N>. Anything
-else (including an undefined value) becomes a question mark. The process is
-entirely case-insensitive.
-
-=over 4
-
-=item string
-
-String to convert to a ternary value.
-
-=item RETURN
-
-A single-character ternary value computed from a string.
-
-=back
-
-=cut
-
-sub ComputeFromString {
-    # Get the parameters.
-    my ($string) = @_;
-    # Default the return value to "?".
-    my $retVal = "?";
-    # Insure the string is defined.
-    if (defined $string) {
-        # Convert it to lower case.
-        my $lowerString = lc $string;
-        # Look for yes-like stuff.
-        if ($lowerString =~ /^(y|yes|t|true|1)$/) {
-            $retVal = 'Y';
-        } elsif ($lowerString =~ /^(n|no|false|0)$/) {
-            $retVal = 'N';
-        }
-    }
-    # Return the result.
-    return $retVal;
-}
-
 
 =head2 Virtual Methods
 
@@ -110,7 +68,7 @@ database. This value is used to compute the expected size of a database table.
 =cut
 
 sub averageLength {
-    return 80;
+    return 22;
 }
 
 =head3 prettySortValue
@@ -118,13 +76,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
 sub prettySortValue() {
-    return 1;
+    return 2;
 }
 
 =head3 validate
@@ -155,8 +113,8 @@ sub validate {
     my ($self, $value) = @_;
     # Assume it's valid until we prove otherwise.
     my $retVal = "";
-    if (not $value =~ /^[YN\?]$/) {
-        $retVal = 'Illegal semi-boolean (ternary) value.';
+    if (length($value) != 22) {
+        $retVal = "Invalid hash string field.";
     }
     # Return the determination.
     return $retVal;
@@ -190,7 +148,7 @@ encoding is the same for both modes.
 sub encode {
     # Get the parameters.
     my ($self, $value, $mode) = @_;
-    # Return the result.
+    # Return the input value.
     return $value;
 }
 
@@ -219,7 +177,7 @@ Returns a value of the desired type.
 sub decode {
     # Get the parameters.
     my ($self, $string) = @_;
-    # Return the result.
+    # Return the input value.
     return $string;
 }
 
@@ -246,7 +204,7 @@ an SQL table.
 =cut
 
 sub sqlType {
-    return "CHAR(1)";
+    return "CHAR(22)";
 }
 
 =head3 indexMod
@@ -287,7 +245,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    return 'Ternary boolean value-- Y, N, or ?.';
+    return 'A Base64 Digest MD5 code.';
 }
 
 =head3 name
@@ -299,22 +257,22 @@ Return the name of this type, as it will appear in the XML database definition.
 =cut
 
 sub name() {
-    return "semi-boolean";
+    return "hash-string";
 }
 
 =head3 default
 
     my $defaultValue = $et->default();
 
-Return the default value to be used for fields of this type if no default value
-is specified in the database definition or in an L<ERDBLoadGroup/Put> call
-during a loader operation. The default is undefined, which means an error will
-be thrown during the load.
+Default value to be used for fields of this type if no default value is
+specified in the database definition or in an L<ERDBLoadGroup/Put>
+call during a loader operation. The default is undefined, which means
+an error will be thrown during the load.
 
 =cut
 
 sub default {
-    return '?';
+    return '                      ';
 }
 
 =head3 align
@@ -327,27 +285,8 @@ C<center>. The default is C<left>.
 =cut
 
 sub align {
-    return 'center';
+    return 'left';
 }
 
-=head3 html
-
-    my $html = $et->html($value);
-
-Return the HTML for displaying the content of a field of this type in an output
-table. The default is the raw value, html-escaped.
-
-=cut
-
-sub html {
-    my ($self, $value) = @_;
-    my $retVal = "";
-    if ($value eq 'Y') {
-        $retVal = "Yes";
-    } elsif ($value eq 'N') {
-        $retVal = "No";
-    }
-    return $retVal;
-}
 
 1;

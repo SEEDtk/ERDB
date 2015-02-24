@@ -18,7 +18,7 @@
 #
 
 
-package ERDBPDocPage;
+package ERDB::PDocPage;
 
     use strict;
     use Tracer;
@@ -86,9 +86,9 @@ use constant ARITY_TO   => { '1M' => 'many-to-one', 'MM' => 'many-to-many' };
 
 =head3 new
 
-    my $html = ERDBPDocPage->new(%options);
+    my $html = ERDB::PDocPage->new(%options);
 
-Construct a new ERDBPDocPage object. The following options are supported.
+Construct a new ERDB::PDocPage object. The following options are supported.
 
 =over 4
 
@@ -129,7 +129,7 @@ sub new {
         # Here we need to create the database object from the name.
         $erdb = ERDB::GetDatabase($name);
     }
-    # Create the ERDBPDocPage object.
+    # Create the ERDB::PDocPage object.
     my $retVal = {
                     erdb => $erdb,
                     idString => $idString,
@@ -516,10 +516,16 @@ sub DocRelationship {
                       "($toArity)");
     # Generate the relationship sentences.
     push @lines, CGI::ul(CGI::li([$fromLine, $toLine]));
-    # Display the fields.
-    push @lines, $self->DocFields($name, $metadata);
-    # Display the indexes.
-    push @lines, $self->DocIndexes($name, $metadata);
+    # Is this an embedded relationship?
+    if ($metadata->{embedded}) {
+        # Yes. Display a message.
+        push @lines, $self->Para("This is an embedded relationship implemented as fields and indexes in $toEntity.");
+    } else {
+        # No. Display the fields.
+        push @lines, $self->DocFields($name, $metadata);
+        # Display the indexes.
+        push @lines, $self->DocIndexes($name, $metadata);
+    }
     # Return the result.
     my $retVal = join("\n", @lines);
     return $retVal;
@@ -718,7 +724,7 @@ sub ObjectHeading {
 
 =head3 FancyTable
 
-    my $html = ERDBPDocPage::FancyTable(\@cols, @rows);
+    my $html = ERDB::PDocPage::FancyTable(\@cols, @rows);
 
 Create a fancy html table. The first parameter is a hash-looking
 thing that lists column styles and names, for example

@@ -18,7 +18,7 @@
 #
 
 
-package ShrubLoader;
+package Shrub::DBLoader;
 
     use strict;
     use base qw(RepoLoader);
@@ -69,7 +69,7 @@ Reference to a hash containing the names of the tables being inserted in replace
 
 =head3 new
 
-    my $loader = ShrubLoader->new($shrub);
+    my $loader = Shrub::DBLoader->new($shrub);
 
 Create a new, blank loader object.
 
@@ -260,7 +260,7 @@ sub CreateTableHash {
     # Format the field name.
     my $textFieldName = "$table($textField)";
     # Create the query to build the hash.
-    my $query = $shrub->Get($table, "", []);
+    my $query = $shrub->Get($table, "", [], "id $textFieldName");
     # We will build the hash in here.
     my %retVal;
     my $count = 0;

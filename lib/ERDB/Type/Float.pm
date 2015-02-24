@@ -18,31 +18,37 @@
 #
 
 
-package ERDBTypeChar;
+package ERDB::Type::Float;
 
     use strict;
     use Tracer;
     use ERDB;
-    use base qw(ERDBType);
+    use base qw(ERDB::Type);
 
-=head1 ERDB Character Flag Type Definition
+=head1 Double Precision Floating-Point Numeric Type Definition
 
 =head2 Introduction
 
-This is the primitive ERDB data type for a single-character flag.
+This object represents the primitive data type for IEEE 8-byte floating-point
+numbers. The allowable values are -1.7976931348623157E+308 to
+-2.2250738585072014E-308, 0, and 2.2250738585072014E-308 to
+1.7976931348623157E+308.
+
+
+=cut
 
 =head3 new
 
-    my $et = ERDBTypeChar->new();
+    my $et = ERDB::Type::Float->new();
 
-Construct a new ERDBTypeChar descriptor.
+Construct a new ERDB::Type::Float object.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeChar object.
+    # Create the  object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
@@ -50,6 +56,38 @@ sub new {
 }
 
 =head2 Virtual Methods
+
+=head3 numeric
+
+    my $flag = $et->numeric();
+
+Return TRUE if this is a numeric type and FALSE otherwise. The default is
+FALSE.
+
+=cut
+
+sub numeric {
+    # Get the parameters.
+    my ($self) = @_;
+    # Return the result.
+    return 1;
+}
+
+=head3 nullable
+
+    my $flag = $et->nullable();
+
+Return TRUE if this type allows null-valued fields, else FALSE. The default is
+FALSE.
+
+=cut
+
+sub nullable {
+    # Get the parameters.
+    my ($self) = @_;
+    # Return the result.
+    return 1;
+}
 
 =head3 averageLength
 
@@ -61,7 +99,7 @@ database. This value is used to compute the expected size of a database table.
 =cut
 
 sub averageLength {
-    return 1;
+    return 8;
 }
 
 =head3 prettySortValue
@@ -69,13 +107,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
 sub prettySortValue() {
-    return 1;
+    return 2;
 }
 
 =head3 validate
@@ -106,8 +144,8 @@ sub validate {
     my ($self, $value) = @_;
     # Assume it's valid until we prove otherwise.
     my $retVal = "";
-    if (! defined $value || length($value) != 1) {
-        $retVal = "Invalid single-character value.";
+    if (not $value =~ /^[+-]?(?:\d+\.?|\d+\.\d+|\.\d+)(?:[Ee][+-]?\d+)?$/) {
+        $retVal = "Floating-point value \"$value\" is not numeric.";
     }
     # Return the determination.
     return $retVal;
@@ -141,8 +179,15 @@ encoding is the same for both modes.
 sub encode {
     # Get the parameters.
     my ($self, $value, $mode) = @_;
+    # Get the value.
+    my $retVal = $value;
+    # If we are going into a load file and the value is NULL, convert it to an
+    # escape sequence.
+    if ($mode && ! defined $retVal) {
+        $retVal = "\\N";
+    }
     # Return the result.
-    return $value;
+    return $retVal;
 }
 
 =head3 decode
@@ -170,6 +215,7 @@ Returns a value of the desired type.
 sub decode {
     # Get the parameters.
     my ($self, $string) = @_;
+    # Declare the return variable.
     # Return the result.
     return $string;
 }
@@ -197,7 +243,7 @@ an SQL table.
 =cut
 
 sub sqlType {
-    return "CHAR(1)";
+    return "DOUBLE PRECISION";
 }
 
 =head3 indexMod
@@ -225,7 +271,7 @@ The default is the empty string.
 =cut
 
 sub sortType {
-    return "";
+    return "g";
 }
 
 =head3 documentation
@@ -238,7 +284,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    return 'Single-character value.';
+    return "Floating-point number, approximately 15 significant digits, from 10^-308 to 10^+308.";
 }
 
 =head3 name
@@ -250,22 +296,22 @@ Return the name of this type, as it will appear in the XML database definition.
 =cut
 
 sub name() {
-    return "char";
+    return "float";
 }
 
 =head3 default
 
     my $defaultValue = $et->default();
 
-Return the default value to be used for fields of this type if no default value
-is specified in the database definition or in an L<ERDBLoadGroup/Put> call
-during a loader operation. The default is undefined, which means an error will
-be thrown during the load.
+Default value to be used for fields of this type if no default value is
+specified in the database definition or in an L<ERDBLoadGroup/Put>
+call during a loader operation. The default is undefined, which means
+an error will be thrown during the load.
 
 =cut
 
 sub default {
-    return ' ';
+    return 0;
 }
 
 =head3 align
@@ -279,6 +325,24 @@ C<center>. The default is C<left>.
 
 sub align {
     return 'center';
+}
+
+=head3 html
+
+    my $html = $et->html($value);
+
+Return the HTML for displaying the content of a field of this type in an output
+table. The default is the raw value, html-escaped.
+
+=cut
+
+sub html {
+    my ($self, $value) = @_;
+    my $retVal = "";
+    if (defined $value) {
+        $retVal = sprintf("%.8g", $value);
+    }
+    return $retVal;
 }
 
 

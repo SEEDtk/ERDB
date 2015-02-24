@@ -1,3 +1,5 @@
+
+
 #!/usr/bin/perl -w
 
 #
@@ -17,7 +19,7 @@
 # http://www.theseed.org/LICENSE.TXT.
 #
 
-package ERDBQueryConsole;
+package ERDB::QueryConsole;
 
     use strict;
     use Tracer;
@@ -50,7 +52,7 @@ L<ERDB> database object for the current database.
 
 =item query
 
-L<ERDBQuery> object for obtaining the query results.
+L<ERDB::Query> object for obtaining the query results.
 
 =item fields
 
@@ -87,9 +89,9 @@ Statistics object.
 
 =head3 new
 
-    my $eq = ERDBQueryConsole->new($db, %options);
+    my $eq = ERDB::QueryConsole->new($db, %options);
 
-Construct a new ERDBQueryConsole object. The parameters are as follows.
+Construct a new ERDB::QueryConsole object. The parameters are as follows.
 
 =over 4
 
@@ -134,7 +136,7 @@ sub new {
     } else {
         $erdb = $db;
     }
-    # Create the ERDBQueryConsole object.
+    # Create the ERDB::QueryConsole object.
     my $retVal = {
                     erdb => $erdb,
                     secure => $secure,
@@ -628,7 +630,7 @@ sub Messages {
 
 =head3 SplitFields
 
-    my @fields = ERDBQueryConsole::SplitFields($fieldString);
+    my @fields = ERDB::QueryConsole::SplitFields($fieldString);
 
 Convert a field string to a list of field names. The string can be either
 comma-delimited or space-delimited.
@@ -667,7 +669,7 @@ sub SplitFields {
 
 =head3 Quotify
 
-    my $quoted = ERDBQueryConsole::Quotify($string);
+    my $quoted = ERDB::QueryConsole::Quotify($string);
 
 Convert the input string to a PERL string constant. Internal single
 quotes will be escaped, and the entire string will be surrounded by

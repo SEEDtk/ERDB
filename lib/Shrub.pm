@@ -540,7 +540,7 @@ Reference to a list of feature IDs.
 =item RETURN
 
 Returns a reference to a hash mapping each feature to a 3-tuple. Each 3-tuple will consist of
-(0) the function ID, (1) the function statement, and (2) the associated comment.
+(0) the function ID, (1) the function description, and (2) the associated comment.
 
 =back
 
@@ -555,18 +555,9 @@ sub Feature2Function {
     for my $feature (@$features) {
         # We'll store the function data in here.
         my $functionData;
-        # Is this a peg?
-        if ($feature =~ /peg/) {
-            # Yes. Get the function via the protein.
-            ($functionData) = $self->GetAll('Feature2Protein Protein Protein2Function Function',
-                    'Feature2Protein(from-link) = ? AND Protein2Function(security) = ?',
-                    [$feature, $priv], 'Function(id) Function(description) Protein2Function(comment)');
-        } else {
-            # No. Get the function directly.
-            ($functionData) = $self->GetAll('Feature2Function Function',
-                    'Feature2Function(from-link) = ? AND Feature2Function(security) = ?',
-                    [$feature, $priv], 'Function(id) Function(description) Feature2Function(comment)');
-        }
+        ($functionData) = $self->GetAll('Feature2Function Function',
+                'Feature2Function(from-link) = ? AND Feature2Function(security) = ?',
+                [$feature, $priv], 'Function(id) Function(description) Feature2Function(comment)');
         # Store the function data in the return hash.
         $retVal{$feature} = $functionData;
     }

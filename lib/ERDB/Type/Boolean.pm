@@ -17,35 +17,32 @@
 # http://www.theseed.org/LICENSE.TXT.
 #
 
-
-package ERDBTypeShortString;
+package ERDB::Type::Boolean;
 
     use strict;
     use Tracer;
     use ERDB;
-    use base qw(ERDBType);
+    use base qw(ERDB::Type);
 
-=head1 ERDB Short String Type Definition
+=head1 ERDB Boolean Type Definition
 
 =head2 Introduction
 
-This object represents the data type for short strings of 32 characters or less
-with no odd control characters needing translation. Such strings are very limited,
-but more of them can be crowded into an index and they do not require encoding or
-decoding.
+This object represents the data type for boolean values. A boolean value is
+stored as a tiny integer with a value of 0 or 1.
 
 =head3 new
 
-    my $et = ERDBTypeShortString->new();
+    my $et = ERDB::Type::Boolean->new();
 
-Construct a new ERDBTypeShortString descriptor.
+Construct a new ERDB::Type::Boolean descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeShortString object.
+    # Create the ERDB::Type::Boolean object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
@@ -64,7 +61,7 @@ database. This value is used to compute the expected size of a database table.
 =cut
 
 sub averageLength {
-    return 24;
+    return 1;
 }
 
 =head3 prettySortValue
@@ -72,13 +69,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<1> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
 sub prettySortValue() {
-    return 1;
+    return 2;
 }
 
 =head3 validate
@@ -109,10 +106,8 @@ sub validate {
     my ($self, $value) = @_;
     # Assume it's valid until we prove otherwise.
     my $retVal = "";
-    if (length($value) > 32) {
-        $retVal = "Invalid short string field.";
-    } elsif ($value =~ /[\%\\\x00-\x1F\x80-\xFF]/) {
-        $retVal = "Invalid character in short-string field.";
+    if ($value != 0 && $value != 1) {
+        $retVal = "Invalid boolean value.";
     }
     # Return the determination.
     return $retVal;
@@ -146,8 +141,10 @@ encoding is the same for both modes.
 sub encode {
     # Get the parameters.
     my ($self, $value, $mode) = @_;
-    # Return the input value.
-    return $value;
+    # Declare the return variable.
+    my $retVal = ($value ? 1 : 0);
+    # Return the result.
+    return $retVal;
 }
 
 =head3 decode
@@ -175,8 +172,10 @@ Returns a value of the desired type.
 sub decode {
     # Get the parameters.
     my ($self, $string) = @_;
-    # Return the input value.
-    return $string;
+    # Declare the return variable.
+    my $retVal = $string;
+    # Return the result.
+    return $retVal;
 }
 
 =head3 sqlType
@@ -202,7 +201,14 @@ an SQL table.
 =cut
 
 sub sqlType {
-    return "VARCHAR(32)";
+    my ($self, $dbh) = @_;
+    my $retVal = 'INT';
+    if ($dbh->dbms eq 'mysql') {
+        $retVal = "TINYINT";
+    } elsif ($dbh->dbms eq 'Pg') {
+        $retVal = "SMALLINT";
+    }
+    return $retVal;
 }
 
 =head3 indexMod
@@ -230,7 +236,7 @@ The default is the empty string.
 =cut
 
 sub sortType {
-    return "";
+    return "n";
 }
 
 =head3 documentation
@@ -243,7 +249,7 @@ format, though HTML will also work.
 =cut
 
 sub documentation() {
-    return 'A short string of 32 or fewer chaaracters.';
+    return 'Boolean value (0 or 1).';
 }
 
 =head3 name
@@ -255,22 +261,22 @@ Return the name of this type, as it will appear in the XML database definition.
 =cut
 
 sub name() {
-    return "short-string";
+    return "boolean";
 }
 
 =head3 default
 
     my $defaultValue = $et->default();
 
-Default value to be used for fields of this type if no default value is
-specified in the database definition or in an L<ERDBLoadGroup/Put>
-call during a loader operation. The default is undefined, which means
-an error will be thrown during the load.
+Return the default value to be used for fields of this type if no default value
+is specified in the database definition or in an L<ERDBLoadGroup/Put> call
+during a loader operation. The default is undefined, which means an error will
+be thrown during the load.
 
 =cut
 
 sub default {
-    return '';
+    return 0;
 }
 
 =head3 align
@@ -283,7 +289,22 @@ C<center>. The default is C<left>.
 =cut
 
 sub align {
-    return 'left';
+    return 'center';
+}
+
+=head3 html
+
+    my $html = $et->html($value);
+
+Return the HTML for displaying the content of a field of this type in an output
+table.
+
+=cut
+
+sub html {
+    my ($self, $value) = @_;
+    my $retVal = ($value ? 'Y' : '');
+    return $retVal;
 }
 
 

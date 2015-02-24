@@ -18,14 +18,14 @@
 #
 
 
-package ERDBTypeRectangle;
+package ERDB::Type::Rectangle;
 
     use strict;
     use Tracer;
     use ERDB;
     use CGI;
     use Rectangle;
-    use base qw(ERDBType);
+    use base qw(ERDB::Type);
 
 =head1 ERDB Rectangle Descriptor Type Definition
 
@@ -39,16 +39,16 @@ object.
 
 =head3 new
 
-    my $et = ERDBTypeRectangle->new();
+    my $et = ERDB::Type::Rectangle->new();
 
-Construct a new ERDBTypeRectangle descriptor.
+Construct a new ERDB::Type::Rectangle descriptor.
 
 =cut
 
 sub new {
     # Get the parameters.
     my ($class) = @_;
-    # Create the ERDBTypeRectangle object.
+    # Create the ERDB::Type::Rectangle object.
     my $retVal = { };
     # Bless and return it.
     bless $retVal, $class;
@@ -75,13 +75,13 @@ sub averageLength {
     my $value = $et->prettySortValue();
 
 Number indicating where fields of this type should go in relation to other
-fields. The value should be somewhere between C<1> and C<5>. A value outside
+fields. The value should be somewhere between C<2> and C<6>. A value outside
 that range will make terrible things happen.
 
 =cut
 
 sub prettySortValue() {
-    return 2;
+    return 3;
 }
 
 =head3 validate

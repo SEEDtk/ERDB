@@ -17,10 +17,10 @@
 # http://www.theseed.org/LICENSE.TXT.
 #
 
-package ShrubFunctionLoader;
+package Shrub::FunctionLoader;
 
     use strict;
-    use ShrubLoader;
+    use Shrub::DBLoader;
     use Shrub;
     use SeedUtils;
     use BasicLocation;
@@ -38,7 +38,7 @@ This object has the following fields.
 
 =item loader
 
-L<ShrubLoader> object used to access the database and the hash tables.
+L<Shrub::DBLoader> object used to access the database and the hash tables.
 
 =item roleHash
 
@@ -61,7 +61,7 @@ database. At the current time, we have no way to enforce this.
 
 =head3 new
 
-    my $funcLoader = ShrubFunctionLoader->new($loader, %options);
+    my $funcLoader = Shrub::FunctionLoader->new($loader, %options);
 
 Construct a new Shrub function loader object and initialize the hash tables.
 
@@ -69,7 +69,7 @@ Construct a new Shrub function loader object and initialize the hash tables.
 
 =item loader
 
-L<ShrubLoader> object to be used to access the database and the load utility methods.
+L<Shrub::DBLoader> object to be used to access the database and the load utility methods.
 
 =item options
 
@@ -86,7 +86,7 @@ is FALSE.
 =item slow
 
 If TRUE, tables will be loaded with individual inserts instead of file loading
-when the L<ShrubLoader> object is closed.
+when the L<Shrub::DBLoader> object is closed.
 
 =back
 
@@ -256,9 +256,9 @@ sub ProcessRole {
 }
 
 
-=head3 ConnectPegFunctions
+=head3 ReadProteins
 
-    $funcLoader->ConnectPegFunctions($genome, $genomeDir, $priv, \%gPegHash, %options);
+    my $protHash = $funcLoader->ReadProteins($genome, $genomeDir);
 
 Connect the proteins found in the specified genome's peg translation file to the functions in the
 specified hash. It can also optionally connect the peg Feature records to the translations themselves.
@@ -273,87 +273,50 @@ ID of the genome whose protein file is to be read.
 
 Directory containing the genome source files.
 
-=item gPegHash
+=item RETURN
 
-Reference to a hash mapping peg IDs to 2-tuples describing assigned functions. Each 2-tuple
-contains (0) the function's ID number and (1) the associated comment (frequently an empty
-string).
-
-=item options
-
-Hash containing options modifying the process. The keys of interest are as follows.
-
-=over 8
-
-=item translationLinks
-
-If C<0>, then the pegs will not be linked to the protein translations. If C<1>, then the pegs will
-be linked to the protein translations. The default is C<1>.
-
-=item priv
-
-Privilege level for the function assignments. Assignments will be attached at this privilege
-level and all levels below it. The default is C<0>.
-
-=back
+Returns a reference to a hash mapping feature iDs to protein IDs. The proteins will have been
+inserted into the database.
 
 =back
 
 =cut
 
-sub ConnectPegFunctions {
+sub ReadProteins {
     # Get the parameters.
-    my ($self, $genome, $genomeDir, $gPegHash, %options) = @_;
-    # Determine if we are translating links. Note the use of the // operator: if the value is underfined,
-    # it defaults to 1.
-    my $translateLinks = $options{translateLinks} // 1;
-    # Determine the privilege level. The default is 0.
-    my $priv = $options{priv} // 0;
+    my ($self, $genome, $genomeDir) = @_;
     # Get the loader object.
     my $loader = $self->{loader};
     # Get the statistics object.
     my $stats = $loader->stats;
+    # The return hash will go in here.
+    my %retVal;
     # Open the genome's protein FASTA.
-    print "Processing $genome peg functions.\n";
+    print "Reading $genome proteinss.\n";
     my $fh = $loader->OpenFasta(protein => "$genomeDir/peg-trans");
     # Loop through the proteins.
     while (my $protDatum = $loader->GetLine(protein => $fh)) {
         my ($pegId, undef, $seq) = @$protDatum;
-        my $funcData = $gPegHash->{$pegId};
-        # Are we interested in this protein?
-        if (defined $funcData) {
-            # Compute the protein ID.
-            my $protID = Shrub::ProteinID($seq);
-            # Insert the protein into the database.
-            $loader->InsertObject('Protein', id => $protID, sequence => $seq);
-            # Insure the function is in the database.
-            my ($funcID, $comment) = @$funcData;
-            # Attach the function to it at the current privilege level and all levels
-            # below.
-            for (my $p = $priv; $p >= 0; $p--) {
-                $loader->InsertObject('Protein2Function', 'from-link' => $protID,
-                    'to-link' => $funcID, comment => $comment, security => $p);
-                $stats->Add(functionLinkInserted => 1);
-            }
-            # If we are adding translation links, add them here.
-            if ($translateLinks) {
-                $loader->InsertObject('Protein2Feature', 'to-link' => $pegId,
-                        'from-link' => $protID);
-                $stats->Add(featureLinkInserted => 1);
-            }
-        }
+        # Compute the protein ID.
+        my $protID = Shrub::ProteinID($seq);
+        # Insert the protein into the database.
+        $loader->InsertObject('Protein', id => $protID, sequence => $seq);
+        # Connect the protein to the feature in the hash.
+        $retVal{$pegId} = $protID;
     }
+    # Return the protein hash.
+    return \%retVal;
 }
 
 
 =head3 ReadFeatures
 
-    my $funcHash = $funcLoader->ReadFeatures($genome, $fileName);
+    $funcLoader->ReadFeatures($genome, $fileName, $priv, \%protHash);
 
 Read the feature information from a tab-delimited feature file. For each feature, the file contains
 the feature ID, its location string (Sapling format), and its functional assignment. This method
-will insert the feature, connect it to the genome and the contig, then record the functional
-assignment in a hash for processing later.
+will insert the feature, connect it to the genome and the contig, then attach the functional
+assignment.
 
 =over 4
 
@@ -365,9 +328,13 @@ ID of the genome whose feature file is being processed.
 
 Name of the file containing the feature data to process.
 
-=item RETURN
+=item priv
 
-Returns a reference to a hash mapping each feature ID to the text of its functional assignment.
+Privilege level for the functional assignments.
+
+=item protHash (optional)
+
+A hash mapping feature IDs to protein IDs.
 
 =back
 
@@ -375,15 +342,15 @@ Returns a reference to a hash mapping each feature ID to the text of its functio
 
 sub ReadFeatures {
     # Get the parameters.
-    my ($self, $genome, $fileName) = @_;
+    my ($self, $genome, $fileName, $priv, $protHash) = @_;
     # Get the loader object.
     my $loader = $self->{loader};
+    # If no protein hash was provided, create an empty one.
+    $protHash //= {};
     # Get the statistics object.
     my $stats = $loader->stats;
     # Open the file for input.
     my $ih = $loader->OpenFile(feature => $fileName);
-    # The return hash will be built in here.
-    my %retVal;
     # Loop through the feature file.
     while (my $featureDatum = $loader->GetLine(feature => $ih)) {
         # Get the feature elements.
@@ -404,21 +371,17 @@ sub ReadFeatures {
         if ($ftype ne 'peg' && ! $function) {
             $function = "unspecified $ftype";
         }
-        # Parse the function.
-        my @parsed = Shrub::ParseFunction($function);
-        # Insure it is in the database.
-        my $funcID = $self->ProcessFunction(@parsed);
-        # Store the function's 2-tuple in the return hash.
-        $retVal{$fid} = [$funcID, $parsed[4]];
         # Compute the total sequence length.
         my $seqLen = 0;
         for my $loc (@locs) {
             $seqLen += $loc->Length;
         }
+        # Compute the protein.
+        my $protID = $protHash->{$fid} // '';
         # Connect the feature to the genome.
-        $loader->InsertObject('Genome2Feature', 'from-link' => $genome, 'to-link' => $fid);
         $loader->InsertObject('Feature', id => $fid, 'feature-type' => $ftype,
-                'sequence-length' => $seqLen);
+                'sequence-length' => $seqLen, Genome2Feature_link => $genome,
+                Protein2Feature_link => $protID);
         $stats->Add(feature => 1);
         # Connect the feature to the contigs. This is where the location information figures in.
         my $ordinal = 0;
@@ -427,9 +390,20 @@ sub ReadFeatures {
                     begin => $loc->Left, dir => $loc->Dir, len => $loc->Length, ordinal => ++$ordinal);
             $stats->Add(featureSegment => 1);
         }
+        # Parse the function.
+        my @parsed = Shrub::ParseFunction($function);
+        # Insure it is in the database.
+        my $funcID = $self->ProcessFunction(@parsed);
+        # Get the comment.
+        my $comment = $parsed[4];
+        # Connect the functions.
+         # Make the connection at each privilege level.
+         for (my $p = $priv; $p >= 0; $p--) {
+             $loader->InsertObject('Feature2Function', 'from-link' => $fid, 'to-link' => $funcID,
+                     comment => $comment, security => $p);
+             $stats->Add(featureFunction => 1);
+         }
     }
-    # Return the hash of feature IDs to functions.
-    return \%retVal;
 }
 
 1;
