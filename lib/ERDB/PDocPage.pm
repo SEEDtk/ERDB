@@ -516,16 +516,17 @@ sub DocRelationship {
                       "($toArity)");
     # Generate the relationship sentences.
     push @lines, CGI::ul(CGI::li([$fromLine, $toLine]));
+    # Display the fields.
+    push @lines, $self->DocFields($name, $metadata);
     # Is this an embedded relationship?
     if ($metadata->{embedded}) {
         # Yes. Display a message.
         push @lines, $self->Para("This is an embedded relationship implemented as fields and indexes in $toEntity.");
     } else {
-        # No. Display the fields.
-        push @lines, $self->DocFields($name, $metadata);
-        # Display the indexes.
+        # No. Display the indexes.
         push @lines, $self->DocIndexes($name, $metadata);
     }
+
     # Return the result.
     my $retVal = join("\n", @lines);
     return $retVal;

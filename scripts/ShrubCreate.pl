@@ -32,6 +32,9 @@ will be destroyed. (Tables not normally found in a Shrub database, however, will
 
 This method always uses an external DBD, ignoring the DBD stored in the database (if any).
 
+For security reasons, the command-line parameter C<clear> must be specified to make this script
+perform its function. If no parameter is specified, the script does nothing.
+
 =head2 Parameters
 
 There are no positional parameters.
@@ -40,6 +43,10 @@ The command-line options are as specified in L<Shrub/script_options> plus
 the following.
 
 =over 4
+
+=item clear
+
+If specified, all tables in the database will be recreated.
 
 =item missing
 
@@ -64,9 +71,17 @@ Store the DBD in the database to improve performance.
     $| = 1; # Prevent buffering on STDOUT.
     # Parse the command line.
     my $opt = ScriptUtils::Opts('', Shrub::script_options(),
+            ["clear", "erase all tables"],
             ["missing|m", "only add missing tables"],
-            ["fixup|f", "attempt to fix tables to match the DBD (implies \"missing\")"],
+            ["fixup|f", "attempt to fix tables to match the DBD (implies \"missing\")", { implies => 'missing' }],
             ["store|s", "store the DBD in the database to improve performance"]);
+    # Check for mutually exclusive parameters.
+    if ($opt->missing && $opt->clear) {
+        die "Cannot specify --clear with --fixup or --missing.";
+    }
+    if (! $opt->missing && ! $opt->clear && ! $opt->store) {
+        die "No options specified-- nothing to do.";
+    }
     # Connect to the database, forcing use of an external DBD.
     my $shrub = Shrub->new_for_script($opt, externalDBD => 1);
     # Create the statistics object.
@@ -163,18 +178,22 @@ Store the DBD in the database to improve performance.
             }
         }
     }
-    # Loop through the relations.
-    print "Processing relations.\n";
-    for my $relationName (@relNames) {
-        $stats->Add(relationChecked => 1);
-        # Do we want to create this table?
-        if (! $missing || ! $dbh->table_exists($relationName)) {
-            $shrub->CreateTable($relationName, 1);
-            print "$relationName created.\n";
-            $stats->Add(relationCreated => 1);
-        } elsif ($changed{$relationName}) {
-            print "$relationName needs to be recreated.\n";
-            print "Field string: " . $shrub->ComputeFieldString($relationName) . "\n";
+    # Here is where we create tables. We only do this if clear or missing is
+    # set.
+    if ($opt->clear || $opt->missing) {
+        # Loop through the relations.
+        print "Processing relations.\n";
+        for my $relationName (@relNames) {
+            $stats->Add(relationChecked => 1);
+            # Do we want to create this table?
+            if (! $missing || ! $dbh->table_exists($relationName)) {
+                $shrub->CreateTable($relationName, 1);
+                print "$relationName created.\n";
+                $stats->Add(relationCreated => 1);
+            } elsif ($changed{$relationName}) {
+                print "$relationName needs to be recreated.\n";
+                print "Field string: " . $shrub->ComputeFieldString($relationName) . "\n";
+            }
         }
     }
     # Tell the user we're done.

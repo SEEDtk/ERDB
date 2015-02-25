@@ -26,15 +26,13 @@ package ERDB::QueryConsole;
     use CGI;
     use ERDB;
     use Stats;
+    use FIG_Config;
 
 =head1 ERDB Query Console Helper
 
 =head2 Introduction
 
-This is a simple helper class used by the ERDB Query Console. The console
-appears in two places: once as a SeedViewer page, and once as an NMPDR plugin
-Wiki console. Each of these places is responsible for insuring that the user has
-the proper credentials and then calling this package's main method. To construct
+This is a simple helper class used by the ERDB Query Console.  To construct
 a console helper object, simply pass in the database name and the user's security
 level, then call L</Submit> to validate the parameters and build the query. If
 there are problems, call L</Errors> to get a list of error messages. If
@@ -251,7 +249,7 @@ sub Submit {
             # Now we need to find things out about the fields. For each one,
             # we need a column name and a cell format. To get that, we
             # start the query and analyze the fields.
-            my $query = eval('$db->Prepare($objects, "$filterString$limitClause", $parms)');
+            my $query = eval('$db->Get($objects, "$filterString$limitClause", $parms, $fields)');
             if ($@) {
                 # Here the query preparation failed for some reason. This is usually an
                 # SQL syntax error.
@@ -261,7 +259,7 @@ sub Submit {
                 # This will be set to TRUE if a valid field is found.
                 my $found;
                 # Now loop through the field names.
-                for my $field (@$fields) {
+                for my $field (split(' ', $fields)) {
                     # Get the data for this field.
                     my ($objectName, $fieldName, $type) = $query->CheckFieldName($field);
                     if (! defined $objectName) {
@@ -334,13 +332,14 @@ sub Headers {
 
 =head3 GetRow
 
-    my @items = $eq->GetRow();
+    my $items = $eq->GetRow();
 
-Get the next row of data from the query. Each row will consist of a list
-of HTML strings (in normal mode) or PERL objects (in raw mode), one per result
-column, in the same order the field names appeared when the query was submitted.
+Get the next row of data from the query. Each row will consist of a reference
+to a list of HTML strings (in normal mode) or PERL objects (in raw mode), one
+per result column, in the same order the field names appeared when the query
+was submitted.
 
-If the query is complete, an empty list will be returned.
+If the query is complete, <Cundef> will be returned.
 
 =cut
 
@@ -348,14 +347,11 @@ sub GetRow {
     # Get the parameters.
     my ($self) = @_;
     # Declare the return variable.
-    my @retVal;
+    my $retVal;
     # Only proceed if we have an active query.
     if (defined $self->{query}) {
-        # We do, so try to get the next record. Note we accumulate the
-        # time spent and protect from errors.
-        my $start = time();
+        # We do, so try to get the next record. Note we protect from errors.
         my $record = $self->{query}->Fetch();
-        $self->AddStat(duration => time() - $start);
         # Only proceed if a record was found.
         if (defined $record) {
             $self->AddStat(records => 1);
@@ -373,22 +369,107 @@ sub GetRow {
                     my $cell = join("<br /><hr /><br />",
                                     map { $type->html($_) } @values);
                     # Put the result into the output list.
-                    push @retVal, $cell;
+                    push @$retVal, $cell;
                 } elsif ($field->{secondary}) {
                     # This is a raw secondary field. It's returned as a list reference.
-                    push @retVal, \@values;
+                    push @$retVal, \@values;
                 } else {
                     # This is a raw primary field. It's returned as a scalar.
                     # Note that if the field is empty, we'll be stuffing an
                     # undefined value in its position of this row.
-                    push @retVal, $values[0];
+                    push @$retVal, $values[0];
                 }
             }
         }
     }
     # Return the result.
-    return @retVal;
+    return $retVal;
 }
+
+
+=head3 GetCommand
+
+    my $commandString = $eq->GetCommand(@parameters);
+
+Return the text of the L<get_all.pl> command to perform the query
+submitted to this console.
+
+=over 4
+
+=item parameters
+
+List of parameter names. If a parameter name is a string, then the
+corresponding parameter will be encoded as a column mark with the number
+given by the string. If a parameter name is an undefined value, the
+parameter value will be encoded as a constant.
+
+=item RETURN
+
+Returns a string containing the C<get_all> command to duplicate the incoming
+query.
+
+=back
+
+=cut
+
+sub GetCommand {
+    # Get the parameters.
+    my ($self, @parameters) = @_;
+    # Set the continuation character.
+    my $contChar = ($FIG_Config::win_mode ? " ^" : " \\");
+    # Start with the command and the path.
+    my $path = $self->{objects};
+    my $qPath = ($FIG_Config::win_mode ? DQuotify($path) : Quotify($path));
+    my @pieces = ("get_all -p $qPath");
+    # Do we have a filter string?
+    my $filter = $self->{filterString};
+    # Yes. Add it.
+    my $qFilter = ($FIG_Config::win_mode ? DQuotify($filter) : Quotify($filter));
+    push @pieces, "-c $qFilter";
+    # Now come the values. These are a little more complex, since the user may
+    # have specified column marks.
+    my $parmValues = $self->{parms};
+    my $n = scalar @$parmValues;
+    for (my $i = 0; $i < $n; $i++) {
+        # Do we have a column mark?
+        if ($parameters[$i]) {
+            # Yes. Use it.
+            my $qParm = ($FIG_Config::win_mode ? DQuotify($parameters[$i]) : '\\' . $parameters[$i]);
+            push @pieces, "-v $qParm";
+        } else {
+            # No, we use the value. Check for special characters.
+            # These require quoting.
+            my $value = $parmValues->[$i];
+            if ($value =~ /\W/) {
+                $value = ($FIG_Config::win_mode ? DQuotify($value) : Quotify($value));
+            }
+            push @pieces, "-v $value";
+        }
+    }
+    # Finally, we add the fields.
+    for my $fieldH (@{$self->{fields}}) {
+        my $field = $fieldH->{name};
+        if ($field =~ /\W/) {
+            $field = ($FIG_Config::win_mode ? DQuotify($field) : Quotify($field));
+        }
+        push @pieces, $field;
+    }
+    # Construct the whole command. We break it into lines of
+    # 80 characters or less (as much as we can).
+    my $retVal = shift @pieces;
+    my $len = length($retVal);
+    for my $piece (@pieces) {
+        if ($len > 80) {
+            $retVal .= "$contChar\n   ";
+            $len = 3;
+        }
+        $retVal .= " $piece";
+        $len += length($piece) + 1;
+    }
+    # Return the constructed command.
+    return $retVal;
+}
+
 
 =head3 GetCode
 
@@ -423,8 +504,7 @@ query.
 
 =cut
 
-use constant GET_VAR_NAME => { Get => '$qh', GetFlat => '@results',
-                               GetAll => '@rows' };
+use constant GET_VAR_NAME => { Get => '$qh', GetAll => '@rows' };
 
 sub GetCode {
     # Get the parameters.
@@ -435,9 +515,6 @@ sub GetCode {
     my $tab = " " x 4;
     # Compute the name of the database object.
     my $dbObjectName = '$' . $dbVarName;
-    # We start with some USE statements.
-    push @codeLines, "use ERDB;",
-                     "use Tracer;";
     # Get the field list. We'll be using it a lot.
     my $fields = $self->{fields};
     # Add "use" statements for all the field types. We build a hash
@@ -453,7 +530,7 @@ sub GetCode {
     # Now create the database object.
     my $dbType = ref $self->{erdb};
     push @codeLines, "",
-                     "my $dbObjectName = ERDB::GetDatabase('$dbType');",
+                     "my $dbObjectName = $dbType->new();",
                      "";
     # Compute the parameter strings list.
     my @parmStrings;
@@ -471,10 +548,9 @@ sub GetCode {
     $quotedObjectNameString =~ s/\s+/ /;
     # Quote the filter string.
     my $quotedFilterString = Quotify($self->{filterString});
-    # Not we compute the function name. It's the same as the code style
-    # unless we're doing a GetAll and there's only one field. In that case
-    # we do a GetFlat.
-    my $getName = ($codeStyle eq 'GetAll' && scalar(@$fields) == 1 ? 'GetFlat' : $codeStyle);
+    # Not we compute the function name. It's currently the same as
+    # the code style.
+    my $getName = $codeStyle;
     # The result from the Get call depends on the type: a list for
     # GetAll or GetFlat, a scalar for Get.
     my $getResultName = GET_VAR_NAME->{$getName};
@@ -503,27 +579,18 @@ sub GetCode {
         # Put a right bracket on the last piece.
         $pieces[$#pieces] .= "]";
     }
-    # If this is a GetAll, the field names go in here, too.
-    if ($codeStyle eq 'GetAll') {
-        # First, we need to put a comma at the end of the last parameter.
-        $pieces[$#pieces] .= ", ";
-        # Is this GetFlat?
-        if ($getName eq 'GetFlat') {
-            # Yes, so we have a single field.
-            my $fieldName = $fields->[0]{name};
-            push @pieces, "'$fieldName'";
-        } else {
-            # No, so we create a list of the field names. We use the qw
-            # trick to do this.
-            my @quotedFields = map { $_->{name} } @$fields;
-            $quotedFields[0] = "[qw(" . $quotedFields[0];
-            $quotedFields[$#quotedFields] .= ")]";
-            for (my $i = 0; $i < $#quotedFields; $i++) {
-                $quotedFields[$i] .= " ";
-            }
-            push @pieces, @quotedFields;
-        }
+    # Now we put in the field names.
+    # First, we need to put a comma at the end of the last parameter.
+    $pieces[$#pieces] .= ", ";
+    # Now we create a list of the field names. We use the qw
+    # trick to do this.
+    my @quotedFields = map { $_->{name} } @$fields;
+    $quotedFields[0] = "[qw(" . $quotedFields[0];
+    $quotedFields[$#quotedFields] .= ")]";
+    for (my $i = 0; $i < $#quotedFields; $i++) {
+        $quotedFields[$i] .= " ";
     }
+    push @pieces, @quotedFields;
     # Put the statement terminator on the last piece.
     $pieces[$#pieces] .= ");";
     # Loop through the pieces, building the code lines.
@@ -568,15 +635,15 @@ sub GetCode {
             push @codeLines, "$tab$statement";
         }
         # Close the fetch loop. This next line looks strange, but it
-        # is necessary to keep the Komodo TODO-hunter from flagging this
+        # is necessary to keep the Eclipse TODO-hunter from flagging this
         # line as an uncompleted task.
-        my $sharps = "##" . "TODO";
         push @codeLines, "$tab##" . "TODO: Process data";
         push @codeLines, "}";
-                        }
+    }
     # Return the result.
     return join("\n", @codeLines, "");
 }
+
 
 =head3 Summary
 
@@ -627,6 +694,7 @@ sub Messages {
 }
 
 
+=head2 Internal Methods
 
 =head3 SplitFields
 
@@ -665,11 +733,9 @@ sub SplitFields {
     return @retVal;
 }
 
-=head2 Internal Methods
-
 =head3 Quotify
 
-    my $quoted = ERDB::QueryConsole::Quotify($string);
+    my $quoted = ERDB::QueryConsole::Quotify($string, $q);
 
 Convert the input string to a PERL string constant. Internal single
 quotes will be escaped, and the entire string will be surrounded by
@@ -696,11 +762,47 @@ sub Quotify {
     # Declare the return variable.
     my $retVal = $string;
     # Quote the internal quotes.
-    $retVal =~ s/'/\\'/g;
+    $retVal =~ s/('|\\)/\\$1/g;
     # Literalize the new-lines.
     $retVal =~ s/\n/\\n/g;
     # Return the result.
     return "'$retVal'";
+}
+
+=head3 DQuotify
+
+    my $quoted = ERDB::QueryConsole::DQuotify($string, $q);
+
+Convert the input string to a Windows command-line string constant. Internal single
+quotes will be doubled, and the entire string will be surrounded by
+double quotes.
+
+=over 4
+
+=item string
+
+String to be quoted.
+
+=item RETURN
+
+Returns the string in a format suitable for encoding as a PERL
+string literal.
+
+=back
+
+=cut
+
+sub DQuotify {
+    # Get the parameters.
+    my ($string) = @_;
+    # Declare the return variable.
+    my $retVal = $string;
+    # Quote the internal quotes.
+    $retVal =~ s/"/""/g;
+    # Literalize the new-lines.
+    $retVal =~ s/\n/\\n/g;
+    # Return the result.
+    return "\"$retVal\"";
 }
 
 =head3 Error

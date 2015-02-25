@@ -90,7 +90,7 @@ sub Fetch {
         # error occurred, we need to abort.
         if ($sth->err) {
             # Get the error message from the DBKernel object.
-            my $dbh = $self->{_database}->{_dbh};
+            my $dbh = $self->{_db}->{_dbh};
             my $msg = $dbh->ErrorMessage($sth);
             # Throw an error with it.
             Confess($msg);
@@ -161,7 +161,7 @@ sub CheckFieldName {
     # Get the ERDB object.
     my $erdb = $self->{_db};
     # Only proceed if the field name format is valid.
-    if ($name =~ /^[A-Z0-9]+\(\w+\)$/ || $name =~ /^\w+$/) {
+    if ($name =~ /^\w+(?:\([\w\-]+\))?$/) {
         # Get the object and field names.
         ($objectName, $fieldName) = $helper->ParseFieldName($name);
         # Get the base name.

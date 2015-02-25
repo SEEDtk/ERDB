@@ -2884,8 +2884,9 @@ sub CheckObjectNames {
     my @objectNames = split m/\s+/, $objectNameString;
     # Start in a blank state.
     my $currentObject;
-    # Get the alias table.
-    my $aliasTable = $self->{_metaData}->{AliasTable};
+    # Get the alias and crossing tables.
+    my $aliasTable = $self->{_metaData}{AliasTable};
+    my $crossTable = $self->{_metaData}{CrossingTable};
     # Loop through the object names.
     for my $objectName (@objectNames) {
         # If we have an AND, clear the current object.
@@ -2899,28 +2900,26 @@ sub CheckObjectNames {
         } else {
             # Here the user has specified an object name. Get
             # the root name.
-            unless ($objectName =~ /([A-Za-z]+)(\d*)/) {
+            unless ($objectName =~ /^(.+?)(\d*)$/) {
                 # Here the name has bad characters in it. Note that an error puts
                 # us into a blank state.
                 push @retVal, "Invalid characters found in \"$objectName\".";
                 undef $currentObject;
             } else {
                 # Get the real name from the alias table.
-                my $name = $aliasTable->{$1};
+                my $newObject = $1;
+                my $name = $aliasTable->{$newObject};
                 if (! defined $name) {
                     push @retVal, "Could not find an entity or relationship named \"$objectName\".";
                     undef $currentObject;
                 } else {
                     # Okay, we've got the real entity or relationship name. Does it belong here?
                     # That's only an issue if there is a previous value in $currentObject.
-                    if (defined $currentObject) {
-                        my $joinClause = $self->_JoinClause($currentObject, $name);
-                        if (! $joinClause) {
-                            push @retVal, "There is no connection between $currentObject and $name."
-                        }
+                    if (defined $currentObject && ! defined $crossTable->{$currentObject}{$newObject}) {
+                        push @retVal, "There is no connection between $currentObject and $newObject."
                     }
                     # Save this object as the new current object.
-                    $currentObject = $name;
+                    $currentObject = $newObject;
                 }
             }
         }
@@ -6399,18 +6398,18 @@ sub _LoadMetaData {
                     for my $remote (keys %{$crossings{$target}}) {
                          my $remoteList = $crossings{$target}{$remote};
                          # We have four cases, depending on which of the relationships is embedded.
-                         # If both are embedded we do nothing.
-                         if ($crossList) {
-                             if ($remoteList) {
-                                 # Both relationships are real.
-                                 $crossings{$relVersion}{$remote} = [$crossList->[0], $remoteList->[1]];
-                             } else {
-                                 # Only the crossing in real.
-                                 $crossings{$relVersion}{$remote} = $crossList;
-                             }
-                         } elsif ($remoteList) {
-                             # Only the remote is real.
-                             $crossings{$relVersion}{$remote}= $remoteList;
+                         # Two of the cases have the same effect.
+                         if ($crossList && $remoteList) {
+                             # Both relationships are real.
+                             $crossings{$relVersion}{$remote} = [$crossList->[0], $remoteList->[1]];
+                         } elsif ($crossList) {
+                             # Only the crossing is real.
+                             $crossings{$relVersion}{$remote} = $crossList;
+                         } else {
+                             # Either the remote is real and we want to use it, or neither is
+                             # real and we want to store a null string. Either way we just copy
+                             # the remote.
+                             $crossings{$relVersion}{$remote} = $remoteList;
                          }
                     }
                 }
