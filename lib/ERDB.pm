@@ -2887,6 +2887,7 @@ sub CheckObjectNames {
     # Get the alias and crossing tables.
     my $aliasTable = $self->{_metaData}{AliasTable};
     my $crossTable = $self->{_metaData}{CrossingTable};
+    my $jumpTable = $self->{_metaData}{JumpTable};
     # Loop through the object names.
     for my $objectName (@objectNames) {
         # If we have an AND, clear the current object.
@@ -2915,7 +2916,8 @@ sub CheckObjectNames {
                 } else {
                     # Okay, we've got the real entity or relationship name. Does it belong here?
                     # That's only an issue if there is a previous value in $currentObject.
-                    if (defined $currentObject && ! defined $crossTable->{$currentObject}{$newObject}) {
+                    if (defined $currentObject && ! defined $crossTable->{$currentObject}{$newObject} &&
+                        ! defined $jumpTable->{$currentObject}{$newObject}) {
                         push @retVal, "There is no connection between $currentObject and $newObject."
                     }
                     # Save this object as the new current object.
@@ -2926,6 +2928,41 @@ sub CheckObjectNames {
     }
     # Return the result.
     return @retVal;
+}
+
+=head3 JumpCheck
+
+    my $pathTable = $erdb->JumpCheck($object1, $object2);
+
+Determine if there is a path between the first and second object. If one exists, the name
+of the intermediate object will be returned.
+
+=over 4
+
+=item object1
+
+The source object for the jump.
+
+=item object2
+
+The target object for the jump.
+
+=item RETURN
+
+Returns the name of the object that facilitates the path, or C<undef> if there is no
+direct jump between the two objects.
+
+=back
+
+=cut
+
+sub JumpCheck {
+    # Get the parameters.
+    my ($self, $object1, $object2) = @_;
+    # Get the jump table.
+    my $jumpTable = $self->{_metaData}{JumpTable};
+    # Return the jump determination.
+    return $jumpTable->{$object1}{$object2};
 }
 
 =head3 GetTitle
@@ -6415,11 +6452,35 @@ sub _LoadMetaData {
                 }
             }
         }
+        # Now we loop through the entities, creating entity jumps. For each entity, we list the number of ways
+        # to get to each other object. If there's only one way, we create a jump.
+        my %jumpTable;
+        for my $entity (keys %$entityList) {
+            my %targets;
+            for my $path (keys %{$crossings{$entity}}) {
+                for my $target (keys %{$crossings{$path}}) {
+                    push @{$targets{$target}}, $path;
+                }
+            }
+            # Only keep jumps that are unambiguous.
+            my @targets = keys %targets;
+            for my $target (@targets) {
+                if (scalar @{$targets{$target}} == 1) {
+                    $targets{$target} = $targets{$target}[0];
+                } else {
+                    delete $targets{$target};
+                }
+            }
+            # Now, if there is only one path from this entity to a particular target, the targets
+            # hash will map to its name.
+            $jumpTable{$entity} = \%targets;
+        }
         # Now store the master relation table, crossing table, converse table, and alias table in the metadata structure.
         $metadata->{RelationTable} = \%masterRelationTable;
         $metadata->{AliasTable} = \%aliasTable;
         $metadata->{CrossingTable} = \%crossings;
         $metadata->{ConverseTable} = \%converses;
+        $metadata->{JumpTable} = \%jumpTable;
     }
     # Return the metadata structure.
     return $metadata;

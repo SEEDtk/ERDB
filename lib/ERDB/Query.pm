@@ -161,7 +161,7 @@ sub CheckFieldName {
     # Get the ERDB object.
     my $erdb = $self->{_db};
     # Only proceed if the field name format is valid.
-    if ($name =~ /^\w+(?:\([\w\-]+\))?$/) {
+    if ($name =~ /^(?:\w+\([\w\-]+\))|[\w-]+$/) {
         # Get the object and field names.
         ($objectName, $fieldName) = $helper->ParseFieldName($name);
         # Get the base name.

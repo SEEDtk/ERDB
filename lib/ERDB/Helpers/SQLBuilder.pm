@@ -137,14 +137,17 @@ sub new {
     $retVal->{primary} = $objectNames->[0];
     # Now we need to run through the object name list. For each object name,
     # we compute the table name, the base name,  and whether or not it is embedded.
-    # An AND is converted to an object name of an empty string.
+    # An AND is converted to an object name of an empty string. Here we also add
+    # extra tables required by jumps.
     my $AND = ['', 0, '', ''];
     my @parsedObjects;
+    my $prevBase = '';
     for my $objectName (@$objectNames) {
         # Is this the special case of an 'AND'?
         if (uc $objectName eq 'AND') {
             # Yes. Blank it and continue.
             push @parsedObjects, $AND;
+            $prevBase = '';
         } else {
             # Now we need to compute the object's alias name
             # and its table name. Parse the object name.
@@ -153,7 +156,18 @@ sub new {
                 $baseName = $1;
             }
             my ($tableName, $embedFlag) = $erdb->_AnalyzeObjectName($baseName);
+            # Check for a jump.
+            my $jumpTable = $erdb->JumpCheck($prevBase, $baseName);
+            if ($jumpTable) {
+                # Here we need to push in the jump instructions.
+                my ($jumpRealName, $jumpEmbed) = $erdb->_AnalyzeObjectName($jumpTable);
+                my $jumpAlias = $retVal->NewObjectName($jumpTable);
+                push @parsedObjects, [$jumpAlias, $jumpEmbed, $jumpRealName, $jumpTable];
+            }
+            # Now push this object's data into the list.
             push @parsedObjects, [$objectName, $embedFlag, $tableName, $baseName];
+            # Remember this object for the next jump check.
+            $prevBase = $baseName;
         }
     }
     # Start with a blank.
