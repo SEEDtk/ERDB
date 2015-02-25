@@ -17,11 +17,11 @@
 #
 
 
-    use strict;
-    use warnings;
-    use FIG_Config;
-    use CopyFromSeed;
-    use ScriptUtils;
+use strict;
+use warnings;
+use FIG_Config;
+use CopyFromSeed;
+use ScriptUtils;
 
 =head1 Copy Data From a SEED FIGdisk
 
@@ -41,37 +41,37 @@ L<CopyFromSeed/genome_options>, and L<CopyFromSeed/common_options>.
 
 =cut
 
-    # Start timing.
-    my $startTime = time;
-    $| = 1; # Prevent buffering on STDOUT.
-    # Get the command-line parameters.
-    my $opt = ScriptUtils::Opts('fig_disk', CopyFromSeed::subsys_options(),
-            CopyFromSeed::genome_options(), CopyFromSeed::common_options(),
-    );
-    # Get a helper object and the associated statistics object.
-    my $loader = CopyFromSeed->new($opt, $ARGV[0]);
-    my $stats = $loader->stats;
-    # Compute the list of subsystems to load.
-    print "Determining list of subsystems to process.\n";
-    my $subList = $loader->ComputeSubsystems();
-    # Loop through the subsystems, loading them.
-    print "Processing subsystems.\n";
-    for my $sub (@$subList) {
-        $loader->CopySubsystem($sub);
-    }
-    # Determine the remaining genomes.
-    print "Determining list of genomes to process.\n";
-    my $genomeList = $loader->ComputeGenomes();
-    # Loop through the genomes, loading them.
-    print "Processing genomes.\n";
-    for my $genome (@$genomeList) {
-        $loader->CopyGenome($genome);
-    }
-    # If we have genome output, create the genome index.
-    $loader->IndexGenomes();
-    # Compute the total time.
-    my $timer = time - $startTime;
-    $stats->Add(totalTime => $timer);
-    # Tell the user we're done.
-    print "All done.\n" . $stats->Show();
+# Start timing.
+my $startTime = time;
+$| = 1; # Prevent buffering on STDOUT.
+# Get the command-line parameters.
+my $opt = ScriptUtils::Opts('fig_disk', CopyFromSeed::subsys_options(),
+        CopyFromSeed::genome_options(), CopyFromSeed::common_options(),
+);
+# Get a helper object and the associated statistics object.
+my $loader = CopyFromSeed->new($opt, $ARGV[0]);
+my $stats = $loader->stats;
+# Compute the list of subsystems to load.
+print "Determining list of subsystems to process.\n";
+my $subList = $loader->ComputeSubsystems();
+# Loop through the subsystems, loading them.
+print "Processing subsystems.\n";
+for my $sub (@$subList) {
+    $loader->CopySubsystem($sub);
+}
+# Determine the remaining genomes.
+print "Determining list of genomes to process.\n";
+my $genomeList = $loader->ComputeGenomes();
+# Loop through the genomes, loading them.
+print "Processing genomes.\n";
+for my $genome (@$genomeList) {
+    $loader->CopyGenome($genome);
+}
+# If we have genome output, create the genome index.
+$loader->IndexGenomes();
+# Compute the total time.
+my $timer = time - $startTime;
+$stats->Add(totalTime => $timer);
+# Tell the user we're done.
+print "All done.\n" . $stats->Show();
 

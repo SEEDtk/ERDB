@@ -48,44 +48,44 @@ related to the entities will be displayed.
 
 =cut
 
-    $| = 1; # Prevent buffering on STDOUT.
-    # Process the command line.
-    my $opt = ScriptUtils::Opts('', Shrub::script_options(),
-            ["entities", "If specified, the name of a file containing a list of entities of interest"]);
-    # Connect to the database.
-    my $shrub = Shrub->new_for_script($opt);
-    # Create the loader helper object.
-    my $loader = Shrub::DBLoader->new($shrub);
-    # Get the hash of entities.
-    my $entityHash = $shrub->GetObjectsTable('entity');
-    # Get the list of entities of interest.
-    my $entities = {};
-    if ($opt->entities) {
-        $entities = { map { $_ => $entityHash->{$_} } $loader->GetNamesFromFile('entity name' => $opt->entities) };
-    } else {
-        $entities = \%$entityHash;
-    }
-    # Loop through the list of entities.
-    for my $entity (sort keys %$entities) {
-        # Display the entity description.
-        DisplayObject($entity, $entities);
-        # Space before the next entity.
+$| = 1; # Prevent buffering on STDOUT.
+# Process the command line.
+my $opt = ScriptUtils::Opts('', Shrub::script_options(),
+        ["entities", "If specified, the name of a file containing a list of entities of interest"]);
+# Connect to the database.
+my $shrub = Shrub->new_for_script($opt);
+# Create the loader helper object.
+my $loader = Shrub::DBLoader->new($shrub);
+# Get the hash of entities.
+my $entityHash = $shrub->GetObjectsTable('entity');
+# Get the list of entities of interest.
+my $entities = {};
+if ($opt->entities) {
+    $entities = { map { $_ => $entityHash->{$_} } $loader->GetNamesFromFile('entity name' => $opt->entities) };
+} else {
+    $entities = \%$entityHash;
+}
+# Loop through the list of entities.
+for my $entity (sort keys %$entities) {
+    # Display the entity description.
+    DisplayObject($entity, $entities);
+    # Space before the next entity.
+    print "\n";
+}
+# Loop through the list of relationships.
+my $relationshipHash = $shrub->GetObjectsTable('relationship');
+for my $relationship (sort keys %$relationshipHash) {
+    # Get the FROM and TO entites.
+    my $from = $relationshipHash->{$relationship}->{from};
+    my $to = $relationshipHash->{$relationship}->{to};
+    # Only display this relationship if both ends are in our
+    # list of entities.
+    if (exists $entities->{$from} && exists $entities->{$to}) {
+        DisplayObject($relationship, $relationshipHash);
+        # Space before the next relationship.
         print "\n";
     }
-    # Loop through the list of relationships.
-    my $relationshipHash = $shrub->GetObjectsTable('relationship');
-    for my $relationship (sort keys %$relationshipHash) {
-        # Get the FROM and TO entites.
-        my $from = $relationshipHash->{$relationship}->{from};
-        my $to = $relationshipHash->{$relationship}->{to};
-        # Only display this relationship if both ends are in our
-        # list of entities.
-        if (exists $entities->{$from} && exists $entities->{$to}) {
-            DisplayObject($relationship, $relationshipHash);
-            # Space before the next relationship.
-            print "\n";
-        }
-    }
+}
 
 # Display the data about an object and its relations.
 sub DisplayObject {

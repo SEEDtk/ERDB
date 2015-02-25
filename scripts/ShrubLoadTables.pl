@@ -48,77 +48,77 @@ specified in the positional parameters.
 
 =cut
 
-    use strict;
-    use warnings;
-    use Shrub;
-    use Shrub::DBLoader;
-    use ScriptUtils;
+use strict;
+use warnings;
+use Shrub;
+use Shrub::DBLoader;
+use ScriptUtils;
 
-    $| = 1; # Prevent buffering on STDOUT.
-    # Parse the command line.
-    my $opt = ScriptUtils::Opts('table1 table2 ...', Shrub::script_options(),
-            ["objects=s", "file containing table list in first column"],
-            );
-    # Connect to the database.
-    print "Connecting to database.\n";
-    my $shrub = Shrub->new_for_script($opt);
-    # Create a loader helper and get the statistics object.
-    my $loader = Shrub::DBLoader->new($shrub);
-    my $stats = $loader->stats;
-    print "Parsing parameters.\n";
-    # Get the list of objects on the command line.
-    my @objects = @ARGV;
-    # Check for a list file.
-    if ($opt->objects) {
-        # We have one. Read in the names from it.
-        push @objects, $loader->GetNamesFromFile(table => $opt->objects);
-    }
-    # Insure we have something to do.
-    if (! scalar @objects) {
-        die "Nothing to load: no parameters and no --objects option.";
-    }
-    # Now loop through the objects forming a list of table names.
-    print "Analyzing tables.\n";
-    my @rels;
-    for my $object (@objects) {
-        $stats->Add(open_objects => 1);
-        # Check for an entity of this type.
-        my $desc = $shrub->FindEntity($object);
+$| = 1; # Prevent buffering on STDOUT.
+# Parse the command line.
+my $opt = ScriptUtils::Opts('table1 table2 ...', Shrub::script_options(),
+        ["objects=s", "file containing table list in first column"],
+        );
+# Connect to the database.
+print "Connecting to database.\n";
+my $shrub = Shrub->new_for_script($opt);
+# Create a loader helper and get the statistics object.
+my $loader = Shrub::DBLoader->new($shrub);
+my $stats = $loader->stats;
+print "Parsing parameters.\n";
+# Get the list of objects on the command line.
+my @objects = @ARGV;
+# Check for a list file.
+if ($opt->objects) {
+    # We have one. Read in the names from it.
+    push @objects, $loader->GetNamesFromFile(table => $opt->objects);
+}
+# Insure we have something to do.
+if (! scalar @objects) {
+    die "Nothing to load: no parameters and no --objects option.";
+}
+# Now loop through the objects forming a list of table names.
+print "Analyzing tables.\n";
+my @rels;
+for my $object (@objects) {
+    $stats->Add(open_objects => 1);
+    # Check for an entity of this type.
+    my $desc = $shrub->FindEntity($object);
+    if ($desc) {
+        $stats->Add(open_entities => 1);
+    } else {
+        # Not an entity, check for a relationship.
+        $desc = $shrub->FindRelationship($object);
         if ($desc) {
-            $stats->Add(open_entities => 1);
+            $stats->Add(open_relationships => 1);
         } else {
-            # Not an entity, check for a relationship.
-            $desc = $shrub->FindRelationship($object);
-            if ($desc) {
-                $stats->Add(open_relationships => 1);
-            } else {
-                # Here we can't find the object.
-                die "$object not found in the database.";
-            }
-        }
-        # Now $desc is the descriptor for this entity or relationship.
-        # Get its list of relations.
-        my @tabs = sort keys %{$desc->{Relations}};
-        $stats->Add(open_relations => scalar @tabs);
-        push @rels, @tabs;
-    }
-    # Now @rels contains a list of all the relations to load.
-    # Get the load directory where we'll find the relation files.
-    my $loadDir = $shrub->LoadDirectory();
-    print "Reading load files from $loadDir.\n";
-    # Loop through the relations.
-    for my $rel (@rels) {
-        # Compute the load file name.
-        my $fileName = "$loadDir/$rel.dtx";
-        if (! -f $fileName) {
-            print "No load file found for $rel.\n";
-            $stats->Add(file_missing => 1);
-        } else {
-            print "Loading $rel.\n";
-            $shrub->LoadTable($fileName, $rel, dup => 'ignore');
-            $stats->Add(file_loaded => 1);
+            # Here we can't find the object.
+            die "$object not found in the database.";
         }
     }
-    # All done.
-    print "All done.\n" . $stats->Show();
+    # Now $desc is the descriptor for this entity or relationship.
+    # Get its list of relations.
+    my @tabs = sort keys %{$desc->{Relations}};
+    $stats->Add(open_relations => scalar @tabs);
+    push @rels, @tabs;
+}
+# Now @rels contains a list of all the relations to load.
+# Get the load directory where we'll find the relation files.
+my $loadDir = $shrub->LoadDirectory();
+print "Reading load files from $loadDir.\n";
+# Loop through the relations.
+for my $rel (@rels) {
+    # Compute the load file name.
+    my $fileName = "$loadDir/$rel.dtx";
+    if (! -f $fileName) {
+        print "No load file found for $rel.\n";
+        $stats->Add(file_missing => 1);
+    } else {
+        print "Loading $rel.\n";
+        $shrub->LoadTable($fileName, $rel, dup => 'ignore');
+        $stats->Add(file_loaded => 1);
+    }
+}
+# All done.
+print "All done.\n" . $stats->Show();
 

@@ -560,9 +560,9 @@
             proteins.</Notes>
             <Fields>
                 <Field name="security" type="char">
-                    <Notes>Privilege level of the subsystem. [b]0[/b] for a
-                    non-privileged (public) subsystem, [b]1[/b] for a projected
-                    subsystem, and [b]2[/b] for a privileged subsystem.</Notes>
+                    <Notes>Privilege level of the annotation. [b]0[/b] for a
+                    non-privileged (public) annotation, [b]1[/b] for a projected
+                    annotation, and [b]2[/b] for a privileged annotation.</Notes>
                 </Field>
                 <Field name="comment" type="text">
                     <Notes>A comment by the annotator about this functional

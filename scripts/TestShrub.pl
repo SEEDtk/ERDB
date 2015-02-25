@@ -25,11 +25,11 @@ included module was found.
 
 =cut
 
-    use strict;
-    use Shrub;
-    use ScriptUtils;
-    use Data::Dumper;
+use strict;
+use Shrub;
+use ScriptUtils;
+use Data::Dumper;
 
-    print join("\n", @INC, "");
-    print Dumper(\%INC);
+print join("\n", @INC, "");
+print Dumper(\%INC);
 

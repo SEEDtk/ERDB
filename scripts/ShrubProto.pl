@@ -17,11 +17,11 @@
 #
 
 
-    use strict;
-    use warnings;
-    use Shrub;
-    use Shrub::DBLoader;
-    use ScriptUtils;
+use strict;
+use warnings;
+use Shrub;
+use Shrub::DBLoader;
+use ScriptUtils;
 
 =head1 Prototype Shrub Load Script
 
@@ -44,28 +44,28 @@ the following.
 
 =cut
 
-    # Start timing.
-    my $startTime = time;
-    $| = 1; # Prevent buffering on STDOUT.
-    # Get the command parameters.
-    my $opt = ScriptUtils::Opts('parm1 parm2 ...', Shrub::script_options(),
-        ## more options
-        );
-    # Connect to the database and get the command parameters.
-    print "Connecting to the database.\n";
-    my $shrub = Shrub->new_for_script($opt);
-    # Get the load helper.
-    my $loader = Shrub::DBLoader->new($shrub);
-    # Get the statistics object.
-    my $stats = $loader->stats;
+# Start timing.
+my $startTime = time;
+$| = 1; # Prevent buffering on STDOUT.
+# Get the command parameters.
+my $opt = ScriptUtils::Opts('parm1 parm2 ...', Shrub::script_options(),
+    ## more options
+    );
+# Connect to the database and get the command parameters.
+print "Connecting to the database.\n";
+my $shrub = Shrub->new_for_script($opt);
+# Get the load helper.
+my $loader = Shrub::DBLoader->new($shrub);
+# Get the statistics object.
+my $stats = $loader->stats;
 
-    ## do the loading
+## do the loading
 
-    # Close and upload the load files.
-    print "Unspooling load files.\n";
-    $loader->Close();
-    # Compute the total time.
-    my $timer = time - $startTime;
-    $stats->Add(totalTime => $timer);
-    # Tell the user we're done.
-    print "Database processed.\n" . $stats->Show();
+# Close and upload the load files.
+print "Unspooling load files.\n";
+$loader->Close();
+# Compute the total time.
+my $timer = time - $startTime;
+$stats->Add(totalTime => $timer);
+# Tell the user we're done.
+print "Database processed.\n" . $stats->Show();
