@@ -277,23 +277,25 @@
 
     <xs:simpleType name="dataType">
         <xs:restriction base="xs:string">
-            <xs:enumeration value="boolean"/>
-            <xs:enumeration value="char"/>
-            <xs:enumeration value="counter"/>
-            <xs:enumeration value="countVector"/>
-            <xs:enumeration value="date"/>
-            <xs:enumeration value="dna"/>
-            <xs:enumeration value="float"/>
-            <xs:enumeration value="hash-string"/>
-            <xs:enumeration value="image"/>
-            <xs:enumeration value="int"/>
-            <xs:enumeration value="link"/>
-            <xs:enumeration value="long-string"/>
-            <xs:enumeration value="proteinData"/>
-            <xs:enumeration value="rectangle"/>
-            <xs:enumeration value="semi-boolean"/>
-            <xs:enumeration value="string"/>
-            <xs:enumeration value="text"/>
+            <xs:enumeration value="boolean" />
+            <xs:enumeration value="char" />
+            <xs:enumeration value="counter" />
+            <xs:enumeration value="countVector" />
+            <xs:enumeration value="date" />
+            <xs:enumeration value="dna" />
+            <xs:enumeration value="float" />
+            <xs:enumeration value="hash-string" />
+            <xs:enumeration value="image" />
+            <xs:enumeration value="int" />
+            <xs:enumeration value="link" />
+            <xs:enumeration value="long-string" />
+            <xs:enumeration value="proteinData" />
+            <xs:enumeration value="rectangle" />
+            <xs:enumeration value="semi-boolean" />
+            <xs:enumeration value="short-string" />
+            <xs:enumeration value="string" />
+            <xs:enumeration value="text" />
+            <xs:enumeration value="value"></xs:enumeration>
         </xs:restriction>
     </xs:simpleType>
 
