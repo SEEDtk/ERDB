@@ -22,6 +22,7 @@ use warnings;
 use FIG_Config;
 use CopyFromSeed;
 use ScriptUtils;
+use File::Copy::Recursive;
 
 =head1 Copy Data From a SEED FIGdisk
 
@@ -51,6 +52,17 @@ my $opt = ScriptUtils::Opts('fig_disk', CopyFromSeed::subsys_options(),
 # Get a helper object and the associated statistics object.
 my $loader = CopyFromSeed->new($opt, $ARGV[0]);
 my $stats = $loader->stats;
+# Are we clearing?
+if ($opt->clear) {
+    print "Erasing genome repository.\n";
+    my $genomeDir = $loader->genome_repo();
+    File::Copy::Recursive::pathempty($genomeDir) ||
+        die "Error clearing $genomeDir: $!";
+    print "Erasing subsystem repository.\n";
+    my $subsysDir = $loader->subsys_repo();
+    File::Copy::Recursive::pathempty($subsysDir) ||
+        die "Error clearing $subsysDir: $!";
+}
 # Compute the list of subsystems to load.
 print "Determining list of subsystems to process.\n";
 my $subList = $loader->ComputeSubsystems();

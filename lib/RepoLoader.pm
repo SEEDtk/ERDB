@@ -219,7 +219,7 @@ sub IndexGenomes {
     # Loop through the genomes.
     for my $genome (sort keys %$genomeDirs) {
         # Get this genome's directory and name.
-        my ($genomeLoc, $name) = $genomeDirs->{$genome};
+        my ($genomeLoc, $name) = @{$genomeDirs->{$genome}};
         # Relocate the directory so that it is relative to the repository.
         my $genomeRelLoc = substr($genomeLoc, $repoNameLen + 1);
         # Write the ID, name, and directory to the output file.
