@@ -391,7 +391,7 @@ sub Clear {
         # Loop through them.
         for my $rel (keys %$relHash) {
             # Recreate this relation.
-            $shrub->CreateTable($rel, 1);
+            $shrub->CreateTable($rel);
             print "$rel recreated.\n";
             $stats->Add(tableClear => 1);
         }

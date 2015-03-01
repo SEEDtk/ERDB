@@ -55,12 +55,18 @@ A hash of tuning options. The following keys are accepted.
 If TRUE, then any index file in the repository will be ignored and the directory hierarchy will be traversed.
 Otherwise, the index file will be read if present.
 
+=item nameless
+
+If TRUE, the genome names will be skipped, so that the return hash maps genome IDs directly to
+directory names.
+
 =back
 
 =item RETURN
 
 Returns a reference to a hash mapping genome IDs to 2-tuples consisting of (0) the directory name
-and (1) the genome name.
+and (1) the genome name. If the C<nameless> option is specified, returns a reference to a hash
+mapping genome IDs directly to directory names.
 
 =back
 
@@ -71,6 +77,8 @@ sub FindGenomeList {
     my ($self, $repository, %options) = @_;
     # The output will be put in here.
     my %retVal;
+    # Remember the nameless option.
+    my $nameless = $options{nameless};
     # Can we use an index file?
     my $indexUsed;
     if (! $options{useDirectory} && -f "$repository/index") {
@@ -82,7 +90,8 @@ sub FindGenomeList {
             print "Reading genome index for $repository.\n";
             while (my $fields = $self->GetLine(GenomeIndex => $ih)) {
                 my ($genome, $name, $dir) = @$fields;
-                $retVal{$genome} = ["$repository/$dir", $name];
+                my $fullDir = "$repository/$dir";
+                $retVal{$genome} = ($nameless ? $fullDir : [$fullDir, $name]);
             }
             # Denote we've loaded from the index.
             $indexUsed = 1;
@@ -106,7 +115,13 @@ sub FindGenomeList {
                 # Check to see if this is a genome.
                 if ($subDir =~ /^\d+\.\d+$/) {
                     # Here we have a genome directory.
-                    $retVal{$subDir} = $dirName;
+                    if ($nameless) {
+                        $retVal{$subDir} = $dirName;
+                    } else {
+                        # We need the genome name. Pull it from the metadata.
+                        my $metaHash = $self->ReadMetaData("$dirName/genome-info", required => [qw(name)]);
+                        $retVal{$subDir} = [$dirName, $metaHash->{name}];
+                    }
                     $genomeCount++;
                     if ($genomeCount % 200 == 0) {
                         print "Reading genome directories. $genomeCount genomes processed.\n";
@@ -203,14 +218,12 @@ sub IndexGenomes {
     my $genomeDirs = $self->FindGenomeList($genomeDir, useDirectory => 1);
     # Loop through the genomes.
     for my $genome (sort keys %$genomeDirs) {
-        # Get this genome's directory.
-        my $genomeLoc = $genomeDirs->{$genome};
-        # Read its metadata.
-        my $metaHash = $self->ReadMetaData("$genomeLoc/genome-info", required => 'name');
+        # Get this genome's directory and name.
+        my ($genomeLoc, $name) = $genomeDirs->{$genome};
         # Relocate the directory so that it is relative to the repository.
         my $genomeRelLoc = substr($genomeLoc, $repoNameLen + 1);
         # Write the ID, name, and directory to the output file.
-        print $oh join("\t", $genome, $metaHash->{name}, $genomeRelLoc) . "\n";
+        print $oh join("\t", $genome, $name, $genomeRelLoc) . "\n";
         $stats->Add(genomeOut => 1);
     }
     # Close the output file.
@@ -259,8 +272,6 @@ sub RepoPath {
     # Return the result.
     return $retVal;
 }
-
-
 
 
 1;

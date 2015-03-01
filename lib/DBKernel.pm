@@ -348,7 +348,7 @@ sub SQL {
 
     my $dbh  = $self->{_dbh};
     my $retVal;
-    if ($sql =~ /^\s*select/i) {
+    if ($sql =~ /^\s*(?:select|show)/i) {
 
         # Choose to use the readonly handle if one exists.
 
@@ -402,63 +402,72 @@ sub SQL {
     return $retVal;
 }
 
-sub SQL_returning_hash {
-    my($self,$sql,$key, $verbose, @bind_values) = @_;
+=head3 show_indexes
 
-    my $dbh  = $self->{_dbh};
-    my $retVal;
-    if ($sql =~ /^\s*select/i) {
+    my $indexHash = $db->show_indexes($tableName);
 
-        # Choose to use the readonly handle if one exists.
+Return a hash describing the indexes on a specified table. The hash will map
+each index name to a sub-hash that indicates the attributes of the index
+and its list of fields.
 
-        my $ro = $self->{_ro_dbh};
-        if (ref($ro))
-        {
-            $dbh = $ro if ref($ro);
-            #warn "using RO for $sql\n";
-        }
-        # We may need to try multiple times.
-        my $tries_left = $self->{_retries};
-        # In MySQL test mode, we turn off query caching.
-        # If we run out of retries, we'll confess. Otherwise, $retVal will get a
-        # value put in it.
-        while (! defined $retVal) {
-            eval {
-                $retVal = $dbh->selectall_hashref($sql, $key, undef, @bind_values);
-            };
-            if ($@) {
-                Confess("Query failed: $@");
-            } elsif (! defined $retVal) {
-                # We have a soft error. Save the message.
-                my $msg = $dbh->errstr;
-                # See if we can retry. A retry is possible if the error is
-                # timeout or connection-related.
-                if ($tries_left && $msg =~ /connect|gone|lost|timeout/) {
-                    # Yes. Attempt a reconect.
-                    $self->Reconnect();
-                    # Get back the database handle.
-                    $dbh = $self->{_dbh};
-                    # Denote we've used up a retry.
-                    $tries_left--;
-                } else {
-                    # We can't recover, so confess.
-                    Confess("SELECT failed: $msg");
-                }
-                Confess("Query failed: " . $dbh->errstr);
-            }
-        }
-    } else {
-        eval {
-            $retVal = $dbh->do($sql, undef, @bind_values);
-        };
-        if ($@) {
-            Confess("Query '$sql' failed: $@");
-        } elsif (! defined $retVal) {
-            Confess("Query failed: " . $dbh->errstr);
+Currently this only works for MySQL.
+
+=over 4
+
+=item tableName
+
+Name of the table whose index list is desired.
+
+=item RETURN
+
+Returns a reference to a hash, keyed on index name. Each index name will
+be mapped to a sub-hash with the following keys.
+
+=over 8
+
+=item unique
+
+TRUE if the index is unique, else FALSE.
+
+=item fields
+
+Reference to a list of the fields in the index, in order.
+
+=back
+
+=back
+
+=cut
+
+sub show_indexes {
+    #v Get the parameters.
+    my ($self, $tableName) = @_;
+    if ($self->{dbms} ne 'mysql') {
+        die "show_indexes not supported for $self->{dbms}.";
+    }
+    # Construct the query.
+    my $rows = $self->SQL("SHOW INDEXES FROM $tableName");
+    # Build the output hash in here.
+    my %retVal;
+    # Loop through the query rows. Each row represents a single index field. We
+    # need to combine them into data by index.
+    for my $row (@$rows) {
+        # Get the data for this index field. The first column is the table name,
+        # which we don't need here.
+        my (undef, $nonUnique, $idxName, $field) = @$row;
+        # Do we already have an entry for this index?
+        if (exists $retVal{$idxName}) {
+            # Yes. Add this field to its field list.
+            push @{$retVal{$idxName}{fields}}, $field;
+        } else {
+            # No. Create an entry for this index.
+            $retVal{$idxName} = { unique => ! $nonUnique, fields => [$field] };
         }
     }
-    return $retVal;
+    # Return the index hash.
+    return \%retVal;
 }
+
 
 =head3 show_create_table
 
@@ -1235,6 +1244,7 @@ sub drop_index {
     my $dbh  = $self->{_dbh};
     my $dbms = $self->{_dbms};
     my $res;
+    my $q = $self->quote();
     if ($dbms eq "mysql")
     {
      unless ($idx && $tbl)
@@ -1242,7 +1252,7 @@ sub drop_index {
       print STDERR "Both Index name and table must be specified for them to be dropped\n";
       return undef;
      }
-     $res=$dbh->do("DROP INDEX $idx on $tbl");
+     $res=$dbh->do("DROP INDEX $q$idx$q on $q$tbl$q");
     }
     elsif ($dbms eq "Pg" or $dbms eq "SQLite")
     {
@@ -1251,7 +1261,7 @@ sub drop_index {
       print STDERR "An index must be specified to be dropped\n";
       return undef;
      }
-     $res=$dbh->do("DROP INDEX $idx");
+     $res=$dbh->do("DROP INDEX $q$idx$q");
     }
     else
     {

@@ -122,7 +122,7 @@ sub new {
     # Get the parameters.
     my ($class, %options) = @_;
     # Compute the default base directory.
-    my $dirBase = $FIG_Config::shrub_dir || '/vol/seedtk/shrub';
+    my $dirBase = $FIG_Config::data || '/vol/seedtk/shrub';
     # Get the options.
     if (! $options{loadDirectory}) {
         $options{loadDirectory} = "$dirBase/LoadFiles";
@@ -906,20 +906,6 @@ Return the variable name to use for this database when generating code.
 
 sub PreferredName {
     return 'shrub';
-}
-
-=head3 UseInternalDBD
-
-    my $flag = $erdb->UseInternalDBD();
-
-Return TRUE if this database should be allowed to use an internal DBD.
-The internal DBD is stored in the C<_metadata> table, which is created
-when the database is loaded. The Shrub uses an internal DBD.
-
-=cut
-
-sub UseInternalDBD {
-    return 1;
 }
 
 1;

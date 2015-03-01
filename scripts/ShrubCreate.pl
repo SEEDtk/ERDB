@@ -100,14 +100,13 @@ my @relNames = sort $shrub->GetTableNames();
 my %changed;
 # Compute the missing-only flag.
 my $missing = $opt->missing;
+# Get a list of a tables in the actual database.
+my @tablesFound = $dbh->get_tables();
+print scalar(@tablesFound) . " tables found in database.\n";
 # Is this a fixup?
 if ($opt->fixup) {
     # Yes. Denote we only want to create missing tables.
     print "Performing fixup.\n";
-    $missing = 1;
-    # Get a list of a tables in the actual database.
-    my @tablesFound = $dbh->get_tables();
-    print scalar(@tablesFound) . " tables found in database.\n";
     # Create a hash for checking the tables against the schema. The check
     # needs to be case-insensitive.
     my %relHash = map { lc($_) => 1 } @relNames;
@@ -178,16 +177,28 @@ if ($opt->fixup) {
         }
     }
 }
+# If clear is specified, drop all the current tables. Noteb that system tables (which
+# begin with an underscore) are not dropped.
+if ($opt->clear) {
+    for my $relName (@tablesFound) {
+        if (substr($relName, 0, 1) ne '_') {
+            print "Dropping $relName\n";
+            $shrub->DropRelation($relName);
+        }
+    }
+}
 # Here is where we create tables. We only do this if clear or missing is
 # set.
 if ($opt->clear || $opt->missing) {
+    # If this is a clear, we don't need to drop the tables before creating.
+    my $nodrop = ($opt->clear ? 1  : 0);
     # Loop through the relations.
     print "Processing relations.\n";
     for my $relationName (@relNames) {
         $stats->Add(relationChecked => 1);
         # Do we want to create this table?
         if (! $missing || ! $dbh->table_exists($relationName)) {
-            $shrub->CreateTable($relationName, 1);
+            $shrub->CreateTable($relationName, nodrop => $nodrop);
             print "$relationName created.\n";
             $stats->Add(relationCreated => 1);
         } elsif ($changed{$relationName}) {

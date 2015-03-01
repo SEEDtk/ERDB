@@ -2040,7 +2040,8 @@ Name of the relation whose descriptor is to be returned.
 
 =item RETURN
 
-Returns the object that describes the relation's indexes and fields.
+Returns the object that describes the relation's indexes and fields, or C<undef> if
+the relation does not eixst.
 
 =back
 
@@ -2051,7 +2052,7 @@ sub FindRelation {
     # Get the relation's structure from the master relation table in the
     # metadata structure.
     my $metaData = $self->{_metaData};
-    my $retVal = $metaData->{RelationTable}->{$relationName};
+    my $retVal = $metaData->{RelationTable}{$relationName};
     # Return it to the caller.
     return $retVal;
 }
@@ -3149,11 +3150,11 @@ sub LoadTable {
             $estimate = 10000;
         }
         # Re-create the table without its index.
-        $self->CreateTable($relationName, 0, $estimate);
+        $self->CreateTable($relationName, unindexed => 1, estimate => $estimate);
         # If this is a pre-index DBMS, create the index here.
         if ($dbh->{_preIndex}) {
             eval {
-                $self->CreateIndex($relationName);
+                $self->CreateIndexes($relationName);
             };
             if ($@) {
                 $retVal->AddMessage($@);
@@ -3183,18 +3184,12 @@ sub LoadTable {
             # best built at the end. For MySQL, the reverse is true.
             if (! $dbh->{_preIndex}) {
                 eval {
-                    $self->CreateIndex($relationName);
+                    $self->CreateIndexes($relationName);
                 };
                 if ($@) {
                     $errorMessage = $@;
                     $retVal->AddMessage($errorMessage);
                 }
-            }
-            # The full-text index (if any) is always built last, even for MySQL.
-            # First we need to see if this table HAS a full-text index. Only
-            # primary relations are allowed that privilege.
-            if ($self->_IsPrimary($relationName)) {
-                $self->CreateSearchIndex($relationName);
             }
         }
     }
@@ -3319,90 +3314,6 @@ sub TruncateTable {
     my $dbh = $self->{_dbh};
     # Execute a truncation comment.
     $dbh->truncate_table($table);
-}
-
-=head3 VerifyTable
-
-    my $newFlag = $erdb->VerifyTable($table, $indexFlag, $estimatedRows);
-
-If the specified table does not exist, create it. This method will return TRUE
-if the table is created, else FALSE.
-
-=over 4
-
-=item table
-
-Name of the table to verify.
-
-=item indexFlag
-
-TRUE if the indexes for the relation should be created, else FALSE. If FALSE,
-L</CreateIndexes> must be called later to bring the indexes into existence.
-
-=item estimatedRows (optional)
-
-If specified, the estimated maximum number of rows for the relation. This
-information allows the creation of tables using storage engines that are
-faster but require size estimates, such as MyISAM.
-
-=item RETURN
-
-Returns TRUE if the table was created, FALSE if it already existed in the
-database.
-
-=back
-
-=cut
-
-sub VerifyTable {
-    # Get the parameters.
-    my ($self, $table, $indexFlag, $estimatedRows) = @_;
-    # Declare the return variable.
-    my $retVal;
-    # Only proceed if the table does NOT exist.
-    if (! $self->{_dbh}->table_exists($table)) {
-        # Attempt to create the table.
-        $self->CreateTable($table, $indexFlag, $estimatedRows);
-        # Denote we did so.
-        $retVal = 1;
-    }
-    # Return the determination indicator.
-    return $retVal;
-}
-
-=head3 CreateSearchIndex
-
-    $erdb->CreateSearchIndex($objectName);
-
-Check for a full-text search index on the specified entity or relationship object, and
-if one is required, rebuild it.
-
-=over 4
-
-=item objectName
-
-Name of the entity or relationship to be indexed.
-
-=back
-
-=cut
-
-sub CreateSearchIndex {
-    # Get the parameters.
-    my ($self, $objectName) = @_;
-    # Get the relation's entity/relationship structure.
-    my $structure = $self->_GetStructure($objectName);
-    # Get the database handle.
-    my $dbh = $self->{_dbh};
-    # Check for a searchable fields list.
-    if (exists $structure->{searchFields}) {
-        # Here we know that we need to create a full-text search index.
-        # Get an SQL-formatted field name list.
-        my $fields = join(", ", _FixNames(@{$structure->{searchFields}}));
-        # Create the index. If it already exists, it will be dropped.
-        $dbh->create_index(tbl => $objectName, idx => "search_idx",
-                           flds => $fields, kind => 'fulltext');
-    }
 }
 
 =head3 DropRelation
@@ -3623,13 +3534,13 @@ sub CreateTables {
     # Loop through the relations.
     for my $relationName (@relNames) {
         # Create a table for this relation.
-        $self->CreateTable($relationName, 1);
+        $self->CreateTable($relationName);
     }
 }
 
 =head3 CreateTable
 
-    $erdb->CreateTable($tableName, $indexFlag, $estimatedRows);
+    $erdb->CreateTable($tableName, %options);
 
 Create the table for a relation and optionally create its indexes.
 
@@ -3639,16 +3550,30 @@ Create the table for a relation and optionally create its indexes.
 
 Name of the relation (which will also be the table name).
 
-=item indexFlag
+=item options
 
-TRUE if the indexes for the relation should be created, else FALSE. If FALSE,
-L</CreateIndexes> must be called later to bring the indexes into existence.
+A hash of options, including zero or more of the following.
 
-=item estimatedRows (optional)
+=over 4
+
+=item unindexed
+
+If TRUE, no indexes will be created for the relation. If this option is
+specified, L</CreateIndex> must be called later to bring the indexes
+into existence.
+
+=item estimate
 
 If specified, the estimated maximum number of rows for the relation. This
 information allows the creation of tables using storage engines that are
 faster but require size estimates, such as MyISAM.
+
+=item nodrop
+
+If TRUE, the table will not be dropped before creation. This will cause an
+error if the table already exists.
+
+=back
 
 =back
 
@@ -3656,7 +3581,7 @@ faster but require size estimates, such as MyISAM.
 
 sub CreateTable {
     # Get the parameters.
-    my ($self, $relationName, $indexFlag, $estimatedRows) = @_;
+    my ($self, $relationName, %options) = @_;
     # Get the database handle.
     my $dbh = $self->{_dbh};
     # Get the quote character.
@@ -3666,19 +3591,21 @@ sub CreateTable {
     # Create a list of the field data.
     my $fieldThing = $self->ComputeFieldString($relationName);
     # Insure the table is not already there.
-    $dbh->drop_table(tbl => $q . $relationName . $q);
+    if (! $options{nodrop}) {
+        $dbh->drop_table(tbl => $q . $relationName . $q);
+    }
     # Create an estimate of the table size.
     my $estimation;
-    if ($estimatedRows) {
-        $estimation = [$self->EstimateRowSize($relationName), $estimatedRows];
+    if ($options{estimate}) {
+        $estimation = [$self->EstimateRowSize($relationName), $options{estimate}];
     }
     # Create the table.
     $dbh->create_table(tbl => $q . $relationName . $q, flds => $fieldThing,
                        estimates => $estimation);
     # If we want to build the indexes, we do it here. Note that the full-text
     # search index will not be built until the table has been loaded.
-    if ($indexFlag) {
-        $self->CreateIndex($relationName);
+    if (! $options{unindexed}) {
+        $self->CreateIndexes($relationName);
     }
 }
 
@@ -3961,9 +3888,9 @@ sub DigestKey {
     return $retVal;
 }
 
-=head3 CreateIndex
+=head3 CreateIndexes
 
-    $erdb->CreateIndex($relationName);
+    $erdb->CreateIndexes($relationName);
 
 Create the indexes for a relation. If a table is being loaded from a large
 source file (as is the case in L</LoadTable>), it is sometimes best to create
@@ -3971,9 +3898,17 @@ the indexes after the load. If that is the case, then L</CreateTable> should be
 called with the index flag set to FALSE, and this method used after the load to
 create the indexes for the table.
 
+=over 4
+
+=item relationName
+
+Name of the relation whose indexes are to be created.
+
+=back
+
 =cut
 
-sub CreateIndex {
+sub CreateIndexes {
     # Get the parameters.
     my ($self, $relationName) = @_;
     # Get the relation's descriptor.
@@ -3986,48 +3921,81 @@ sub CreateIndex {
     # through its index table.
     my $indexHash = $relationData->{Indexes};
     for my $indexName (keys %{$indexHash}) {
-        my $indexData = $indexHash->{$indexName};
-        # Get the index's field list.
-        my @rawFields = @{$indexData->{IndexFields}};
-        # Get a hash of the relation's field types.
-        my %types = map { $_->{name} => $_->{type} } @{$relationData->{Fields}};
-        # We need to check for partial-indexed fields so we can append a length limitation
-        # for them. To do that, we need the relation's field list.
-        my $relFields = $relationData->{Fields};
-        for (my $i = 0; $i <= $#rawFields; $i++) {
-            # Split the ordering suffix from the field name.
-            my ($field, $suffix) = split(/\s+/, $rawFields[$i]);
-            $suffix = "" if ! defined $suffix;
-            # Get the field type.
-            my $type = $types{$field};
-            # Ask if it requires using prefix notation for the index.
-            my $mod = $TypeTable->{$type}->indexMod();
-            if (! defined($mod)) {
-                Confess("Non-indexable type $type specified for index field in $relationName.");
-            } elsif ($mod) {
-                # Here we have an indexed field that requires a modification in order
-                # to work. This means we need to insert it between the
-                # field name and the ordering suffix. Note we make sure the
-                # suffix is defined.
-                $rawFields[$i] =  join(" ", $dbh->index_mod($q . $field . $q, $mod), $suffix);
-            } else {
-                # Here we have a normal field, so we quote it.
-                $rawFields[$i] = join(" ", $q . $field . $q, $suffix);
-            }
-        }
-        my @fieldList = _FixNames(@rawFields);
-        my $flds = join(', ', @fieldList);
-        # Get the index's uniqueness flag.
-        my $unique = ($indexData->{primary} ? 'primary' : ($indexData->{unique} ? 'unique' : undef));
-        # Create the index.
-        my $rv = $dbh->create_index(idx => "$indexName$relationName", tbl => $q . $relationName . $q,
-                                    flds => $flds, kind => $unique);
-        if (! $rv) {
-            Confess("Error creating index $indexName for $relationName using ($flds): " .
-                    $dbh->error_message());
-        }
+        $self->CreateIndex($relationName, $indexName);
     }
 }
+
+=head3 CreateIndex
+
+    $erdb->CreateIndex($relationName, $indexName);
+
+Create the index on the specified relation with the specified name.
+
+=over 4
+
+=item relationName
+
+Name of the relation on which the index is to be created.
+
+=item indexName
+
+Name of the index in the relation's index set.
+
+=back
+
+=cut
+
+sub CreateIndex {
+    # Get the parameters.
+    my ($self, $relationName, $indexName) = @_;
+    # Get the index descriptor.
+    my $relationData = $self->FindRelation($relationName);
+    my $indexData = $relationData->{Indexes}{$indexName};
+    # Get the DBKernel handle.
+    my $dbh = $self->{_dbh};
+    # Get the quote character.
+    my $q = $self->q;
+    # Get the index's field list.
+    my @rawFields = @{$indexData->{IndexFields}};
+    # Get a hash of the relation's field types.
+    my %types = map { $_->{name} => $_->{type} } @{$relationData->{Fields}};
+    # We need to check for partial-indexed fields so we can append a length limitation
+    # for them. To do that, we need the relation's field list.
+    my $relFields = $relationData->{Fields};
+    for (my $i = 0; $i <= $#rawFields; $i++) {
+        # Split the ordering suffix from the field name.
+        my ($field, $suffix) = split(/\s+/, $rawFields[$i]);
+        $suffix = "" if ! defined $suffix;
+        # Get the field type.
+        my $type = $types{$field};
+        # Ask if it requires using prefix notation for the index.
+        my $mod = $TypeTable->{$type}->indexMod();
+        if (! defined($mod)) {
+            Confess("Non-indexable type $type specified for index field in $relationName.");
+        } elsif ($mod) {
+            # Here we have an indexed field that requires a modification in order
+            # to work. This means we need to insert it between the
+            # field name and the ordering suffix. Note we make sure the
+            # suffix is defined.
+            $rawFields[$i] =  join(" ", $dbh->index_mod($q . $field . $q, $mod), $suffix);
+        } else {
+            # Here we have a normal field, so we quote it.
+            $rawFields[$i] = join(" ", $q . $field . $q, $suffix);
+        }
+    }
+    my @fieldList = _FixNames(@rawFields);
+    my $flds = join(', ', @fieldList);
+    # Get the index's uniqueness flag.
+    my $unique = ($indexData->{primary} ? 'primary' : ($indexData->{unique} ? 'unique' : undef));
+    # Create the index.
+    my $rv = $dbh->create_index(idx => "$indexName", tbl => $q . $relationName . $q,
+                                flds => $flds, kind => $unique);
+    if (! $rv) {
+        Confess("Error creating index $indexName for $relationName using ($flds): " .
+                $dbh->error_message());
+    }
+}
+
 
 =head3 SetTestEnvironment
 
@@ -4068,215 +4036,6 @@ sub dbName {
     return $retVal;
 }
 
-=head3 FixRelationship
-
-    my $stats = $erdb->FixRelationship($name, $testOnly);
-
-This method scans a relationship and insures that all of the
-instances connect to valid entities on both sides. If any instance
-fails to connect, it will be deleted. The process is fairly
-memory-intensive.
-
-=over 4
-
-=item name
-
-Name of the relationship to scan.
-
-=item testOnly
-
-If TRUE, then statistics will be accumulated but no deletions will be performed.
-
-=item RETURN
-
-Returns a L<Stats> object describing the scan results.
-
-=back
-
-=cut
-
-sub FixRelationship {
-    # Get the parameters.
-    my ($self, $name, $testOnly) = @_;
-    # Create the statistics object to return.
-    my $retVal = Stats->new();
-    # Compute the names of the entities on either side.
-    my ($fromEntity, $toEntity) = $self->GetRelationshipEntities($name);
-    my %entities = (from => $fromEntity, to => $toEntity);
-    # Loop through the relationship, saving the from and to
-    # entity ids.
-    my %idHash = (from => {}, to => {});
-    my $query = $self->Get($name, "", [], 'from-link to-link');
-    while (my $row = $query->Fetch()) {
-        my ($from, $to) = $row->Values('from-link to-link');
-        $idHash{from}{$from} = 1;
-        $idHash{to}{$to} = 1;
-        $retVal->Add("${name}In" => 1);
-    }
-    # Now verify that the entities exist. We process each direction
-    # separately.
-    for my $dir (qw(from to)) {
-        my $entity = $entities{$dir};
-        # Loop through the entity IDs in this direction.
-        # We process them in batches of 50.
-        my @idList = ();
-        for my $id (sort keys %{$idHash{$dir}}) {
-            $retVal->Add("key$name$dir" => 1);
-            push @idList, $id;
-            if (scalar(@idList) >= 50) {
-                $self->_ProcessFixRelationshipBatch($retVal, $name, $entity, $dir, \@idList, $testOnly);
-                @idList = ();
-            }
-        }
-        # Process the residual batch (if any).
-        if (@idList) {
-            $self->_ProcessFixRelationshipBatch($retVal, $name, $entity, $dir, \@idList, $testOnly);
-        }
-    }
-    # Return the statistics object with the results.
-    return $retVal;
-}
-
-# Utility method to process a batch for FixRelationship. The IDs are
-# checked to see if they are valid. If they are not, then the relevant
-# relationship rows are deleted.
-sub _ProcessFixRelationshipBatch {
-    # Get the parameters.
-    my ($self, $stats, $name, $entity, $dir, $idList, $testOnly) = @_;
-    # Construct a query to look up the entity IDs.
-    my $n = scalar(@$idList);
-    my $filter = "$entity(id) IN (" . join(", ", ('?') x $n) . ")";
-    my %keysFound = map { $_ => 1 } $self->GetFlat($entity, $filter,
-            $idList, 'id');
-    $stats->Add("$entity-keyFound" => scalar keys %keysFound);
-    $stats->Add("$entity-keyQuery" => 1);
-    # Now we format a delete filter for any key we DIDN'T find.
-    $filter = "$name($dir-link) = ?";
-    # Loop through all the keys.
-    for my $id (@$idList) {
-        if (! $keysFound{$id}) {
-            # Key was not found, so delete its relationship rows.
-            $stats->Add("$entity-keyNotFound" => 1);
-            if (! $testOnly) {
-                my $count = $self->DeleteLike($name, $filter, [$id]);
-                $stats->Add("$name-delete$dir" => $count);
-            }
-        }
-    }
-}
-
-=head3 CleanRelationship
-
-    my $stats = $erdb->CleanRelationship($relName, @fields);
-
-Remove duplicate rows from a relationship. A row is duplicate if the from- and to-links
-match and the zero or more specified additional fields also match.
-
-=over 4
-
-=item relName
-
-Name of the relationship to clean.
-
-=item fields
-
-List of additional fields in the relationship to be used to determine whether or
-not we have a duplicate row. The fields must be scalars and not that they cannot
-
-
-=item RETURN
-
-Returns a L<Stats> object describing what happened during the cleanup.
-
-=back
-
-=cut
-
-sub CleanRelationship {
-    # Get the parameters.
-    my ($self, $relName, @fields) = @_;
-    # Build the ORDER BY clause for the query. For best performance, the extra fields
-    # should be those in the from-index, in order.
-    my $clause = "$relName(from-link) = ? ORDER BY " .
-            join(", ", map { "$relName($_)" } (@fields, 'to-link'));
-    # Create the return statistics object.
-    my $retVal = Stats->new();
-    # Get the relationship's full field list.
-    my $fieldTable = $self->GetFieldTable($relName);
-    my @allFields = keys %{$fieldTable};
-    # Loop through the possible from-links.
-    my ($fromEntity) = $self->GetRelationshipEntities($relName);
-    my $idQry = $self->Get($fromEntity, "", [], 'id');
-    while (my $idRow = $idQry->Fetch()) {
-        my $fromID = $idRow->PrimaryValue('id');
-        # We will create a list of delete requests. Each consists of a 3-tuple of a from-link,
-        # a to-link, and a hash of other fields.
-        my @deletes;
-        # This is a list of insert-back requests. Each consists of a hash of field values.
-        my @inserts;
-        # Set up to loop through the relationship for this from-link value.
-        my $qry = $self->Get($relName, $clause, [$fromID], ['from-link', 'to-link', @fields]);
-        # Create a dummy key for the first row.
-        my @key = ("", "", map { "" } @fields);
-        # Remember its size.
-        my $keylen = scalar @key;
-        # Denote that the current key is not being deleted.
-        my $deleteInProgress = 0;
-        # Loop through the rows.
-        while (my $row = $qry->Fetch()) {
-            # Get the key for this row.
-            my @key2 = $row->Values(['from-link', 'to-link', @fields]);
-            $retVal->Add(rowsRead => 1);
-            # Verify that they are different.
-            my $equal = 1;
-            for (my $i = 0; $i < $keylen && $equal; $i++) {
-                if ($key[$i] ne $key2[$i]) {
-                    $equal = 0;
-                }
-            }
-            if (! $equal) {
-                # Here the keys are different. No delete is needed.
-                $deleteInProgress = 0;
-                # Update the key.
-                @key = @key2;
-            } elsif ($deleteInProgress) {
-                # Here the keys are the same, but this key set is already being deleted.
-                # Record the fact in the statistics.
-                $retVal->Add(extraDuplicates => 1);
-            } else {
-                # Here the keys are the same and we have not already scheduled them for
-                # deletion. Save the information we need to delete the duplicates and
-                # re-insert the current record.
-                $retVal->Add(duplicateGroups => 1);
-                my %delHash;
-                for (my $i = 2; $i < $keylen; $i++) {
-                    $delHash{$fields[$i - 2]} = $key2[$i];
-                }
-                push @deletes, [$key2[0], $key2[1], \%delHash];
-                my %insHash;
-                for my $field (@allFields) {
-                    $insHash{$field} = $row->PrimaryValue($field);
-                }
-                push @inserts, \%insHash;
-                # Denote a delete is in progress.
-                $deleteInProgress = 1;
-            }
-        }
-        # Now we have a list of deletions and insertions to perform. These are done outside the
-        # loop so as not to mess up the query progress. We also expect them to be small in number
-        # and capable of fitting in memory.
-        for my $delete (@deletes) {
-            $self->DeleteRow($relName, $delete->[0], $delete->[1], $delete->[2]);
-            $retVal->Add(deletes => 1);
-        }
-        for my $insert (@inserts) {
-            $self->InsertObject($relName, $insert);
-            $retVal->Add(inserts => 1);
-        }
-    }
-    # Return the statistics object.
-    return $retVal;
-}
 
 =head2 Database Update Methods
 
@@ -5352,34 +5111,6 @@ sub LoadDirectory {
     return $self->{loadDirectory} || $ERDBExtras::temp;
 }
 
-=head3 Cleanup
-
-    $erdb->Cleanup();
-
-Clean up data structures. This method is called at the end of each
-section when loading the database. The subclass can use it to free up
-memory that may have accumulated due to caching or accumulation of hash
-structures. The default method does nothing.
-
-=cut
-
-sub Cleanup { }
-
-=head3 UseInternalDBD
-
-    my $flag = $erdb->UseInternalDBD();
-
-Return TRUE if this database should be allowed to use an internal DBD.
-The internal DBD is stored in the C<_metadata> table, which is created
-when the database is loaded. The default is TRUE.
-
-=cut
-
-sub UseInternalDBD {
-    return 1;
-}
-
-
 =head2 Internal Utility Methods
 
 =head3 _FieldString
@@ -6083,7 +5814,7 @@ sub _LoadRelation {
         $retVal = $self->LoadTable($fileName, $relationName, truncate => $rebuild);
     } elsif ($rebuild) {
         # Here we are rebuilding, but no file exists, so we just re-create the table.
-        $self->CreateTable($relationName, 1);
+        $self->CreateTable($relationName);
     }
     # Return the statistics from the load.
     return $retVal;
@@ -6131,7 +5862,7 @@ sub _LoadMetaData {
     # Get the database handle.
     my $dbh = $self->{_dbh};
     # Check for an internal DBD.
-    if (defined $dbh && ! $external && $self->UseInternalDBD()) {
+    if (defined $dbh && ! $external) {
         # Check for a metadata table.
         if ($dbh->table_exists(METADATA_TABLE)) {
             # Check for an internal DBD.
@@ -6375,7 +6106,7 @@ sub _LoadMetaData {
                                                             order => 'ascending'} ] };
                 }
                 # Attach all the indexes to the relation.
-                _ProcessIndexes($indexList, $relation);
+                _ProcessIndexes($indexList, $relation, $relationName);
             }
             # Finally, we add the relation structure to the entity.
             $entityStructure->{Relations} = $relationTable;
@@ -6406,7 +6137,7 @@ sub _LoadMetaData {
                 # Add the alternate indexes (if any). This MUST be done before the FROM
                 # and TO indexes, because it erases the relation's index list.
                 if (exists $relationshipStructure->{Indexes}) {
-                    _ProcessIndexes($relationshipStructure->{Indexes}, $thisRelation);
+                    _ProcessIndexes($relationshipStructure->{Indexes}, $thisRelation, $relationshipName);
                 }
                 # Create the FROM and TO indexes.
                 _CreateRelationshipIndex("From", $relationshipName, $relationshipStructure);
@@ -6531,7 +6262,7 @@ sub _CreateRelationshipIndex {
         $newIndex->{unique} = 1;
     }
     # Add the index to the relation.
-    _AddIndex("idx$indexKey", $relationStructure, $newIndex);
+    _AddIndex("idx$indexKey$relationshipName", $relationStructure, $newIndex);
 }
 
 =head3 _ProcessIndexes
@@ -6556,7 +6287,11 @@ structure in the database definition.
 
 The structure that describes the current relation. The new index descriptors
 will be stored in the structure's C<Indexes> member. Any previous data in the
-structure will be lost.
+member will be lost.
+
+=item relName
+
+The name of the relation whose indexes are being processed.
 
 =back
 
@@ -6564,15 +6299,21 @@ structure will be lost.
 
 sub _ProcessIndexes {
     # Get the parameters.
-    my ($indexList, $relation) = @_;
+    my ($indexList, $relation, $relName) = @_;
     # Now we need to convert the relation's index list to an index table. We
     # begin by creating an empty table in the relation structure.
     $relation->{Indexes} = { };
     # Loop through the indexes.
     my $count = 0;
     for my $index (@{$indexList}) {
-        # Add this index to the index table.
-        _AddIndex("idx$count", $relation, $index);
+        # We must Add this index to the index table. Compute the index name.
+        my $indexName;
+        if ($index->{primary}) {
+            $indexName = 'PRIMARY';
+        } else {
+            $indexName = "idx$count$relName";
+        }
+        _AddIndex($indexName, $relation, $index);
         # Increment the counter so that the next index has a different name.
         $count++;
     }
@@ -7017,23 +6758,20 @@ future.
 sub InternalizeDBD {
     # Get the parameters.
     my ($self) = @_;
-    # Only proceed if an internal DBD is supported.
-    if ($self->UseInternalDBD()) {
-        # Get the database handle.
-        my $dbh = $self->{_dbh};
-        # Insure we have a metadata table.
-        if (! $dbh->table_exists(METADATA_TABLE)) {
-            $dbh->create_table(tbl => METADATA_TABLE,
-                               flds => 'id VARCHAR(20) NOT NULL PRIMARY KEY, data MEDIUMTEXT');
-        }
-        # Delete the current DBD record.
-        $dbh->SQL("DELETE FROM " . METADATA_TABLE . " WHERE id = ?", 0, 'DBD');
-        # Freeze the DBD metadata.
-        my $frozen = FreezeThaw::freeze($self->{_metaData});
-        # Store it in the database.
-        $dbh->SQL("INSERT INTO " . METADATA_TABLE . " (id, data) VALUES (?, ?)", 0, 'DBD',
-                  $frozen);
+    # Get the database handle.
+    my $dbh = $self->{_dbh};
+    # Insure we have a metadata table.
+    if (! $dbh->table_exists(METADATA_TABLE)) {
+        $dbh->create_table(tbl => METADATA_TABLE,
+                           flds => 'id VARCHAR(20) NOT NULL PRIMARY KEY, data MEDIUMTEXT');
     }
+    # Delete the current DBD record.
+    $dbh->SQL("DELETE FROM " . METADATA_TABLE . " WHERE id = ?", 0, 'DBD');
+    # Freeze the DBD metadata.
+    my $frozen = FreezeThaw::freeze($self->{_metaData});
+    # Store it in the database.
+    $dbh->SQL("INSERT INTO " . METADATA_TABLE . " (id, data) VALUES (?, ?)", 0, 'DBD',
+              $frozen);
 }
 
 

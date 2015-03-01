@@ -131,6 +131,50 @@ sub Clear {
     $loader->Clear('Subsystem', LOAD_TABLES);
 }
 
+=head3 SelectSubsystems
+
+    my $subList = $loader->SelectSubsystems($subsystemSpec, $subsysDirectory);
+
+Determine the subsystems to load.
+
+=over 4
+
+=item subsystemSpec
+
+Either C<all> to load all the subsystems in the repository, or the name of a tab-delimited file
+containing subsystem names in the first column.
+
+=item subsysDirectory
+
+The name of the directory containing the subsystem repository.
+
+=item RETURN
+
+Returns a reference to a list of the names of the subsystems to load.
+
+=back
+
+=cut
+
+sub SelectSubsystems {
+    my ($self, $subsystemSpec, $subsysDirectory) = @_;
+    my $loader = $self->{loader};
+    my $retVal;
+    if ($subsystemSpec) {
+        # Here we have a subsystem list.
+        $retVal = $loader->GetNamesFromFile(subsystem => $subsystemSpec);
+        print scalar(@$retVal) . " subsystems read from $subsystemSpec.\n";
+    } else {
+        # Here we are processing all the subsystems in the subsystem directory.
+        $retVal = [ map { Shrub::NormalizedName($_) }
+                grep { -d "$subsysDirectory/$_" } $loader->OpenDir($subsysDirectory, 1) ];
+        print scalar(@$retVal) . " subsystems found in repository at $subsysDirectory.\n";
+    }
+    # Return the subsystem list.
+    return $retVal;
+}
+
+
 =head3 LoadSubsystem
 
     my $actualID = $subLoader->LoadSubsystem($subID => $sub, $subDir, \%genomes);

@@ -11,7 +11,12 @@ named C<index> at the top level maps genome IDs to a relative directory path in 
 is tab-delimited with three columns-- (0) the genome ID, (1) the genome name, and (2) the relative
 path to the genome directory. If this file does not exist, you can create it with L<ShrubIndexGenomes.pl>.
 
-The directory containing the subsystems is a single, flat directory. There is no need for an index file.
+The directory containing the subsystems is called the I<subsystem repository>, and it is a single, flat
+directory. There is no need for an index file.
+
+In a typical exchange format directory, the two repositories are directly below the root. The genome
+repository is named C<GenomeData> and the subsystem repository C<SubSystemData>. The L<CopyFromSeed.pl>
+script creates the directories in this format.
 
 =head2 Metadata Files
 

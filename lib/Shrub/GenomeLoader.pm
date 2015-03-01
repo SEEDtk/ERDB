@@ -138,6 +138,62 @@ sub Clear {
 }
 
 
+=head3 ComputeGenomeList
+
+    my $gHash = $loader->ComputeGenomeList($genomeDir, $genomeSpec);
+
+Determine the genomes we want to load and return a hash mapping their IDs to their location
+in the repository.
+
+=over 4
+
+=item genomeDir
+
+Directory containing the genome repository.
+
+=item genomeSpec
+
+Either C<all>, indicating we want to load the entire repository, or the name of a tab-delimited file
+whose first column contains the IDs of the genomes we want to load.
+
+=item RETURN
+
+Returns a reference to a hash that maps the ID of each genome we want to load to the directory
+containing its exchange files.
+
+=back
+
+=cut
+
+sub ComputeGenomeList {
+    my ($self, $genomeDir, $genomeSpec) = @_;
+    # Get the loader object.
+    my $loader = $self->{loader};
+    # Get the directory of the genome repository.
+    my $retVal = $loader->FindGenomeList($genomeDir, nameless => 1);
+    # Do we have a list file?
+    if ($genomeSpec ne 'all') {
+        # Yes. Get the genomes in the list.
+        my $genomeList = $loader->GetNamesFromFile(genome => $genomeSpec);
+        # Now run through the genome list. If one of them is not in the repository, throw an error.
+        # Otherwise, put it into a hash.
+        my %genomeMap;
+        for my $genome (@$genomeList) {
+            my $genomeLoc = $retVal->{$genome};
+            if (! $genomeLoc) {
+                die "Genome $genome not found in repository.";
+            } else {
+                $genomeMap{$genome} = $genomeLoc;
+            }
+        }
+        # Save the genome map.
+        $retVal = \%genomeMap;
+    }
+    # Return the computed genome hash.
+    return $retVal;
+}
+
+
 =head3 CurateNewGenomes
 
     my $genomeMeta = $genomeLoader->CurateNewGenomes(\%genomeHash, $missingFlag, $clearFlag);
@@ -305,6 +361,32 @@ sub CurateNewGenomes {
     return \%retVal;
 }
 
+=head3 LoadGenome
+
+    $loader->LoadGenome($genome, $genomeDir, $metaHash);
+
+Load a genome into the database.Any previous copy of the genome must already have been deleted.
+(This is done automatically by L</CurateNewGenomes>; otherwise, use the method L<ERDB/Dalete>).)
+
+=over 4
+
+=item genome
+
+ID of the genome to load.
+
+=item genomeDir
+
+Directory containing the genome source files in L<ExchangeFormat>.
+
+=item metaHash (optional)
+
+A reference to a hash containing the metadata for the genome, mapping each
+key to its value. If omitted, the metadata will be read from the C<genome-info>
+file.
+
+=back
+
+=cut
 
 sub LoadGenome {
     # Get the parameters.

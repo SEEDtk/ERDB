@@ -46,7 +46,7 @@ my $stats = $loader->stats;
 # Insure we have a genome directory.
 my ($genomeDir) = $ARGV[0];
 if (! $genomeDir) {
-    $genomeDir = "$FIG_Config::shrub_dir/Inputs/GenomeData";
+    $genomeDir = "$FIG_Config::data/Inputs/GenomeData";
 }
 if (! -d $genomeDir) {
     die "Invalid genome directory $genomeDir.";

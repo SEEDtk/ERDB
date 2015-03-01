@@ -87,7 +87,7 @@ my $opt = ScriptUtils::Opts('subsysDirectory', Shrub::script_options(),
         ["subsystems=s", "name of a file containing a list of the subsystems to use"],
         ["missing|m", "only load subsystems not already in the database"],
         ["clear|c", "clear the subsystem tables before loading", { implies => 'missing' }],
-        ["genomeDir|g=s", "genome directory containing the data to load", { default => "$FIG_Config::shrub_dir/Inputs/GenomeData" }]
+        ["genomeDir|g=s", "genome directory containing the data to load", { default => "$FIG_Config::data/Inputs/GenomeData" }]
     );
 # Connect to the database.
 print "Connecting to database.\n";
@@ -101,7 +101,7 @@ if (! -d $genomeDirectory) {
     die "Invalid genome directory $genomeDirectory.";
 }
 if (! $subsysDirectory) {
-    $subsysDirectory = "$FIG_Config::shrub_dir/Inputs/SubSystemData";
+    $subsysDirectory = "$FIG_Config::data/Inputs/SubSystemData";
 }
 if (! -d $subsysDirectory) {
     die "Invalid subsystem directory $subsysDirectory.";

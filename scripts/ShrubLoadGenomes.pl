@@ -82,7 +82,7 @@ my $opt = ScriptUtils::Opts('', Shrub::script_options(),
         ["missing|m", "only load genomes not already in the database"],
         ["override|o", "override existing protein function assignments"],
         ["clear|c", "clear the genome tables before loading"],
-        ["genomeDir|g=s", "genome directory containing the data to load", { default => "$FIG_Config::shrub_dir/Inputs/GenomeData" }]
+        ["genomeDir|g=s", "genome directory containing the data to load", { default => "$FIG_Config::data/Inputs/GenomeData" }]
     );
 # Connect to the database.
 print "Connecting to database.\n";

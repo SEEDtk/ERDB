@@ -122,7 +122,7 @@ only privileged users will be able to edit them.
 
 sub subsys_options {
     return (
-            ["subsystems=s", "file listing subsystems to copy (default all)", { default => 'all' }],
+            ["subsystems|subs=s", "file listing subsystems to copy (default all)", { default => 'all' }],
             ["subGenomes", "if specified, all genomes in the spreadsheets of the specified subsystems will be copied"],
             ["subpriv", "if specified, the subsystems copied will be treated as privileged"],
     );
@@ -175,13 +175,13 @@ These are command-line options common to both object types.
 
 The path to the folder in which the exchange-format directories of copied
 genomes should be placed. The default is the default genome input repository
-(C<$FIG_Config::shrub_dir/Inputs/GenomeData>).
+(C<$FIG_Config::data/Inputs/GenomeData>).
 
 =item subsysDir
 
 The path to the folder in which the exchange-format directories of
 copied subsystems should be placed. The default is the default
-subsystem input repository (C<$FIG_Config::shrub_dir/Inputs/SubSystemData>).
+subsystem input repository (C<$FIG_Config::data/Inputs/SubSystemData>).
 
 =item missing
 
@@ -200,8 +200,8 @@ The privilege level of the annotations-- 0 (public), 1 (projected), or
 
 sub common_options {
     return (
-            ["genomeDir|g=s", "output directory for genome folders", { default => "$FIG_Config::shrub_dir/Inputs/GenomeData"}],
-            ["subsysDir|s=s", "output directory for subsystem folders", { default => "$FIG_Config::shrub_dir/Inputs/SubSystemData"}],
+            ["genomeDir|g=s", "output directory for genome folders", { default => "$FIG_Config::data/Inputs/GenomeData"}],
+            ["subsysDir|s=s", "output directory for subsystem folders", { default => "$FIG_Config::data/Inputs/SubSystemData"}],
             ["privilege=i", "privilege level of the annotations-- 0 (public), 1 (projected), or 2 (privileged)"],
             ["missing|m", "only copy missing subsystems and genomes"]
         );
