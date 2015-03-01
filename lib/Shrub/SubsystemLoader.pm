@@ -160,7 +160,7 @@ sub SelectSubsystems {
     my ($self, $subsystemSpec, $subsysDirectory) = @_;
     my $loader = $self->{loader};
     my $retVal;
-    if ($subsystemSpec) {
+    if ($subsystemSpec ne 'all') {
         # Here we have a subsystem list.
         $retVal = $loader->GetNamesFromFile(subsystem => $subsystemSpec);
         print scalar(@$retVal) . " subsystems read from $subsystemSpec.\n";
@@ -275,9 +275,12 @@ sub LoadSubsystem {
         # Is this genome in the database?
         if (! $loader->CheckCached(Genome => $genome, $genomeHash)) {
             # No, skip it.
-            $stats->Add(genomeSkipped => 1);
+            $stats->Add(subsystemGenomeSkipped => 1);
+        } elsif ($varCode =~ /^-?\d+$/ && $varCode <= 0) {
+            # Yes, but it's an incomplete variant.
+            $stats->Add(subsystemGenomeVacant => 1);
         } else {
-            # Yes, create a row for it.
+            # Yes, and it's ok, so create a row for it.
             my $rowID = "$retVal:$row";
             $loader->InsertObject('SubsystemRow', id => $rowID, 'needs-curation' => $needsCuration,
                     privilege => $rowPrivilege, 'variant-code' => $varCode, Subsystem2Row_link => $retVal, Genome2Row_link => $genome);
