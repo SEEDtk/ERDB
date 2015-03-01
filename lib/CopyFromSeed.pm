@@ -582,9 +582,10 @@ sub CopyGenome {
             $stats->Add('genome-no-contigs' => 1);
         } else {
             # Now find out if this genome is prokaryotic. If we don't know
-            # for sure, then it isn't.
+            # for sure, then it isn't. Note we take steps to insure the flag
+            # value is not undefined.
             my $taxonomy = ReadFlagFile("$genomeDir/TAXONOMY");
-            my $prokFlag = ($taxonomy && $taxonomy =~ /^Archaea|Bacteria/);
+            my $prokFlag = ($taxonomy && $taxonomy =~ /^Archaea|Bacteria/) || 0;
             if ($opt->proks && ! $prokFlag) {
                 # Here we are only loading proks and this isn't one, so we
                 # skip it.

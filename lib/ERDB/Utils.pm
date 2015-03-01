@@ -44,8 +44,9 @@ The L<ERDB> object for the relevant database.
 =item tables
 
 Reference to a hash of the names of the database tables present at the time of
-the first L<GetTableNames> call. The table names are all folded to lower case
-in order to compensate for the case-insensitivity of SQL.
+the first L<GetTableNames> call. The keys are all folded to lower case
+in order to compensate for the case-insensitivity of SQL but they are mapped
+to their actual name in the database.
 
 =item relNFolder
 
@@ -178,7 +179,7 @@ sub GetTableNames {
         my $dbh = $erdb->{_dbh};
         # Ask for the table names. Note we use grep to eliminate system tables and we
         # convert the table name to lower case, because SQL is case-insensitive.
-        my %tables = map { lc($_) => 1 } grep { substr($_,0,1) ne '_' } $dbh->get_tables();
+        my %tables = map { lc($_) => $_ } grep { substr($_,0,1) ne '_' } $dbh->get_tables();
         # Store it in this object.
         $self->{tables} = \%tables;
     }
@@ -328,8 +329,9 @@ sub DropAll {
     my $stats = $self->stats;
     # Get the hash of table names currently in the database.
     my $tableH = $self->GetTableNames(refresh => $options{refresh});
-    # Loop through the tables.
-    for my $table (keys %$tableH) {
+    # Loop through the tables. Note we loop through the actual database
+    # names, not the case-folded hash keys.
+    for my $table (values %$tableH) {
          print "Dropping $table.\n";
          $stats->Add(tableDropped => 1);
          $dbh->drop_table(tbl => $table);
@@ -428,17 +430,22 @@ sub FixupTable {
     my $dbh = $erdb->{_dbh};
     # This will be set to FALSE if we can't fix the table.
     my $retVal = 1;
+    # Get its real name in the database. If we've done a GetTGableNames,
+    # this information is in the tables hash. Otherwise, we hope the user
+    # has the correct name.
+    my $lcName = lc $relName;
+    my $tableH = $self->{tables};
+    my $dbName = ($tableH ? $tableH->{$lcName} : $relName);
     # See if the table is in the database.
-    my $realName = $self->{relNFolder}{$relName};
+    my $realName = $self->{relNFolder}{$lcName};
     if (! $realName) {
         # It is not. Drop the table.
         print "Dropping table $relName.\n";
-        $dbh->drop_table(tbl => $relName);
+        $dbh->drop_table(tbl => $dbName);
         $stats->Add(tableDropped => 1);
         # Delete it from the internal table hash, if any.
-        my $tableH = $self->{tables};
         if ($tableH) {
-            delete $tableH->{$relName};
+            delete $tableH->{$lcName};
         }
     } else {
         # Here we need to compare the table's real schema to the DBD.
@@ -446,7 +453,7 @@ sub FixupTable {
         # Get the table's descriptor.
         my $relation = $erdb->FindRelation($realName);
         # This is the real scheme.
-        my @cols = $dbh->table_columns($realName);
+        my @cols = $dbh->table_columns($dbName);
         # Loop through the DBD schema, comparing.
         my $fields = $relation->{Fields};
         my $count = scalar(@cols);
@@ -500,7 +507,7 @@ sub FixupTable {
                     # No. Drop it.
                     print "Removing index $index.\n";
                     $stats->Add(indexDropped => 1);
-                    $dbh->drop_index(tbl => $realName, idx => $index);
+                    $dbh->drop_index(tbl => $dbName, idx => $index);
                 } else {
                     # Here we want the index. We need to verify that it is
                     # correct. If it isn't, we recreate it.
@@ -543,7 +550,7 @@ sub FixupTable {
                     if ($indexErrors) {
                         print "Recreating index $index.\n";
                         $stats->Add(recreateIndex => 1);
-                        $dbh->drop_index(tbl => $realName, idx => $index);
+                        $dbh->drop_index(tbl => $dbName, idx => $index);
                         $erdb->CreateIndex($realName, $index);
                     }
                     # Denote that this index is present.
