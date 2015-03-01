@@ -21,6 +21,7 @@ package CopyFromSeed;
     use strict;
     use warnings;
     use base qw(RepoLoader);
+    use FIG_Config;
     use File::Path;
     use File::Copy::Recursive;
     use MD5Computer;
@@ -171,17 +172,9 @@ These are command-line options common to both object types.
 
 =over 4
 
-=item genomeDir
+=item repo
 
-The path to the folder in which the exchange-format directories of copied
-genomes should be placed. The default is the default genome input repository
-(C<$FIG_Config::data/Inputs/GenomeData>).
-
-=item subsysDir
-
-The path to the folder in which the exchange-format directories of
-copied subsystems should be placed. The default is the default
-subsystem input repository (C<$FIG_Config::data/Inputs/SubSystemData>).
+Directory containing an L<ExchangeFormat> repository for genome and subsystem data.
 
 =item missing
 
@@ -200,10 +193,11 @@ The privilege level of the annotations-- 0 (public), 1 (projected), or
 
 sub common_options {
     return (
-            ["genomeDir|g=s", "output directory for genome folders", { default => "$FIG_Config::data/Inputs/GenomeData"}],
+            ['repo|r=s', "location of the target repository", { default => "$FIG_Config::data/Inputs" }],
             ["subsysDir|s=s", "output directory for subsystem folders", { default => "$FIG_Config::data/Inputs/SubSystemData"}],
             ["privilege=i", "privilege level of the annotations-- 0 (public), 1 (projected), or 2 (privileged)"],
-            ["missing|m", "only copy missing subsystems and genomes"]
+            ["missing|m", "only copy missing subsystems and genomes"],
+            ["clear", "erase the target repository before copying"]
         );
 }
 
@@ -250,15 +244,21 @@ sub new {
     $retVal->{genomesProcessed} = {};
     $retVal->{genomeNames} = {};
     # Get the genome output directory.
-    my $genomeOption = $opt->genomedir;
+    my $repo = $opt->repo;
+    my $genomeOption = "$repo/GenomeData";
     $retVal->{genomeOutput} = $genomeOption;
-    # Get the repository's current genome index.
-    $retVal->{genomeIndex} = $retVal->FindGenomeList($genomeOption);
+    # Get the repository's current genome index. Note we need to take special precautions if we're
+    # planning to clear.
+    if ($opt->clear) {
+        $retVal->{genomeIndex} = {};
+    } else {
+        $retVal->{genomeIndex} = $retVal->FindGenomeList($genomeOption);
+    }
     # Determine if we're loading genomes at all. Note that the genomes option may not exist,
     # so we have to use a hash reference on $opt instead of a member reference.
     $retVal->{genomesOK} = ($opt->{genomes} && $opt->{genomes} ne 'none');
     # Get the subsystem output directory.
-    my $subsysOption = $opt->subsysdir;
+    my $subsysOption = "$repo/SubSystemData";
     $retVal->{subsysOutput} = $subsysOption;
     # Determine if we're loading subsystems at all. Note that the subsystems option may not exist,
     # so we have to use a hash reference on $opt instead of a member reference.
@@ -281,6 +281,18 @@ sub new {
 
 
 =head2 Subsystem-Related Methods
+
+=head3 subsys_repo
+
+    my $dir = $loader->subsys_repo;
+
+Return the directory name for the subsystem repository.
+
+=cut
+
+sub subsys_repo {
+    return $_[0]->{subsysOutput};
+}
 
 =head3 ComputeSubsystems
 
@@ -494,6 +506,18 @@ sub CopySubsystem {
 
 =head2 Genome-Related Methods
 
+=head3 genome_repo
+
+    my $dir = $loader->genome_repo;
+
+Return the directory name for the genome repository.
+
+=cut
+
+sub genome_repo {
+    return $_[0]->{genomeOutput};
+}
+
 =head3 CopyGenome
 
     $loader->CopyGenome($genome);
@@ -705,7 +729,7 @@ sub ProcessFeatures {
     my %deleted;
     if (-f "$inputDir/deleted.features") {
         my $dels = $self->GetNamesFromFile("deleted-$ftype" => "$inputDir/deleted.features");
-        %deleted = map { $_ => } @$dels;
+        %deleted = map { $_ => 1 } @$dels;
         $stats->Add(deletedFids => scalar keys %deleted);
     }
     # Is there a tbl file?
@@ -735,7 +759,7 @@ sub ProcessFeatures {
         my @locs = map { BasicLocation->new($_) } split /\s*,\s*/, $fids{$fid};
         my $locString = join(",", map { $_->String } @locs);
         # Output the ID, location, and function.
-        $self->PutLine("$ftype-line" => $oh, $fid, $locString, $function);
+        $self->PutLine($ftype => $oh, $fid, $locString, $function);
     }
 }
 
