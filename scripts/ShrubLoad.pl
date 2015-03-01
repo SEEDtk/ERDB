@@ -18,6 +18,7 @@
 
 use strict;
 use warnings;
+use FIG_Config;
 use Shrub;
 use Shrub::DBLoader;
 use ERDB::Utils;
@@ -25,6 +26,7 @@ use Shrub::GenomeLoader;
 use Shrub::SubsystemLoader;
 use Shrub::FunctionLoader;
 use ScriptUtils;
+use File::Copy::Recursive;
 
 =head1 Shrub Database Loader
 
@@ -77,9 +79,9 @@ $| = 1; # Prevent buffering on STDOUT.
 my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDB::Utils::init_options(),
         ['slow', "load using individual inserts instead of spooling to load files"],
         ['missing|m', "only load missing genomes and subsystems"],
-        ['repo|r', "location of the input repository", { default => "$FIG_Config::data/Inputs" }],
-        ['genomes', "file listing IDs of genomes to load, \"all\", or \"none\"", { default => 'all' }],
-        ['subsystems|subs', "file listing IDs of subsystems to load, \"all\", or \"none\"", { default => 'all' }],
+        ['repo|r=s', "location of the input repository", { default => "$FIG_Config::data/Inputs" }],
+        ['genomes=s', "file listing IDs of genomes to load, \"all\", or \"none\"", { default => 'all' }],
+        ['subsystems|subs=s', "file listing IDs of subsystems to load, \"all\", or \"none\"", { default => 'all' }],
     );
 # Find out what we are loading.
 my $genomeSpec = $opt->genomes;
@@ -124,6 +126,11 @@ my $utils = ERDB::Utils->new($shrub);
 my $cleared = $utils->Init($opt);
 # Merge the statistics.
 $stats->Accumulate($utils->stats);
+# If we're clearing, we need to erase the DNA repository.
+if ($cleared) {
+    File::Copy::Recursive::pathempty($FIG_Config::shrub_dna) ||
+        die "Error clearing DNA repository: $!";
+}
 # This hash will contain a list of genome IDs known to be in the database. The subsystem
 # loader needs this information to process its row information.
 my %genomes;
@@ -147,7 +154,7 @@ if ($genomesLoading) {
         $gCount++;
         $stats->Add(genomesProcessed => 1);
         print "Processing $genomeID ($gCount of $gTotal).\n";
-        $loader->LoadGenome($genomeID, $gHash->{$genomeID}, $cleared);
+        $gLoader->LoadGenome($genomeID, $gHash->{$genomeID}, $metaHash->{$genomeID}, $cleared);
         $genomes{$genomeID} = 1;
     }
 }

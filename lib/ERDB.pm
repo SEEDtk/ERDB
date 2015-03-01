@@ -3987,8 +3987,11 @@ sub CreateIndex {
     my $flds = join(', ', @fieldList);
     # Get the index's uniqueness flag.
     my $unique = ($indexData->{primary} ? 'primary' : ($indexData->{unique} ? 'unique' : undef));
+    # Compute the name to use. The primary index is called PRIMARY, but we need to give it a different
+    # name in the create statement.
+    my $actualName = ($indexData->{primary} ? "idxP$relationName" : $indexName);
     # Create the index.
-    my $rv = $dbh->create_index(idx => "$indexName", tbl => $q . $relationName . $q,
+    my $rv = $dbh->create_index(idx => "$q$actualName$q", tbl => "$q$relationName$q",
                                 flds => $flds, kind => $unique);
     if (! $rv) {
         Confess("Error creating index $indexName for $relationName using ($flds): " .

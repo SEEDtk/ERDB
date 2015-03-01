@@ -247,7 +247,8 @@ sub ProcessRole {
         $retVal = $loader->db->NewID();
         # Insert the role.
         $loader->InsertObject('Role', id => $retVal, checksum => $checkSum, 'ec-number' => $ecNum,
-                'tc-number' => $tcNum, hypo => $hypo, description => $roleText);
+                'tc-number' => $tcNum, hypo => $hypo, description => $roleText,
+                'proposed-description' => $roleText);
         # Save its ID in the hash.
         $roleHash->{$checkSum} = $retVal;
     }

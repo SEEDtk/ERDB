@@ -44,7 +44,14 @@ The L<ERDB> object for the relevant database.
 =item tables
 
 Reference to a hash of the names of the database tables present at the time of
-the first L<GetTableNames> call.
+the first L<GetTableNames> call. The table names are all folded to lower case
+in order to compensate for the case-insensitivity of SQL.
+
+=item relNFolder
+
+Reference to a hash that maps an all-lower-case version of each DBD relation name
+to its real value. This is necessary to deal with the case-insensitive nature of
+SQL table names.
 
 =back
 
@@ -71,10 +78,15 @@ sub new {
     my ($class, $erdb) = @_;
     # Create the statistics object.
     my $stats = Stats->new();
+    # Get the relation names from the DBD.
+    my @rels = $erdb->GetTableNames;
+    # Use them to create a relation map.
+    my %relNFolder = map { lc $_ => $_ } @rels;
     # Create the object.
     my $retVal = {
         erdb => $erdb,
         stats => $stats,
+        relNFolder => \%relNFolder
     };
     # Bless and return it.
     bless $retVal, $class;
@@ -147,6 +159,11 @@ are not yet known.
 
 =back
 
+=item RETURN
+
+Returns a hash keyed by table names. The table names have all been folded to
+lower case.
+
 =back
 
 =cut
@@ -159,8 +176,9 @@ sub GetTableNames {
     if (! $self->{tables} || $options{refresh}) {
         # Yes. Get the DBKernel object.
         my $dbh = $erdb->{_dbh};
-        # Ask for the table names. Note we use grep to eliminate system tables.
-        my %tables = map { $_ => 1 } grep { substr($_,0,1) ne '_' } $dbh->get_tables();
+        # Ask for the table names. Note we use grep to eliminate system tables and we
+        # convert the table name to lower case, because SQL is case-insensitive.
+        my %tables = map { lc($_) => 1 } grep { substr($_,0,1) ne '_' } $dbh->get_tables();
         # Store it in this object.
         $self->{tables} = \%tables;
     }
@@ -363,12 +381,12 @@ sub CreateMissing {
     # Loop through the DBD tables.
     for my $relName (@relNames) {
         # Does this table exist in the database?
-        if (! $tableH->{$relName}) {
+        if (! $tableH->{lc $relName}) {
             # No, create it.
             print "Creating $relName\n";
-            $erdb->CreateTable(nodrop => 1);
+            $erdb->CreateTable($relName, nodrop => 1);
             # Insure we know it's present now.
-            $tableH->{$relName} = 1;
+            $tableH->{lc $relName} = 1;
             # Tell the caller we created it.
             push @retVal, $relName;
         }
@@ -411,8 +429,8 @@ sub FixupTable {
     # This will be set to FALSE if we can't fix the table.
     my $retVal = 1;
     # See if the table is in the database.
-    my $relation = $erdb->FindRelation($relName);
-    if (! $relation) {
+    my $realName = $self->{relNFolder}{$relName};
+    if (! $realName) {
         # It is not. Drop the table.
         print "Dropping table $relName.\n";
         $dbh->drop_table(tbl => $relName);
@@ -424,11 +442,12 @@ sub FixupTable {
         }
     } else {
         # Here we need to compare the table's real schema to the DBD.
-        print "Analyzing table $relName.\n";
+        print "Analyzing table $realName.\n";
+        # Get the table's descriptor.
+        my $relation = $erdb->FindRelation($realName);
         # This is the real scheme.
-        my @cols = $dbh->table_columns($relName);
+        my @cols = $dbh->table_columns($realName);
         # Loop through the DBD schema, comparing.
-        my $relation = $erdb->FindRelation($relName);
         my $fields = $relation->{Fields};
         my $count = scalar(@cols);
         if (scalar(@$fields) != $count) {
@@ -460,9 +479,9 @@ sub FixupTable {
         }
         # If there is a field mismatch, our only remedy is to recreate the
         # relation. That, in turn, is only possible if the relation is empty.
-        if (! $retVal && ! $erdb->IsUsed($relName)) {
-            print "Recreating $relName.\n";
-            $erdb->CreateTable($relName);
+        if (! $retVal && ! $erdb->IsUsed($realName)) {
+            print "Recreating $realName.\n";
+            $erdb->CreateTable($realName);
             $stats->Add(tableRecreated => 1);
             # Denote this table is now ok.
             $retVal = 1;
@@ -470,7 +489,7 @@ sub FixupTable {
             # Check for problems with the indexes. These are all fixable. If
             # the relation is bad, it will still get us closer.
             my $indexH = $relation->{Indexes};
-            my $realIndexH = $dbh->show_indexes($relName);
+            my $realIndexH = $dbh->show_indexes($realName);
             # This hash will list the desired indexes found to be real. We will use it
             # to decide which need to be created.
             my %idxFound;
@@ -481,7 +500,7 @@ sub FixupTable {
                     # No. Drop it.
                     print "Removing index $index.\n";
                     $stats->Add(indexDropped => 1);
-                    $dbh->drop_index(tbl => $relName, idx => $index);
+                    $dbh->drop_index(tbl => $realName, idx => $index);
                 } else {
                     # Here we want the index. We need to verify that it is
                     # correct. If it isn't, we recreate it.
@@ -524,8 +543,8 @@ sub FixupTable {
                     if ($indexErrors) {
                         print "Recreating index $index.\n";
                         $stats->Add(recreateIndex => 1);
-                        $dbh->drop_index(tbl => $relName, idx => $index);
-                        $erdb->CreateIndex($relName, $index);
+                        $dbh->drop_index(tbl => $realName, idx => $index);
+                        $erdb->CreateIndex($realName, $index);
                     }
                     # Denote that this index is present.
                     $idxFound{$index} = 1;
@@ -538,14 +557,14 @@ sub FixupTable {
                     # We need to create this index.
                     print "Creating index $index.\n";
                     $stats->Add(indexCreated => 1);
-                    $erdb->CreateIndex($relName, $index);
+                    $erdb->CreateIndex($realName, $index);
                 }
             }
         }
         # Record the fact if we couldn't fix the relation.
         if (! $retVal) {
             $stats->Add(tableMismatch => 1);
-            $stats->AddMessage("Relation $relName needs to be manually repaired.")
+            $stats->AddMessage("Relation $realName needs to be manually repaired.")
         }
     }
     # Return the determination indicator.
