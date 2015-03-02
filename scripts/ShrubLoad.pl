@@ -128,6 +128,7 @@ my $cleared = $utils->Init($opt);
 $stats->Accumulate($utils->stats);
 # If we're clearing, we need to erase the DNA repository.
 if ($cleared) {
+    print "Erasing DNA repository.\n";
     File::Copy::Recursive::pathempty($FIG_Config::shrub_dna) ||
         die "Error clearing DNA repository: $!";
 }
