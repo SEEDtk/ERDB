@@ -316,9 +316,16 @@ sub LoadSubsystem {
         if (! $genomeHash->{$genome}) {
             $stats->Add(subsysPegSkipped => 1);
         } else {
-            # We want this peg. Put it in the cell.
-            my $cellID = $rowMap{$row}{$abbr};
-            $loader->InsertObject('Feature2Cell', 'from-link' => $peg, 'to-link' => $cellID);
+            # Get the row's cells.
+            my $cellMap = $rowMap{$row};
+            # Only proceed if we are keeping this row.
+            if (! $cellMap) {
+                $stats->Add(pegInVacantRowSkipped => 1);
+            } else {
+                # We want this peg. Put it in the cell.
+                my $cellID = $cellMap->{$abbr};
+                $loader->InsertObject('Feature2Cell', 'from-link' => $peg, 'to-link' => $cellID);
+            }
         }
     }
     # Return the new subsystem's ID.
