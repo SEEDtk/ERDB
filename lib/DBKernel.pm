@@ -442,7 +442,7 @@ Reference to a list of the fields in the index, in order.
 sub show_indexes {
     #v Get the parameters.
     my ($self, $tableName) = @_;
-    if ($self->{dbms} ne 'mysql') {
+    if ($self->{_dbms} ne 'mysql') {
         die "show_indexes not supported for $self->{dbms}.";
     }
     # Construct the query.
@@ -454,7 +454,7 @@ sub show_indexes {
     for my $row (@$rows) {
         # Get the data for this index field. The first column is the table name,
         # which we don't need here.
-        my (undef, $nonUnique, $idxName, $field) = @$row;
+        my (undef, $nonUnique, $idxName, undef, $field) = @$row;
         # Do we already have an entry for this index?
         if (exists $retVal{$idxName}) {
             # Yes. Add this field to its field list.
@@ -744,7 +744,7 @@ sub table_columns {
     # Get the parameters.
     my ($self, $table) = @_;
     # Get a statement handle for the specified table.
-    my $sth = $self->{_dbh}->column_info(undef, $table, undef, undef);
+    my $sth = $self->{_dbh}->column_info(undef, undef, $table, undef);
     # The results will go in here.
     my @retVal;
     # Loop through the columns.

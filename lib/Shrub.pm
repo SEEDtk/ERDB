@@ -272,8 +272,131 @@ sub script_options {
     );
 }
 
+=head2 Data Query Methods
 
-=head2 Public Methods
+=head3 Feature2Function
+
+    my $featureMap = $shrub->Feature2Function($priv, \@features);
+
+Get the functions assigned to each of the specified features at the specified privilege level.
+
+=over 4
+
+=item priv
+
+Privilege level of interest (C<0> for unprivileged, C<1> for projected, C<2> for privileged).
+
+=item features
+
+Reference to a list of feature IDs.
+
+=item RETURN
+
+Returns a reference to a hash mapping each feature to a 3-tuple. Each 3-tuple will consist of
+(0) the function ID, (1) the function description, and (2) the associated comment.
+
+=back
+
+=cut
+
+sub Feature2Function {
+    # Get the parameters.
+    my ($self, $priv, $features) = @_;
+    # The return hash will be built in here.
+    my %retVal;
+    # Loop through the features.
+    for my $feature (@$features) {
+        # We'll store the function data in here.
+        my $functionData;
+        ($functionData) = $self->GetAll('Feature2Function Function',
+                'Feature2Function(from-link) = ? AND Feature2Function(security) = ?',
+                [$feature, $priv], 'Function(id) Function(description) Feature2Function(comment)');
+        # Store the function data in the return hash.
+        $retVal{$feature} = $functionData;
+    }
+    # Return the computed hash.
+    return \%retVal;
+}
+
+=head3 Subsystem2Feature
+
+    my $fidList = $shrub->Subsystem2Feature($sub);
+
+Return a list of all the features in a single subsystem.
+
+=over 4
+
+=item sub
+
+The name or ID of the subsystem of interest.
+
+=item RETURN
+
+Returns a reference to a list of the feature IDs for al the features that have
+been populated in the subsystem.
+
+=back
+
+=cut
+
+sub Subsystem2Feature {
+    # Get the parameters.
+    my ($self, $sub) = @_;
+    # Read the subsystem features from the database. NOTE that right now the ID and name
+    # are the same field.
+    my @retVal = $self->GetFlat('Subsystem2Row Row2Cell Cell2Feature', "Subsystem2Row(from-link) = ?", [$sub],
+            'Cell2Feature(to-link)');
+    # Return the result.
+    return \@retVal;
+}
+
+
+=head3 FeaturesInRegion
+
+    my @tuples = $shrub->FeaturesInRegion($contigID, $start, $end);
+
+Return a list of the features in the specified contig region. For each such feature, this method will
+return the feature ID, leftmost location, and direction for the segment that overlaps the region.
+
+=over 4
+
+=item contigID
+
+ID of the contig (including the genome ID) containing the region of interest.
+
+=item start
+
+Index of the location in the contig where the region of interest begins.
+
+=item end
+
+Index of the location in the contig where the region of interest ends.
+
+=item RETURN
+
+Returns a list of 4-tuples, each consisting of (0) a feature ID, (1) the index of the leftmost
+location in the segment that overlaps the region, and (2) the direction of the segment that
+overlaps the region, and (3) its length.
+
+=back
+
+=cut
+
+sub FeaturesInRegion {
+    # Get the parameters.
+    my ($self, $contigID, $start, $end) = @_;
+    # Request the desired tuples.
+    my @retVal = $self->GetAll("Feature2Contig",
+                          'Feature2Contig(to-link) = ? AND (Feature2Contig(begin) >= ? AND Feature2Contig(begin) <= ? OR Feature2Contig(begin) < ? AND Feature2Contig(begin) + Feature2Contig(len) >= ?)',
+                          [$contigID, $start, $end, $start, $start],
+                          [qw(Feature2Contig(from-link) Feature2Contig(begin)
+                          Feature2Contig(dir) Feature2Contig(len))]);
+    # Return them.
+    return @retVal;
+}
+
+
+=head2 Query Methods
 
 =head3 DNArepo
 
@@ -337,84 +460,6 @@ UUID generator, but it may become more complex if we devise a new scheme.
 
 sub NewID {
     return $_[0]->{uuid}->create_b64();
-}
-
-
-=head3 CreateMagicEntity
-
-    my $subID = $shrub->CreateMagicEntity($type => $nameField, %fields);
-
-Create an entity record and return a unique ID for it. The ID is
-an abbreviated form of the instance's name with a suffix to make it
-unique. Much work is done smashing up strings to make the result something
-that can be remembered.
-
-=over 4
-
-=item type
-
-Entity type to insert.
-
-=item nameField
-
-Name of the field that contains the entity instance description or name.
-
-=item fields
-
-A hash of the fields in the entity instance to be inserted into the
-database. If the C<id> field is not present, it will be computed from the
-value of the name field.
-
-=item RETURN
-
-Returns the ID of the entity instance inserted.
-
-=back
-
-=cut
-
-sub CreateMagicEntity {
-    # Get the parameters.
-    my ($self, $type, $nameField, %fields) = @_;
-    # We will store the subsystem ID in here.
-    my $retVal;
-    # Do we have an ID?
-    if (defined $fields{id}) {
-        # Yes. Do a normal insert.
-        $self->InsertObject($type, %fields);
-        # Return the ID.
-        $retVal = $fields{id};
-    } else {
-        # No. Find the name so we can compute an ID.
-        my $name = $fields{name};
-        my ($prefix, $suffix) = MagicName($name);
-        # Look for examples of this ID.
-        my ($id) = $self->GetFlat($type, "$type(id) LIKE ? ORDER BY $type(id) DESC LIMIT 1", ["$prefix%"], 'id');
-        # Was a version of this ID found?
-        if ($id) {
-            # Yes. Try to compute a suffix.
-            if ($id eq $prefix) {
-                # Here we've found the exact same ID. Use a suffix of 2 to distinguish us.
-                $suffix = 2;
-            } elsif (substr($id, length($prefix)) =~ /^(\d+)$/) {
-                # Here we've found the same ID with a numeric suffix. Compute a new suffix that is 1 greater.
-                $suffix = $1 + 1;
-            }
-        }
-        # Try to insert, incrementing the suffix until we succeed.
-        my $okFlag;
-        while (! $okFlag) {
-            $retVal = $prefix . $suffix;
-            # In case the caller did "id => undef" to denote we have no ID, we need to put the ID value directly in
-            # the field hash, overriding the old value.
-            $fields{id} = $retVal;
-            $okFlag = $self->InsertObject($type, \%fields, dup => 'ignore');
-            # Increment the suffix. Note we go from empty string to 2. There is no "1" suffix unless the prefix ended with a digit.
-            $suffix = ($suffix ? $suffix + 1 : 2);
-        }
-    }
-    # Return the entity instance ID.
-    return $retVal;
 }
 
 
@@ -521,80 +566,83 @@ sub NormalizedName {
     return $retVal;
 }
 
-=head3 Feature2Function
+=head2 Update Methods
 
-    my $featureMap = $shrub->Feature2Function($priv, \@features);
+=head3 CreateMagicEntity
 
-Get the functions assigned to each of the specified features at the specified privilege level.
+    my $subID = $shrub->CreateMagicEntity($type => $nameField, %fields);
+
+Create an entity record and return a unique ID for it. The ID is
+an abbreviated form of the instance's name with a suffix to make it
+unique. Much work is done smashing up strings to make the result something
+that can be remembered.
 
 =over 4
 
-=item priv
+=item type
 
-Privilege level of interest (C<0> for unprivileged, C<1> for projected, C<2> for privileged).
+Entity type to insert.
 
-=item features
+=item nameField
 
-Reference to a list of feature IDs.
+Name of the field that contains the entity instance description or name.
+
+=item fields
+
+A hash of the fields in the entity instance to be inserted into the
+database. If the C<id> field is not present, it will be computed from the
+value of the name field.
 
 =item RETURN
 
-Returns a reference to a hash mapping each feature to a 3-tuple. Each 3-tuple will consist of
-(0) the function ID, (1) the function description, and (2) the associated comment.
+Returns the ID of the entity instance inserted.
 
 =back
 
 =cut
 
-sub Feature2Function {
+sub CreateMagicEntity {
     # Get the parameters.
-    my ($self, $priv, $features) = @_;
-    # The return hash will be built in here.
-    my %retVal;
-    # Loop through the features.
-    for my $feature (@$features) {
-        # We'll store the function data in here.
-        my $functionData;
-        ($functionData) = $self->GetAll('Feature2Function Function',
-                'Feature2Function(from-link) = ? AND Feature2Function(security) = ?',
-                [$feature, $priv], 'Function(id) Function(description) Feature2Function(comment)');
-        # Store the function data in the return hash.
-        $retVal{$feature} = $functionData;
+    my ($self, $type, $nameField, %fields) = @_;
+    # We will store the subsystem ID in here.
+    my $retVal;
+    # Do we have an ID?
+    if (defined $fields{id}) {
+        # Yes. Do a normal insert.
+        $self->InsertObject($type, %fields);
+        # Return the ID.
+        $retVal = $fields{id};
+    } else {
+        # No. Find the name so we can compute an ID.
+        my $name = $fields{name};
+        my ($prefix, $suffix) = MagicName($name);
+        # Look for examples of this ID.
+        my ($id) = $self->GetFlat($type, "$type(id) LIKE ? ORDER BY $type(id) DESC LIMIT 1", ["$prefix%"], 'id');
+        # Was a version of this ID found?
+        if ($id) {
+            # Yes. Try to compute a suffix.
+            if ($id eq $prefix) {
+                # Here we've found the exact same ID. Use a suffix of 2 to distinguish us.
+                $suffix = 2;
+            } elsif (substr($id, length($prefix)) =~ /^(\d+)$/) {
+                # Here we've found the same ID with a numeric suffix. Compute a new suffix that is 1 greater.
+                $suffix = $1 + 1;
+            }
+        }
+        # Try to insert, incrementing the suffix until we succeed.
+        my $okFlag;
+        while (! $okFlag) {
+            $retVal = $prefix . $suffix;
+            # In case the caller did "id => undef" to denote we have no ID, we need to put the ID value directly in
+            # the field hash, overriding the old value.
+            $fields{id} = $retVal;
+            $okFlag = $self->InsertObject($type, \%fields, dup => 'ignore');
+            # Increment the suffix. Note we go from empty string to 2. There is no "1" suffix unless the prefix ended with a digit.
+            $suffix = ($suffix ? $suffix + 1 : 2);
+        }
     }
-    # Return the computed hash.
-    return \%retVal;
-}
-
-=head3 Subsystem2Feature
-
-    my $fidList = $shrub->Subsystem2Feature($sub);
-
-Return a list of all the features in a single subsystem.
-
-=over 4
-
-=item sub
-
-The name or ID of the subsystem of interest.
-
-=item RETURN
-
-Returns a reference to a list of the feature IDs for al the features that have
-been populated in the subsystem.
-
-=back
-
-=cut
-
-sub Subsystem2Feature {
-    # Get the parameters.
-    my ($self, $sub) = @_;
-    # Read the subsystem features from the database. NOTE that right now the ID and name
-    # are the same field.
-    my @retVal = $self->GetFlat('Subsystem2Row Row2Cell Cell2Feature', "Subsystem2Row(from-link) = ?", [$sub],
-            'Cell2Feature(to-link)');
-    # Return the result.
-    return \@retVal;
+    # Return the entity instance ID.
+    return $retVal;
 }
 
 

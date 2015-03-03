@@ -467,7 +467,7 @@ sub FixupTable {
                 my $actual = $cols[$i];
                 my $schema = $fields->[$i];
                 # Compare the names and the nullabilitiy.
-                if (lc $actual->[0] ne lc ERDB::_FixName($schema->{name})) {
+                if (lc $actual->[0] ne lc $schema->{realName}) {
                     print "Field mismatch at position $i in $relName.\n";
                     $retVal = 0;
                 } elsif ($actual->[2] ? (! $schema->{null}) : $schema->{null}) {
@@ -486,15 +486,18 @@ sub FixupTable {
         }
         # If there is a field mismatch, our only remedy is to recreate the
         # relation. That, in turn, is only possible if the relation is empty.
-        if (! $retVal && ! $erdb->IsUsed($realName)) {
-            print "Recreating $realName.\n";
-            $erdb->CreateTable($realName);
-            $stats->Add(tableRecreated => 1);
-            # Denote this table is now ok.
-            $retVal = 1;
+        if (! $retVal) {
+            if (! $erdb->IsUsed($realName)) {
+                print "Recreating $realName.\n";
+                $erdb->CreateTable($realName);
+                $stats->Add(tableRecreated => 1);
+                # Denote this table is now ok.
+                $retVal = 1;
+            }
         } else {
-            # Check for problems with the indexes. These are all fixable. If
-            # the relation is bad, it will still get us closer.
+            # The fields match. Check for problems with the indexes. These are all
+            # fixable. If the relation is bad, this is too dangerous, since we might
+            # try to create an index on a field that doesn't exist.
             my $indexH = $relation->{Indexes};
             my $realIndexH = $dbh->show_indexes($realName);
             # This hash will list the desired indexes found to be real. We will use it
@@ -532,11 +535,11 @@ sub FixupTable {
                         print "$index has too few fields in the database.\n";
                     } elsif ($ndx < $realNdx) {
                         $indexErrors++;
-                        print "$index has too many fields in the database.";
+                        print "$index has too many fields in the database.\n";
                     } else {
                         # Here we have to compare the field names. To make it fair, we need to strip
                         # the modifiers from the DBD definition.
-                        my @fields = map { $_ =~ /^(\S+)/; $1 } @$fieldsL;
+                        my @fields = map { $_ =~ /^(\S+)/; ERDB::_FixName($1) } @$fieldsL;
                         my $i = 0;
                         while ($i < $ndx && $fields[$i] eq $realFieldsL->[$i]) {
                             $i++;
@@ -675,18 +678,20 @@ sub FixEmbeddedRelationship {
     my $stats = $self->stats;
     # Compute the names of the entities on either side.
     my ($fromEntity, $toEntity) = $erdb->GetRelationshipEntities($name);
+    print "Processing relationship $name from $fromEntity embedded in $toEntity.\n";
     # We are going to loop through the to-entities in order by from-link
     # value. The following variable will contain the ID for the last
     # from-index processed.
-    my $lastFrom = "";
+    my $fromID = "";
     # Loop through the to-entities.
     my $done = 0;
     while (! $done) {
         # Get the first to-entity with a new from-key.
-        my ($toInstance) = $erdb->GetFlat("$name", "$name(from-link) > ?", [$lastFrom], 'from-link', 1);
-        my ($fromID, $id) = @$toInstance;
+        ($fromID) = $erdb->GetFlat("$name", "$name(from-link) > ? LIMIT 1", [$fromID], 'from-link');
         # Does the from-entity exist?
-        if ($erdb->Exists($fromEntity => $fromID)) {
+        if (! defined $fromID) {
+            $done = 1;
+        } elsif ($erdb->Exists($fromEntity => $fromID)) {
             # Yes. Record it.
             $stats->Add("$fromEntity-keyFound" => 1);
         } else {
@@ -758,6 +763,7 @@ sub FixRealRelationship {
     # Compute the names of the entities on either side.
     my ($fromEntity, $toEntity) = $erdb->GetRelationshipEntities($name);
     my %entities = (from => $fromEntity, to => $toEntity);
+    print "Processing relationship $name from $fromEntity to $toEntity.\n";
     # Loop through the relationship, saving the from and to
     # entity ids.
     my %idHash = (from => {}, to => {});
@@ -768,6 +774,8 @@ sub FixRealRelationship {
         $idHash{to}{$to} = 1;
         $stats->Add("${name}In" => 1);
     }
+    print scalar(keys %{$idHash{from}}) . " $fromEntity IDs found.\n";
+    print scalar(keys %{$idHash{to}}) . " $toEntity IDs found.\n";
     # Now verify that the entities exist. We process each direction
     # separately.
     for my $dir (qw(from to)) {

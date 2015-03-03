@@ -1420,58 +1420,6 @@ sub GetCount {
 }
 
 
-=head3 GetList
-
-    my @dbObjects = $erdb->GetList(\@objectNames, $filterClause, \@params);
-
-Return a list of L<ERDB::Object> objects for the specified query.
-
-This method is essentially the same as L</Get> except it returns a list of
-objects rather than a query object that can be used to get the results one
-record at a time. This is almost always preferable to L</Get> when the result
-list is a manageable size.
-
-=over 4
-
-=item objectNames
-
-Reference to a list containing the names of the entity and relationship objects
-to be retrieved, or a string containing a space-delimited list of object names.
-See L</Object Name List>.
-
-=item filterClause
-
-WHERE clause (without the WHERE) to be used to filter and sort the query. See
-L</Filter Clause>.
-
-=item params
-
-Reference to a list of parameter values to be substituted into the filter clause.
-See L</Parameter List>.
-
-=item RETURN
-
-Returns a list of L<ERDB::Object> objects that satisfy the query conditions.
-
-=back
-
-=cut
-#: Return Type @%
-sub GetList {
-    # Get the parameters.
-    my ($self, $objectNames, $filterClause, $params) = @_;
-    # Declare the return variable.
-    my @retVal = ();
-    # Perform the query.
-    my $query = $self->Get($objectNames, $filterClause, $params);
-    # Loop through the results.
-    while (my $object = $query->Fetch) {
-        push @retVal, $object;
-    }
-    # Return the result.
-    return @retVal;
-}
-
 =head3 Get
 
     my $query = $erdb->Get(\@objectNames, $filterClause, \@params, $fields);
