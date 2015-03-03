@@ -625,7 +625,6 @@ sub Close {
     # Loop through the objects being loaded.
     for my $table (@$loadList) {
         my $loadThing = $loadThings->{$table};
-        print "Closing $table.\n";
         # Loop through the relations for this object.
         my $names = $loadThing->{names};
         my $handles = $loadThing->{handles};

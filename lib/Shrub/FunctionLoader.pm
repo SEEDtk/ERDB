@@ -293,7 +293,7 @@ sub ReadProteins {
     # The return hash will go in here.
     my %retVal;
     # Open the genome's protein FASTA.
-    print "Reading $genome proteinss.\n";
+    print "Reading $genome proteins.\n";
     my $fh = $loader->OpenFasta(protein => "$genomeDir/peg-trans");
     # Loop through the proteins.
     while (my $protDatum = $loader->GetLine(protein => $fh)) {

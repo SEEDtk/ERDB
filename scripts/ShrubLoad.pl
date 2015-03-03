@@ -167,8 +167,9 @@ if ($subsLoading) {
     my $subs = $sLoader->SelectSubsystems($subsSpec, $subsDir);
     # We need to be able to tell which subsystems are already in the database. If the number of subsystems
     # being loaded is large, we spool all the subsystem IDs into memory to speed the checking process.
+    my $subTotal = scalar @$subs;
     my $subHash;
-    if (scalar @$subs > 200) {
+    if ($subTotal > 200) {
         if ($opt->clear) {
             $subHash = {};
         } else {
@@ -177,8 +178,11 @@ if ($subsLoading) {
     }
     # Loop through the subsystems.
     print "Processing the subsystem list.\n";
+    my $subCount = 0;
     for my $sub (sort @$subs) {
         $stats->Add(subsystemCheck => 1);
+        $subCount++;
+        print "Analyzing subsystem $sub ($subCount of $subTotal).\n";
         my $subDir = $loader->FindSubsystem($subsDir, $sub);
         # This will be cleared if we decide to skip the subsystem.
         my $processSub = 1;

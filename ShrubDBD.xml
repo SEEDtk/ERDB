@@ -519,6 +519,14 @@
                     <IndexField name="ordinal" order="ascending" />
                 </IndexFields>
             </FromIndex>
+            <ToIndex>
+                <Notes>This index presents the segments on a contig in order of the
+                start position.</Notes>
+                <IndexFields>
+                    <IndexField name="begin" order="ascending" />
+                    <IndexField name="len" order="descending" />
+                </IndexFields>
+            </ToIndex>
         </Relationship>
         <Relationship name="Function2Role" from="Function" to="Role"
             arity="MM" converse="Role2Function">
