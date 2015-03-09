@@ -24,6 +24,9 @@ package Shrub::FunctionLoader;
     use Shrub;
     use SeedUtils;
     use BasicLocation;
+    use ERDB::ID::Counter;
+    use ERDB::ID::Magic;
+
 
 =head1 Shrub Function/Role Loader
 
@@ -40,22 +43,15 @@ This object has the following fields.
 
 L<Shrub::DBLoader> object used to access the database and the hash tables.
 
-=item roleHash
+=item roles
 
-A hash mapping role MD5s to role IDs. This is used to find out if roles are already in
-the database.
+An L<ERDB::ID> object for inserting into the Role table.
 
-=item funHash
+=item functions
 
-A hash mapping function MD5s to role IDs. This is used to find out if functions are
-already in the database.
+An L<ERDB::ID> object for inserting into the Function table.
 
 =back
-
-=head2 ** IMPORTANT NOTE **
-
-This object will not work unless no other process is modifying the function and role data in the
-database. At the current time, we have no way to enforce this.
 
 =head2 Special Methods
 
@@ -83,10 +79,21 @@ If TRUE, functions will not be processed. The function hash will not be
 created and the function tables will not be opened for loading. The default
 is FALSE.
 
+=item exclusive
+
+If TRUE, it will be presumed we have exclusive access to the database, which permits
+a great deal of optimization. The default is FALSE, meaning we are in shared mode.
+
 =item slow
 
 If TRUE, tables will be loaded with individual inserts instead of file loading
-when the L<Shrub::DBLoader> object is closed.
+when the L<Shrub::DBLoader> object is closed. The default is FALSE in
+exclusive mode. In non-exclusive (shared) mode this option is always TRUE.
+
+=item estimate
+
+An estimate of the number of roles we expect to insert. (The number of functions will
+be presumed to be the same.) The default is C<10000>.
 
 =back
 
@@ -100,16 +107,17 @@ sub new {
     # Create the object.
     my $retVal = { loader => $loader };
     # Determine if this is slow mode.
-    my $slowMode = $options{slow};
+    my $slowMode = ! $options{exclusive} || $options{slow};
     # Prepare to load the role database table.
     if (! $slowMode) {
         $loader->Open('Role');
     }
     # Are we processing functions?
     if (! $options{rolesOnly}) {
-        # Yes. Load the function table into memory.
-        my $funHash = $loader->CreateTableHash('Function', 'checksum');
-        $retVal->{funHash} = $funHash;
+        # Yes. Create the function inserter.
+        $retVal->{functions} = ERDB::ID::Counter(Function => $loader, $loader->stats,
+                exclusive => $options{exclusive}, estimate => $options{estimate},
+                checkField => 'checksum');
         # Prepare to load the function-related database tables.
         if (! $slowMode) {
             # This causes inserts to be spooled into files
@@ -117,14 +125,15 @@ sub new {
             $loader->Open(qw(Function Function2Role));
         }
     }
-    # Load the role table into memory.
-    my $roleHash = $loader->CreateTableHash('Role', 'checksum');
-    # Save the role hash.
-    $retVal->{roleHash} = $roleHash;
+    # Create the role inserter.
+    $retVal->{roles} = ERDB::ID::Magic(Role => $loader, $loader->stats,
+        exclusive => $options{exclusive}, nameField => 'description',
+        checkField => 'checksum');
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;
 }
+
 
 =head2 Public Manipulation Methods
 
@@ -177,12 +186,12 @@ sub ProcessFunction {
     # Get the statistics object.
     my $stats = $loader->stats;
     # Is this function already in the database?
-    my $funHash = $self->{funHash};
-    my $retVal = $funHash->{$checksum};
+    my $funThing = $self->{functions};
+    my $retVal = $funThing->Check($checksum);
     if (! $retVal) {
-        # No, we must insert it. Get an ID for it.
-        $retVal = $loader->db->NewID();
-        # Put in the roles first.
+        # No, we must insert it.
+        $retVal = $funThing->Insert(checksum => $checksum, sep => $sep, description => $statement);
+        # Put in its roles.
         for my $role (keys %$roles) {
             # Get this role's checksum.
             my $roleCheck = $roles->{$role};
@@ -192,15 +201,11 @@ sub ProcessFunction {
             $loader->InsertObject('Function2Role', 'from-link' => $retVal, 'to-link' => $roleID);
             $stats->Add(function2role => 1);
         }
-        # Now put in the function itself.
-        $loader->InsertObject('Function', id => $retVal, checksum => $checksum, sep => $sep,
-            description => $statement);
-        # Save its ID for next time.
-        $funHash->{$checksum} = $retVal;
     }
     # Return the function ID.
     return $retVal;
 }
+
 
 =head3 ProcessRole
 
@@ -232,25 +237,20 @@ sub ProcessRole {
     my ($self, $role) = @_;
     # Get the loader object.
     my $loader = $self->{loader};
+    # Get the role inserter.
+    my $roleThing = $self->{roles};
     # Parse the role components.
     my ($roleText, $ecNum, $tcNum, $hypo) = Shrub::ParseRole($role);
     # Compute the checksum.
     my $roleNorm = Shrub::RoleNormalize($role);
     my $checkSum = Shrub::Checksum($roleNorm);
-    # Get the role ID hashes.
-    my $roleHash = $self->{roleHash};
-    my $suffixHash = $self->{roleSuffixes};
     # Do we already have this role?
-    my $retVal = $roleHash->{$checkSum};
+    my $retVal = $roleThing->Check($checkSum);
     if (! $retVal) {
-        # No. Get an ID.
-        $retVal = $loader->db->NewID();
-        # Insert the role.
-        $loader->InsertObject('Role', id => $retVal, checksum => $checkSum, 'ec-number' => $ecNum,
+        # No. Do an insert.
+        $retVal = $roleThing->Insert(checksum => $checkSum, 'ec-number' => $ecNum,
                 'tc-number' => $tcNum, hypo => $hypo, description => $roleText,
                 'proposed-description' => $roleText);
-        # Save its ID in the hash.
-        $roleHash->{$checkSum} = $retVal;
     }
     # Return the role information.
     return ($retVal, $checkSum);

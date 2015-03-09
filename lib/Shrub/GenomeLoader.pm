@@ -50,6 +50,10 @@ L<Shrub::FunctionLoader> object for computing function and role IDs.
 TRUE if we are to load using individual inserts, FALSE if we are to load by spooling
 inserts into files for mass loading.
 
+=item exclusive
+
+TRUE if we have exclusive access to the database, else FALSE. The default is FALSE.
+
 =back
 
 =cut
@@ -104,7 +108,8 @@ sub new {
     my $funcLoader = $options{funcLoader};
     # If the function loader was not provided, create one.
     if (! $funcLoader) {
-        $funcLoader = Shrub::FunctionLoader->new($loader, slow => $slow);
+        $funcLoader = Shrub::FunctionLoader->new($loader, slow => $slow,
+                exclusive => $options{exclusive});
     }
     # If we are NOT in slow-loading mode, prepare the tables for spooling.
     if (! $slow) {

@@ -68,6 +68,16 @@ If specified, the name of a file containing a list of subsystem names. Subsystem
 will be loaded. If C<all>, all subsystems in the repo directory will be loaded. If C<none>, no
 subsystems will be loaded. The default is C<all>.
 
+=item exclusive
+
+If specified, it will be presumed we have exclusive access to the database, allowing
+significant optimization. This is the default for localhost databases.
+
+=item shared
+
+If speified, it will be presumed we have only shared access to the database, requiring
+greater care during operations. This is the default for remote databases.
+
 =back
 
 =cut
@@ -82,7 +92,8 @@ my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDB::Utils::init_optio
         ['repo|r=s', "location of the input repository", { default => "$FIG_Config::data/Inputs" }],
         ['genomes=s', "file listing IDs of genomes to load, \"all\", or \"none\"", { default => 'all' }],
         ['subsystems|subs=s', "file listing IDs of subsystems to load, \"all\", or \"none\"", { default => 'all' }],
-    );
+        [xmode => [["exclusive|X", "exclusive database access"], ["shared|S", "shared database access"]]],
+        );
 # Find out what we are loading.
 my $genomeSpec = $opt->genomes;
 my $subsSpec = $opt->subsystems;
@@ -104,12 +115,25 @@ if ($genomesLoading && $genomeSpec ne 'all' && ! -f $genomeSpec) {
 } elsif ($subsLoading && $subsSpec ne 'all' && ! -f $subsSpec) {
     die "Could not find subsystem list file $subsSpec.";
 }
+# We need to determine shared or exclusive mode. First, see if the user gave us
+# explicit instructions.
+my $xmode = $opt->xmode;
+if (defined $xmode) {
+    # We need to compute the default. Find out where the database is.
+    my $dbhost = $opt->dbhost // $FIG_Config::dbhost // '';
+    $xmode = ($dbhost eq 'localhost' ? 'exclusive' : 'shared');
+}
+my $exclusive = ($xmode eq 'exclusive' ? 1 : 0);
+print "Database access is $xmode.\n";
 # Get the remaining options.
 my $missingFlag = $opt->missing;
 my $slowFlag = $opt->slow;
 # Validate the mutually exclusive options.
 if ($opt->clear && $missingFlag) {
     die "Cannot specify both \"clear\" and \"missing\".";
+}
+if ($opt->clear && ! $exclusive) {
+    die "Cannot clear the database in shared mode.";
 }
 # Now we are pretty sure we have good input, so we can start.
 # Connect to the database. Note that we use the external DBD if "store" was specified.
@@ -137,7 +161,8 @@ if ($cleared) {
 my %genomes;
 # Create the function loader. Both the other loaders use it.
 print "Analyzing functions and roles.\n";
-my $funcLoader = Shrub::FunctionLoader->new($loader, rolesOnly => ! $genomesLoading, slow => $slowFlag);
+my $funcLoader = Shrub::FunctionLoader->new($loader, rolesOnly => ! $genomesLoading, slow => $slowFlag,
+        exclusive => $exclusive);
 # Here we process the genomes.
 if ($genomesLoading) {
     print "Processing genomes.\n";

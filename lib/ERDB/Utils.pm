@@ -221,8 +221,11 @@ sub Init {
     my $erdb = $self->{erdb};
     # Are we storing?
     if ($opt->store) {
+        # Yes. Store the DBD.
         $erdb->InternalizeDBD();
         print "Database definition stored in database.\n";
+        # Refresh the ID table.
+        $erdb->RefreshIDTable();
     }
     # Check for a clear request.
     if ($opt->clear) {
