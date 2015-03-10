@@ -194,7 +194,6 @@ The privilege level of the annotations-- 0 (public), 1 (projected), or
 sub common_options {
     return (
             ['repo|r=s', "location of the target repository", { default => "$FIG_Config::data/Inputs" }],
-            ["subsysDir|s=s", "output directory for subsystem folders", { default => "$FIG_Config::data/Inputs/SubSystemData"}],
             ["privilege=i", "privilege level of the annotations-- 0 (public), 1 (projected), or 2 (privileged)"],
             ["missing|m", "only copy missing subsystems and genomes"],
             ["clear", "erase the target repository before copying"]
