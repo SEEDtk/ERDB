@@ -172,6 +172,8 @@ if ($genomesLoading) {
     # Curate the genome list to eliminate redundant genomes. This returns a hash of genome IDs to
     # metadata for the genomes to load.
     my $metaHash = $gLoader->CurateNewGenomes($gHash, $missingFlag, $cleared);
+    # Estimate the number of functions we are inserting.
+    $funcLoader->SetEstimates(scalar(keys %$metaHash) * 175);
     # Loop through the genomes, loading them.
     my @metaKeys = sort keys %$metaHash;
     my $gTotal = scalar @metaKeys;
@@ -201,6 +203,8 @@ if ($subsLoading) {
             $subHash = { map { $_->[1] => $_->[0] } $shrub->GetAll('Subsystem', '', [], 'id name') };
         }
     }
+    # Estimate the number of roles we are inserting.
+    $funcLoader->SetEstimates($subTotal * 15);
     # Loop through the subsystems.
     print "Processing the subsystem list.\n";
     my $subCount = 0;

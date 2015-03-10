@@ -339,6 +339,28 @@ sub Check {
 }
 
 
+=head3 SetEstimate
+
+    $helper->SetEstimate($estimate);
+
+Specify the expected number of inserts for this session. This helps to optimize certain types
+of ID processing.
+
+=over 4
+
+=item estimate
+
+The number of inserts of this entity type expected during the current session.
+
+=back
+
+=cut
+
+sub SetEstimate {
+    # The default implementation is to do nothing.
+}
+
+
 =head3 InsertNew
 
     my $newID = $helper->InsertNew(%fields);

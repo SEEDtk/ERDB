@@ -90,11 +90,6 @@ If TRUE, tables will be loaded with individual inserts instead of file loading
 when the L<Shrub::DBLoader> object is closed. The default is FALSE in
 exclusive mode. In non-exclusive (shared) mode this option is always TRUE.
 
-=item estimate
-
-An estimate of the number of roles we expect to insert. (The number of functions will
-be presumed to be the same.) The default is C<10000>.
-
 =back
 
 =back
@@ -116,8 +111,7 @@ sub new {
     if (! $options{rolesOnly}) {
         # Yes. Create the function inserter.
         $retVal->{functions} = ERDB::ID::Counter(Function => $loader, $loader->stats,
-                exclusive => $options{exclusive}, estimate => $options{estimate},
-                checkField => 'checksum');
+                exclusive => $options{exclusive}, checkField => 'checksum');
         # Prepare to load the function-related database tables.
         if (! $slowMode) {
             # This causes inserts to be spooled into files
@@ -136,6 +130,33 @@ sub new {
 
 
 =head2 Public Manipulation Methods
+
+=head3 SetEstimates
+
+    $funcLoader->SetEstimates($estimate);
+
+Specify the expected number of functions to be inserted. (This will be roughly equal to the number
+of roles as well.) The information is passed to the ID helpers so they can use it to allocate
+resources.
+
+=over 4
+
+=item estimate
+
+Estimated number of functions expected.
+
+=back
+
+=cut
+
+sub SetEstimates {
+    # Get the parameters.
+    my ($self, $estimate) = @_;
+    # Pass along the estimates.
+    $self->{functions}->SetEstimate($estimate);
+    $self->{roles}->SetEstimate($estimate);
+}
+
 
 =head3 ProcessFunction
 

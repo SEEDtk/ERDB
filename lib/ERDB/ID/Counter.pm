@@ -42,13 +42,21 @@ Next available entity ID.
 
 Last available entity ID.
 
-=item allocated
+=item allocation
 
-Number of IDs allocated during the last request.
+Number of IDs to allocate if we run out.
 
 =back
 
 =head2 Special Methods
+
+=head3 DEFAULT_ALLOCATION
+
+This is a constant for the default number of IDs to allocate.
+
+=cut
+
+use constant DEFAULT_ALLOCATION => 100;
 
 =head3 new
 
@@ -87,10 +95,6 @@ If specified, the name of an alternate key field that uniquely identifies entity
 This field can be used to determine if an entity instance already exists in the database.
 The default is that no such field exists.
 
-=item estimate
-
-The number of new entity instances this session is expected to insert. The default is C<10>.
-
 =back
 
 =back
@@ -100,8 +104,6 @@ The number of new entity instances this session is expected to insert. The defau
 sub new {
     # Get the parameters
     my ($class, $entityName, $loader, $stats, %options) = @_;
-    # Default the estimate.
-    $options{estimate} ||= 10;
     # This will be the return value.
     my $retVal;
     # Determine how to construct the object.
@@ -112,12 +114,10 @@ sub new {
     }
     # Get the database object.
     my $erdb = $retVal->db;
-    # Allocate the initial block of IDs.
-    my $estimate = $options{estimate};
-    my $nextID = $erdb->AllocateIds($entityName, $estimate);
-    $retVal->{nextID} = $nextID;
-    $retVal->{lastID} = $nextID + $estimate - 1;
-    $retVal->{allocated} = $estimate;
+    # Specify a default allocation size and denote we have no IDs.
+    $retVal->{nextID} = 1;
+    $retVal->{lastID} = 0;
+    $retVal->{allocation} = DEFAULT_ALLOCATION;
     # Return the object created.
     return $retVal;
 }
@@ -145,20 +145,47 @@ sub NextID {
     if ($retVal > $self->{lastID}) {
         # No, we need to ask for more.
         my $entityName = $self->{entityName};
-        $stats->Add($entityName . "MoreIDsRequested" => 1);
+        $stats->Add($entityName . "IDsRequested" => 1);
         # Compute the allocation size.
-        my $allocation = $self->{allocated} / 2;
-        $allocation = 10 if $allocation < 10;
+        my $allocation = $self->{allocation};
         # Make the request.
         $retVal = $self->erdb->AllocateIds($entityName, $allocation);
-        # Save the allocation size.
-        $self->{allocated} = $allocation;
+        # Allocate the default next time.
+        $self->{allocation} = DEFAULT_ALLOCATION;
     }
     # Denote we got this ID.
-    $stats->Add($self->{entityName} . "IDAllocated" => 1);
+    $stats->Add($self->{entityName} . "IDsAllocated" => 1);
     $self->{nextID} = $retVal + 1;
     # Return the ID found.
     return $retVal;
 }
+
+
+=head2 Virtual Overrides
+
+=head3 SetEstimate
+
+    $helper->SetEstimate($estimate);
+
+Specify the expected number of inserts for this session. This helps to optimize certain types
+of ID processing.
+
+=over 4
+
+=item estimate
+
+The number of inserts of this entity type expected during the current session.
+
+=back
+
+=cut
+
+sub SetEstimate {
+    # Get the parameters.
+    my ($self, $estimate) = @_;
+    # Store the estimate.
+    $self->{allocation} = $estimate;
+}
+
 
 1;
