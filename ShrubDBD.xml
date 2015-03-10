@@ -220,7 +220,7 @@
                 more.
             </Asides>
         </Entity>
-        <Entity name="Function" keyType="short-string">
+        <Entity name="Function" keyType="counter" autocounter="1">
             <DisplayInfo theme="blue" row="9" col="3" />
             <Notes>A function is a set of roles that represent the effects of a
                 protein. Most functions consist of a single role, but many can have two or three
@@ -340,6 +340,10 @@
                         incremented each time the subsystem is backed up.
                     </Notes>
                 </Field>
+                <Field name="checksum" type="hash-string">
+                    <Notes>Checksum for this subsystem, formed from the subsystem
+                    name.</Notes>
+                </Field>
             </Fields>
             <Indexes>
                 <Index unique="1">
@@ -350,7 +354,14 @@
                         <IndexField name="name" order="ascending" />
                     </IndexFields>
                 </Index>
-            </Indexes>
+                <Index unique="1">
+                    <Notes>This index allows the user to find the subsystem by checksum.
+                    </Notes>
+                    <IndexFields>
+                        <IndexField name="checksum" order="ascending" />
+                    </IndexFields>
+                </Index>
+                </Indexes>
         </Entity>
         <Entity name="SubsystemRow" keyType="string">
             <DisplayInfo theme="blue" col="5" row="3" caption="Subsystem\nRow" />

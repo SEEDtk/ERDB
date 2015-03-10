@@ -28,8 +28,6 @@ package Shrub;
     use DBKernel;
     use SeedUtils;
     use Digest::MD5;
-    use charnames ();
-    use Data::UUID;
 
 
 =head1 Shrub Database Package
@@ -48,13 +46,9 @@ The fields in this object are as follows.
 
 Name of the directory containing the files used by the loaders.
 
-=item repository
+=item dnaRepo
 
-Name of the directory containing the genome repository.
-
-=item uuid
-
-A L<Data::UUID> object for generating unique IDs.
+Name of the directory containing the DNA repository.
 
 =back
 
@@ -100,9 +94,9 @@ MYSQL port number to use (MySQL only).
 
 Database management system to use (e.g. C<SQLite> or C<postgres>, default C<mysql>).
 
-=item repository
+=item dnaRepo
 
-Name of the directory containing the genome repository.
+Name of the directory containing the DNA repository.
 
 =item offline
 
@@ -131,7 +125,7 @@ sub new {
     my $dbName = $options{dbName} || $FIG_Config::shrubDB || "seedtk_shrub";
     my $userData = $options{userData} || $FIG_Config::userData || "seed/";
     my $dbhost = $options{dbhost} || $FIG_Config::dbhost || "seed-db-write.mcs.anl.gov";
-    my $repository = $options{repository} || "$FIG_Config::shrub_dna";
+    my $dnaRepo = $options{dnaRepo} || "$FIG_Config::shrub_dna";
     my $port = $options{port} || $FIG_Config::dbport || 3306;
     my $dbms = $options{dbms} || 'mysql';
     # Insure that if the user specified a DBD, it overrides the internal one.
@@ -151,9 +145,7 @@ sub new {
     # Create the ERDB object.
     my $retVal = ERDB::new($class, $dbh, $dbd, %options);
     # Attach the repository pointer.
-    $retVal->{repository} = $repository;
-    # Create the UUID generator.
-    $retVal->{uuid} = Data::UUID->new();
+    $retVal->{dnaRepo} = $dnaRepo;
     # Return it.
     return $retVal;
 }
@@ -200,7 +192,7 @@ sub new_for_script {
     my $retVal = Shrub::new($class, loadDirectory => $opt->loaddirectory, DBD => $opt->dbd,
             dbName => $opt->dbname, sock => $opt->sock, userData => $opt->userdata,
             dbhost => $opt->dbhost, port => $opt->port, dbms => $opt->dbms,
-            repository => $opt->repository, offline => $tuning{offline},
+            dnaRepo => $opt->dnarepo, offline => $tuning{offline},
             externalDBD => $externalDBD
             );
     # Return the result.
@@ -247,9 +239,9 @@ MYSQL port number to use (MySQL only).
 
 Database management system to use (e.g. C<postgres>, default C<mysql>).
 
-=item repository
+=item dnaRepo
 
-Name of the directory containing the genome repository.
+Name of the directory containing the DNA repository.
 
 =back
 
@@ -268,7 +260,7 @@ sub script_options {
            [ "dbhost=s", "database host server" ],
            [ "port=i", "mysql port" ],
            [ "dbms=s", "database management system" ],
-           [ "repository=s", "genome repository directory root" ],
+           [ "dnaRepo=s", "DNA repository directory root" ],
     );
 }
 
@@ -408,7 +400,7 @@ Returns the name of the directory containing the DNA repository.
 
 sub DNArepo {
     my ($self) = @_;
-    return $self->{repository};
+    return $self->{dnaRepo};
 }
 
 
@@ -448,80 +440,6 @@ sub ProteinID {
     # Return the result.
     return $retVal;
 }
-
-=head3 NewID
-
-    my $uuid = $loader->NewID();
-
-Return a new UUID. Currently, this is simply a pass-through call to the internal
-UUID generator, but it may become more complex if we devise a new scheme.
-
-=cut
-
-sub NewID {
-    return $_[0]->{uuid}->create_b64();
-}
-
-
-=head3 MagicName
-
-    my ($prefix, $suffix) = Shrub::MagicName($name);
-
-Compute a magic name from a name string. A magic name is a shortened version of the
-name designed to be relatively easy to remember. This involves a lot of fancy
-pattern processing.
-
-=cut
-
-use constant LITTLES => { 'and' => 1, 'or' => 1, the => 1, a => 1, of => 1, in => 1, an => 1, to => 1, on => 1 };
-
-sub MagicName {
-    # Get the parameter.
-    my ($name) = @_;
-    # Translate the Unicode entities.
-    while ($name =~ /^(.*?)\&#(\d+)(.+)/) {
-        # Extract the unicode entity.
-        my ($first, $uni, $last) = ($1, $2, $3);
-        # Get its full name. If it has none, just keep the number.
-        my $phrase = charnames::viacode($uni) // $uni;
-        # Get the last word.
-        if ($phrase =~ /(\S+)$/) {
-            $uni = $1;
-        }
-        # Insert the translation.
-        $name = "$first $uni $last";
-    }
-    # Clean what's left and split it into words.
-    $name =~ s/\W+/ /g;
-    my @words = split /\s+/, $name;
-    # Build a string of the words. We stop building at
-    # 16 characters. Since we never add more than 4, this
-    # means the maximum is 19, leaving 5 digits for
-    # uniqueness numbering.
-    my $prefix = "";
-    while (length($prefix) < 16 && scalar(@words)) {
-        my $word = shift @words;
-        if ($word =~ /^(\d)$/) {
-            # For a number, use the first digit.
-            $prefix .= $1;
-        } elsif (! LITTLES->{lc $word}) {
-            # We ignore common little words. For
-            # others, we take the first four characters.
-            $prefix .= substr(ucfirst lc $word, 0, 4);
-        }
-    }
-    # The default suffix is none.
-    my $suffix = "";
-    # Insure we don't end with a digit. If we do, we
-    # start with a suffix of 1.
-    if ($prefix =~ /\d$/) {
-        $prefix .= "n";
-        $suffix = 1;
-    }
-    # Return the prefix and suffix.
-    return ($prefix, $suffix);
-}
-
 
 =head3 NormalizedName
 
@@ -565,86 +483,6 @@ sub NormalizedName {
     # Return the result.
     return $retVal;
 }
-
-=head2 Update Methods
-
-=head3 CreateMagicEntity
-
-    my $subID = $shrub->CreateMagicEntity($type => $nameField, %fields);
-
-Create an entity record and return a unique ID for it. The ID is
-an abbreviated form of the instance's name with a suffix to make it
-unique. Much work is done smashing up strings to make the result something
-that can be remembered.
-
-=over 4
-
-=item type
-
-Entity type to insert.
-
-=item nameField
-
-Name of the field that contains the entity instance description or name.
-
-=item fields
-
-A hash of the fields in the entity instance to be inserted into the
-database. If the C<id> field is not present, it will be computed from the
-value of the name field.
-
-=item RETURN
-
-Returns the ID of the entity instance inserted.
-
-=back
-
-=cut
-
-sub CreateMagicEntity {
-    # Get the parameters.
-    my ($self, $type, $nameField, %fields) = @_;
-    # We will store the subsystem ID in here.
-    my $retVal;
-    # Do we have an ID?
-    if (defined $fields{id}) {
-        # Yes. Do a normal insert.
-        $self->InsertObject($type, %fields);
-        # Return the ID.
-        $retVal = $fields{id};
-    } else {
-        # No. Find the name so we can compute an ID.
-        my $name = $fields{name};
-        my ($prefix, $suffix) = MagicName($name);
-        # Look for examples of this ID.
-        my ($id) = $self->GetFlat($type, "$type(id) LIKE ? ORDER BY $type(id) DESC LIMIT 1", ["$prefix%"], 'id');
-        # Was a version of this ID found?
-        if ($id) {
-            # Yes. Try to compute a suffix.
-            if ($id eq $prefix) {
-                # Here we've found the exact same ID. Use a suffix of 2 to distinguish us.
-                $suffix = 2;
-            } elsif (substr($id, length($prefix)) =~ /^(\d+)$/) {
-                # Here we've found the same ID with a numeric suffix. Compute a new suffix that is 1 greater.
-                $suffix = $1 + 1;
-            }
-        }
-        # Try to insert, incrementing the suffix until we succeed.
-        my $okFlag;
-        while (! $okFlag) {
-            $retVal = $prefix . $suffix;
-            # In case the caller did "id => undef" to denote we have no ID, we need to put the ID value directly in
-            # the field hash, overriding the old value.
-            $fields{id} = $retVal;
-            $okFlag = $self->InsertObject($type, \%fields, dup => 'ignore');
-            # Increment the suffix. Note we go from empty string to 2. There is no "1" suffix unless the prefix ended with a digit.
-            $suffix = ($suffix ? $suffix + 1 : 2);
-        }
-    }
-    # Return the entity instance ID.
-    return $retVal;
-}
-
 
 =head2 Public Constants
 

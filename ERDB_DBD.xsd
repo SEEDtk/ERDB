@@ -58,7 +58,7 @@
                 <xs:element minOccurs="0" ref="FulltextIndexes" />
                 <xs:element minOccurs="0" ref="Indexes"/>
             </xs:sequence>
-            <xs:attribute name="autonumber" type="xs:integer"/>
+            <xs:attribute name="autocounter" type="xs:integer"/>
             <xs:attribute name="keyType" use="required" type="dataType"/>
             <xs:attribute name="name" use="required" type="xs:string"/>
         </xs:complexType>

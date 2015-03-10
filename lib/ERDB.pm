@@ -162,10 +162,7 @@ C<Feature> table were the default, it could be specified as
 
     species-name
 
-without the object name. You may also use underscores in place of hyphens,
-which can be syntactically more convenient in PERL programs.
-
-    species_name
+without the object name.
 
 In some cases, the object name may not be the actual name of an object
 in the database. It could be an alias assigned by a query, or the converse
@@ -179,10 +176,10 @@ all data returned by the query.
 =head3 Queries
 
 Queries against the database are performed by variations of the L</Get> method.
-This method has three parameters: the I<object name list>, the I<filter clause>,
-and the I<parameter list>. There is a certain complexity involved in queries
-that has evolved over a period of many years in which the needs of the
-applications were balanced against a need for simplicity. In most cases, you
+This method has four parameters: the I<object name list>, the I<filter clause>,
+the I<parameter list>, and an optional I<field list>. There is a certain complexity
+involved in queries that has evolved over a period of many years in which the needs
+of the applications were balanced against a need for simplicity. In most cases, you
 just list the objects used in the query, code a standard SQL filter clause with
 field names in the L</Standard Field Name Format>, and specify a list of
 parameters to plug in to the parameter marks. The use of the special field name
@@ -690,13 +687,10 @@ C<Genome> or C<GroupBlock>) and should be a noun or noun phrase.
 
 Data type of the primary key. The primary key is always named C<id>.
 
-=item autonumber
+=item autocounter
 
-A value of C<1> means that after the entity's primary relation is loaded, the ID
-field will be set to autonumber, so that new records inserted will have
-automatic keys generated. Use this option with care. Once the relation is loaded,
-it cannot be reloaded unless the table is first dropped and re-created. In addition,
-the key must be an integer type.
+A value of C<1> means that the ID numbers must be requested from data in the
+system C<_id> table. The key must be of type C<counter>.
 
 =back
 
@@ -838,6 +832,8 @@ my %FromTo = (from => 'to', to => 'from');
 
 # Name of metadata table.
 use constant METADATA_TABLE => '_metadata';
+# Name of ID table.
+use constant ID_TABLE => '_ids';
 
 =head2 Special Methods
 
@@ -897,7 +893,6 @@ sub new {
     # Create the object.
     my $self = { _dbh => $dbh,
                  _metaFileName => $metaFileName,
-                 _autonumbered => {},
                  _quote => $quote
                };
     # Bless it.
@@ -986,8 +981,7 @@ input string.
 
 In list context, returns the table name followed by the base field name. In
 scalar context, returns the field name in a normalized L</Standard Field Name Format>,
-with underscores converted to hyphens and an object name present. If the
-parse fails, will return an undefined value.
+with an object name present. If the parse fails, will return an undefined value.
 
 =back
 
@@ -998,9 +992,8 @@ sub ParseFieldName {
     my ($string, $defaultName) = @_;
     # Declare the return values.
     my ($tableName, $fieldName);
-    # Get a copy of the input string with underscores converted to hyphens.
+    # Get a copy of the input string,
     my $realString = $string;
-    $realString =~ tr/_/-/;
     # Parse the input string.
     if ($realString =~ /^(\w+)\(([\w\-]+)\)$/) {
         # It's a standard name. Return the pieces.
@@ -1566,7 +1559,7 @@ sub IsUsed {
 
 =head2 Documentation and Metadata Methods
 
-=item q
+=head3 q
 
     my $q = $erdb->q;
 
@@ -3012,6 +3005,20 @@ sub IsEmbedded {
 
 =head2 Database Administration and Loading Methods
 
+=head3 db
+
+    my $erdb = $erdb->db;
+
+Return this object. This method allows the ERDB object itself to be passed around as
+a loader to the ID helpers.
+
+=cut
+
+sub db {
+    return $_->[0];
+}
+
+
 =head3 LoadTable
 
     my $results = $erdb->LoadTable($fileName, $relationName, %options);
@@ -3150,65 +3157,6 @@ sub LoadTable {
         $self->Analyze($relationName);
     }
     # Return the statistics.
-    return $retVal;
-}
-
-=head3 InsertNew
-
-    my $newID = $erdb->InsertNew($entityName, %fields);
-
-Insert a new entity into a table that uses sequential integer IDs. A new,
-unique ID will be computed automatically and returned to the caller.
-
-=over 4
-
-=item entityName
-
-Type of the entity being inserted. The entity must have an integer ID.
-
-=item fields
-
-Hash of field names to field values. Every field in the entity's primary relation
-should be specified.
-
-=item RETURN
-
-Returns the ID of the inserted entity.
-
-=back
-
-=cut
-
-sub InsertNew {
-    # Get the parameters.
-    my ($self, $entityName, %fields) = @_;
-    # Declare the return variable.
-    my $retVal;
-    # Get the quote character.
-    my $q = $self->q;
-    # If this is our first insert, we update the ID field definition.
-    if (! exists $self->{_autonumber}->{$entityName}) {
-        # Check to see if this is an autonumbered entity.
-        my $entityData = $self->FindEntity($entityName);
-        if (! defined $entityData || ! $entityData->{autonumber}) {
-            Confess("Cannot use InsertNew for a entity $entityName.");
-        } else {
-            # Create the alter table command.
-            my $fieldString = $self->_FieldString($entityData->{Fields}->{id});
-            my $command = "ALTER TABLE $q$entityName$q CHANGE COLUMN id $fieldString AUTO_INCREMENT";
-            # Execute the command.
-            my $dbh = $self->{_dbh};
-            $dbh->SQL($command);
-            # Insure we don't do this again.
-            $self->{_autonumber}->{$entityName} = 1;
-        }
-    }
-    # Insert the entity.
-    $self->InsertObject($entityName, %fields, id => undef);
-    # Get the last ID inserted.
-    my $dbh = $self->{_dbh};
-    $retVal = $dbh->last_insert_id();
-    # Return the result.
     return $retVal;
 }
 
@@ -4264,7 +4212,6 @@ sub InsertObject {
     # Get the database handle.
     my $dbh = $self->{_dbh};
     # Parse the field hash. We need to strip off the table names and
-    # convert underscores in field names to hyphens. We will also
     # encode the values.
     my %fixedHash = $self->_SingleTableHash($fieldHash, $newObjectType, $options->{encoded});
     # Get the relation descriptor.
@@ -5202,7 +5149,7 @@ utility function performed by most update-related methods.
 =item fieldHash
 
 A hash mapping field names to values. The field names must be in
-L</Standard Field Name Format>.
+L</Standard Field Name Format> and must all belong to the same table.
 
 =item objectName
 
@@ -6405,6 +6352,8 @@ A reference to a hash of the entities in the DBD.
 
 The name of the relation containing the fields.
 
+=back
+
 =cut
 
 sub _AddFromToFields{
@@ -6723,6 +6672,99 @@ sub InternalizeDBD {
     # Store it in the database.
     $dbh->SQL("INSERT INTO " . METADATA_TABLE . " (id, data) VALUES (?, ?)", 0, 'DBD',
               $frozen);
+}
+
+
+=head2 Autocounter Support
+
+=head3 RefreshIDTable
+
+    $erdb->RefreshIDTable();
+
+This method insures the ID table is up-to-date. It is dropped and recreated, and
+its records are computed from the database content of the autocounter entities.
+
+=cut
+
+sub RefreshIDTable {
+    # Get the parameters.
+    my ($self) = @_;
+    # Get the database handle.
+    my $dbh = $self->{_dbh};
+    # Drop the table if it exists.
+    $dbh->drop_table(tbl => ID_TABLE);
+    # Re-create the table.
+    $dbh->create_table(tbl => ID_TABLE,
+            flds => 'entity VARCHAR(128) NOT NULL PRIMARY KEY, next_id BIGINT');
+    # Loop through the entity definitions.
+    my $entityHash = $self->{_metaData}{Entities};
+    for my $entity (keys %$entityHash) {
+        # Is this an autocounter entity?
+        if ($entityHash->{$entity}{autocounter}) {
+            # Yes. Get its highest key.
+            my ($maxID) = $self->GetFlat($entity, "ORDER BY $entity(id) DESC LIMIT 1", [], 'id');
+            # Compute the next available key.
+            my $nextID = ($maxID ? $maxID + 1 : 1);
+            # Create the entity's ID record.
+            $dbh->SQL("INSERT INTO " . ID_TABLE . " (entity, next_id) VALUES (?, ?)", 0,
+                    $entity, $nextID);
+        }
+    }
+}
+
+=head3 AllocateIds
+
+    my $nextID = $erdb->AllocateIds($entityName, $count);
+
+Allocate one or more autocounter IDs for the specified entity. After calling this
+method, the client may freely insert entity instances with ID numbers in the range
+[$nextID, $nextID + $count - 1].
+
+=over 4
+
+=item entityName
+
+Name of the entity for which IDs are to be allocated.
+
+=item count
+
+Number of IDs to allocate.
+
+=item RETURN
+
+Returns the next available ID for the named entity.
+
+=back
+
+=cut
+
+sub AllocateIds {
+    # Get the parameters.
+    my ($self, $entityName, $count) = @_;
+    # Get the database handle.
+    my $dbh = $self->{_dbh};
+    # Loop until we successfully find an ID.
+    my $retVal;
+    while (! defined $retVal) {
+        # Get the next ID for the named entity.
+        my $rv = $dbh->SQL("SELECT next_id FROM " . ID_TABLE . " WHERE entity = ?", 0, $entityName);
+        # Extract the result record.
+        if (! scalar @$rv) {
+            Confess("$entityName is not an autocounter entity.");
+        } else {
+            my $nextID = $rv->[0][0];
+            # Attempt to allocate the ID.
+            my $success = $dbh->SQL("UPDATE " . ID_TABLE .
+                   " SET next_id = ? WHERE entity = ? AND next_id = ?", 0,
+                   $nextID + $count, $entityName, $nextID);
+            # If we succeeded, return the first known ID.
+            if ($success > 0) {
+                $retVal = $nextID;
+            }
+        }
+    }
+    # Return the new ID allocated.
+    return $retVal;
 }
 
 

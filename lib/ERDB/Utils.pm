@@ -110,6 +110,10 @@ Store the DBD in the database to improve performance.
 
 Erase all the tables in the database and recreate them.
 
+=item idfix
+
+Refresh the ID table.
+
 =back
 
 =cut
@@ -117,7 +121,8 @@ Erase all the tables in the database and recreate them.
 sub init_options {
     return (
     ['store', "store the DBD in the database"],
-    ['clear', "clear the database"],
+    ['clear', "clear the database", { implies => 'idfix' }],
+    ['idfix', "refresh the ID table", { implies => 'idfix' }],
     );
 }
 
@@ -202,7 +207,7 @@ return TRUE if the database was cleared, else FALSE.
 =item opt
 
 L<Getopt::Long::Descriptive::Opts> object from a call to L<ScriptUtils/Opts> that included
-the L</init_options> command-line options. The C<store> and C<clear> options will be processed.
+the L</init_options> command-line options. The C<store>, C<idfix>, and C<clear> options will be processed.
 
 =item RETURN
 
@@ -219,11 +224,6 @@ sub Init {
     my $retVal;
     # Get the ERDB object.
     my $erdb = $self->{erdb};
-    # Are we storing?
-    if ($opt->store) {
-        $erdb->InternalizeDBD();
-        print "Database definition stored in database.\n";
-    }
     # Check for a clear request.
     if ($opt->clear) {
         print "CLEAR option specified.\n";
@@ -233,6 +233,19 @@ sub Init {
         $self->CreateMissing();
         # Denote we cleared.
         $retVal = 1;
+    }
+    # Are we storing?
+    if ($opt->store) {
+        # Yes. Store the DBD.
+        $erdb->InternalizeDBD();
+        print "Database definition stored in database.\n";
+    }
+    # Are we fixing the ID table? (Note that this MUST be done
+    # last, to insure the tables exist.)
+    if ($opt->idfix) {
+        # Refresh the ID table.
+        $erdb->RefreshIDTable();
+        print "ID table refreshed.\n";
     }
     # Return the clear flag.
     return $retVal;

@@ -22,6 +22,8 @@ package Shrub::SubsystemLoader;
     use warnings;
     use Shrub::FunctionLoader;
     use Shrub::DBLoader;
+    use Digest::MD5;
+    use ERDB::ID::Magic;
 
 =head1 Shrub Subsystem Load Helper
 
@@ -42,6 +44,10 @@ A L<Shrub::FunctionLoader> object for computing function and role IDs.
 
 TRUE if we are to load using individual inserts, FALSE if we are to spool into files for mass insertion.
 (The effect of this option is managed by the L<Shrub::DBLoader> object.)
+
+=item inserter
+
+An L<ERDB::ID> object for inserting subsystem records.
 
 =back
 
@@ -80,6 +86,10 @@ all loading will be performed by spooling into load files. The default is FALSE.
 A L<Shrub::FunctionLoader> object for computing role IDs. If none is provided, an
 object will be created internally.
 
+=item exclusive
+
+TRUE if we have exclusive access to the database, else FALSE. The default is FALSE.
+
 =back
 
 =back
@@ -95,17 +105,22 @@ sub new {
     my $funcLoader = $options{funcLoader};
     # If the function loader was not provided, create one.
     if (! $funcLoader) {
-        $funcLoader = Shrub::FunctionLoader->new($loader, rolesOnly => 1, slow => $slow);
+        $funcLoader = Shrub::FunctionLoader->new($loader, rolesOnly => 1, slow => $slow,
+                exclusive => $options{exclusive});
     }
     # If we are NOT in slow mode, prepare the tables for loading.
     if (! $slow) {
         $loader->Open(LOAD_TABLES);
     }
+    # Create the subsystem inserter.
+    my $inserter = ERDB::ID::Magic->new(Subsystem => $loader, $loader->stats, exclusive => $options{exclusive},
+            checkField => 'checksum', nameField => 'name');
     # Create the object.
     my $retVal = {
         loader => $loader,
         funcLoader => $funcLoader,
-        slow => $slow
+        slow => $slow,
+        inserter => $inserter
     };
     # Bless and return it.
     bless $retVal, $class;
@@ -230,10 +245,12 @@ sub LoadSubsystem {
     my $metaHash = $loader->ReadMetaData("$subDir/Info", required => [qw(privileged row-privilege)]);
     # Default the version to 1.
     my $version = $metaHash->{version} // 1;
+    # Compute the checksum.
+    my $checksum = Digest::MD5::md5_base64($sub);
     # Insert the subsystem record. If we already have an ID, it will be reused. Otherwise a magic name will
     # be created.
-    my $retVal = $shrub->CreateMagicEntity(Subsystem => 'name', id => $subID, name => $sub, privileged => $metaHash->{privileged},
-            version => $version);
+    my $retVal = $self->{inserter}->Insert(id => $subID, name => $sub, privileged => $metaHash->{privileged},
+            version => $version, checksum => $checksum);
     # Next come the roles. This will map role abbreviations to a 2-tuple consisting of (0) the role ID
     # and (1) the column number.
     my %roleMap;
