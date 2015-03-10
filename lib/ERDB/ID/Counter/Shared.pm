@@ -130,7 +130,7 @@ sub InsertNew {
     my $retVal = $self->NextID;
     $fields{id} = $retVal;
     # Get the ERDB object, the entity name, and the statistics object.
-    my $erdb = $self->erdb;
+    my $erdb = $self->db;
     my $entityName = $self->{entityName};
     my $stats = $self->stats;
     # This will be set to TRUE when we succeed.

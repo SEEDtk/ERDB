@@ -110,7 +110,7 @@ sub new {
     # Are we processing functions?
     if (! $options{rolesOnly}) {
         # Yes. Create the function inserter.
-        $retVal->{functions} = ERDB::ID::Counter(Function => $loader, $loader->stats,
+        $retVal->{functions} = ERDB::ID::Counter->new(Function => $loader, $loader->stats,
                 exclusive => $options{exclusive}, checkField => 'checksum');
         # Prepare to load the function-related database tables.
         if (! $slowMode) {
@@ -120,7 +120,7 @@ sub new {
         }
     }
     # Create the role inserter.
-    $retVal->{roles} = ERDB::ID::Magic(Role => $loader, $loader->stats,
+    $retVal->{roles} = ERDB::ID::Magic->new(Role => $loader, $loader->stats,
         exclusive => $options{exclusive}, nameField => 'description',
         checkField => 'checksum');
     # Bless and return the object.
@@ -210,15 +210,19 @@ sub ProcessFunction {
     my $funThing = $self->{functions};
     my $retVal = $funThing->Check($checksum);
     if (! $retVal) {
-        # No, we must insert it.
-        $retVal = $funThing->Insert(checksum => $checksum, sep => $sep, description => $statement);
-        # Put in its roles.
+        # No, we must insert it. Start by insuring we have its roles.
+        my @roleIDs;
         for my $role (keys %$roles) {
             # Get this role's checksum.
             my $roleCheck = $roles->{$role};
             # Get the role's ID.
             my ($roleID) = $self->ProcessRole($role, $roleCheck);
-            # Connect the role to the function.
+            push @roleIDs, $roleID;
+        }
+        # Insert the function.
+        $retVal = $funThing->Insert(checksum => $checksum, sep => $sep, description => $statement);
+        # Connect the roles to the function.
+        for my $roleID (@roleIDs) {
             $loader->InsertObject('Function2Role', 'from-link' => $retVal, 'to-link' => $roleID);
             $stats->Add(function2role => 1);
         }

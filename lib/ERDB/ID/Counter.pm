@@ -108,12 +108,12 @@ sub new {
     my $retVal;
     # Determine how to construct the object.
     if ($options{exclusive}) {
+        require ERDB::ID::Counter::Exclusive;
         $retVal = ERDB::ID::Counter::Exclusive->new($entityName, $loader, $stats, %options);
     } else {
+        require ERDB::ID::Counter::Shared;
         $retVal = ERDB::ID::Counter::Shared->new($entityName, $loader, $stats, %options);
     }
-    # Get the database object.
-    my $erdb = $retVal->db;
     # Specify a default allocation size and denote we have no IDs.
     $retVal->{nextID} = 1;
     $retVal->{lastID} = 0;
@@ -145,16 +145,19 @@ sub NextID {
     if ($retVal > $self->{lastID}) {
         # No, we need to ask for more.
         my $entityName = $self->{entityName};
-        $stats->Add($entityName . "IDsRequested" => 1);
+        $stats->Add($entityName . "IDRequests" => 1);
         # Compute the allocation size.
         my $allocation = $self->{allocation};
         # Make the request.
-        $retVal = $self->erdb->AllocateIds($entityName, $allocation);
+        $retVal = $self->db->AllocateIds($entityName, $allocation);
+        # Record the new last ID.
+        $self->{lastID} = $retVal + $allocation - 1;
+        $stats->Add($entityName . "IDsAllocated" => $allocation);
         # Allocate the default next time.
         $self->{allocation} = DEFAULT_ALLOCATION;
     }
     # Denote we got this ID.
-    $stats->Add($self->{entityName} . "IDsAllocated" => 1);
+    $stats->Add($self->{entityName} . "IDsUsed" => 1);
     $self->{nextID} = $retVal + 1;
     # Return the ID found.
     return $retVal;

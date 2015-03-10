@@ -162,10 +162,7 @@ C<Feature> table were the default, it could be specified as
 
     species-name
 
-without the object name. You may also use underscores in place of hyphens,
-which can be syntactically more convenient in PERL programs.
-
-    species_name
+without the object name.
 
 In some cases, the object name may not be the actual name of an object
 in the database. It could be an alias assigned by a query, or the converse
@@ -179,10 +176,10 @@ all data returned by the query.
 =head3 Queries
 
 Queries against the database are performed by variations of the L</Get> method.
-This method has three parameters: the I<object name list>, the I<filter clause>,
-and the I<parameter list>. There is a certain complexity involved in queries
-that has evolved over a period of many years in which the needs of the
-applications were balanced against a need for simplicity. In most cases, you
+This method has four parameters: the I<object name list>, the I<filter clause>,
+the I<parameter list>, and an optional I<field list>. There is a certain complexity
+involved in queries that has evolved over a period of many years in which the needs
+of the applications were balanced against a need for simplicity. In most cases, you
 just list the objects used in the query, code a standard SQL filter clause with
 field names in the L</Standard Field Name Format>, and specify a list of
 parameters to plug in to the parameter marks. The use of the special field name
@@ -984,8 +981,7 @@ input string.
 
 In list context, returns the table name followed by the base field name. In
 scalar context, returns the field name in a normalized L</Standard Field Name Format>,
-with underscores converted to hyphens and an object name present. If the
-parse fails, will return an undefined value.
+with an object name present. If the parse fails, will return an undefined value.
 
 =back
 
@@ -996,9 +992,8 @@ sub ParseFieldName {
     my ($string, $defaultName) = @_;
     # Declare the return values.
     my ($tableName, $fieldName);
-    # Get a copy of the input string with underscores converted to hyphens.
+    # Get a copy of the input string,
     my $realString = $string;
-    $realString =~ tr/_/-/;
     # Parse the input string.
     if ($realString =~ /^(\w+)\(([\w\-]+)\)$/) {
         # It's a standard name. Return the pieces.
@@ -4217,7 +4212,6 @@ sub InsertObject {
     # Get the database handle.
     my $dbh = $self->{_dbh};
     # Parse the field hash. We need to strip off the table names and
-    # convert underscores in field names to hyphens. We will also
     # encode the values.
     my %fixedHash = $self->_SingleTableHash($fieldHash, $newObjectType, $options->{encoded});
     # Get the relation descriptor.
@@ -5155,7 +5149,7 @@ utility function performed by most update-related methods.
 =item fieldHash
 
 A hash mapping field names to values. The field names must be in
-L</Standard Field Name Format>.
+L</Standard Field Name Format> and must all belong to the same table.
 
 =item objectName
 
@@ -6744,7 +6738,7 @@ Returns the next available ID for the named entity.
 
 =cut
 
-sub AllocatedIds {
+sub AllocateIds {
     # Get the parameters.
     my ($self, $entityName, $count) = @_;
     # Get the database handle.

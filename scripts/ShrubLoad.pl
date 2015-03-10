@@ -118,7 +118,7 @@ if ($genomesLoading && $genomeSpec ne 'all' && ! -f $genomeSpec) {
 # We need to determine shared or exclusive mode. First, see if the user gave us
 # explicit instructions.
 my $xmode = $opt->xmode;
-if (defined $xmode) {
+if (! defined $xmode) {
     # We need to compute the default. Find out where the database is.
     my $dbhost = $opt->dbhost // $FIG_Config::dbhost // '';
     $xmode = ($dbhost eq 'localhost' ? 'exclusive' : 'shared');

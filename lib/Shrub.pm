@@ -46,9 +46,9 @@ The fields in this object are as follows.
 
 Name of the directory containing the files used by the loaders.
 
-=item repository
+=item dnaRepo
 
-Name of the directory containing the genome repository.
+Name of the directory containing the DNA repository.
 
 =back
 
@@ -94,9 +94,9 @@ MYSQL port number to use (MySQL only).
 
 Database management system to use (e.g. C<SQLite> or C<postgres>, default C<mysql>).
 
-=item repository
+=item dnaRepo
 
-Name of the directory containing the genome repository.
+Name of the directory containing the DNA repository.
 
 =item offline
 
@@ -125,7 +125,7 @@ sub new {
     my $dbName = $options{dbName} || $FIG_Config::shrubDB || "seedtk_shrub";
     my $userData = $options{userData} || $FIG_Config::userData || "seed/";
     my $dbhost = $options{dbhost} || $FIG_Config::dbhost || "seed-db-write.mcs.anl.gov";
-    my $repository = $options{repository} || "$FIG_Config::shrub_dna";
+    my $dnaRepo = $options{dnaRepo} || "$FIG_Config::shrub_dna";
     my $port = $options{port} || $FIG_Config::dbport || 3306;
     my $dbms = $options{dbms} || 'mysql';
     # Insure that if the user specified a DBD, it overrides the internal one.
@@ -145,7 +145,7 @@ sub new {
     # Create the ERDB object.
     my $retVal = ERDB::new($class, $dbh, $dbd, %options);
     # Attach the repository pointer.
-    $retVal->{repository} = $repository;
+    $retVal->{dnaRepo} = $dnaRepo;
     # Return it.
     return $retVal;
 }
@@ -192,7 +192,7 @@ sub new_for_script {
     my $retVal = Shrub::new($class, loadDirectory => $opt->loaddirectory, DBD => $opt->dbd,
             dbName => $opt->dbname, sock => $opt->sock, userData => $opt->userdata,
             dbhost => $opt->dbhost, port => $opt->port, dbms => $opt->dbms,
-            repository => $opt->repository, offline => $tuning{offline},
+            dnaRepo => $opt->dnarepo, offline => $tuning{offline},
             externalDBD => $externalDBD
             );
     # Return the result.
@@ -239,9 +239,9 @@ MYSQL port number to use (MySQL only).
 
 Database management system to use (e.g. C<postgres>, default C<mysql>).
 
-=item repository
+=item dnaRepo
 
-Name of the directory containing the genome repository.
+Name of the directory containing the DNA repository.
 
 =back
 
@@ -260,7 +260,7 @@ sub script_options {
            [ "dbhost=s", "database host server" ],
            [ "port=i", "mysql port" ],
            [ "dbms=s", "database management system" ],
-           [ "repository=s", "genome repository directory root" ],
+           [ "dnaRepo=s", "DNA repository directory root" ],
     );
 }
 
@@ -400,7 +400,7 @@ Returns the name of the directory containing the DNA repository.
 
 sub DNArepo {
     my ($self) = @_;
-    return $self->{repository};
+    return $self->{dnaRepo};
 }
 
 

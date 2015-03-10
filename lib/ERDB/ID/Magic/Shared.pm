@@ -133,41 +133,33 @@ sub InsertNew {
     my $entityName = $self->{entityName};
     # We will store the subsystem ID in here.
     my $retVal;
-    # Do we have an ID?
-    if (defined $fields{id}) {
-        # Yes. Do a normal insert.
-        $erdb->InsertObject($entityName, %fields);
-        # Return the ID.
-        $retVal = $fields{id};
-    } else {
-        # No. Find the name so we can compute an ID.
-        my $nameField = $self->{nameField};
-        my $name = $fields{$nameField};
-        my ($prefix, $suffix) = ERDB::ID::Magic::Name($name);
-        # Look for examples of this ID.
-        my ($id) = $erdb->GetFlat($entityName, "$entityName(id) LIKE ? ORDER BY $entityName(id) DESC LIMIT 1", ["$prefix%"], 'id');
-        # Was a version of this ID found?
-        if ($id) {
-            # Yes. Try to compute a suffix.
-            if ($id eq $prefix) {
-                # Here we've found the exact same ID. Use a suffix of 2 to distinguish us.
-                $suffix = 2;
-            } elsif (substr($id, length($prefix)) =~ /^(\d+)$/) {
-                # Here we've found the same ID with a numeric suffix. Compute a new suffix that is 1 greater.
-                $suffix = $1 + 1;
-            }
+    # Find the name so we can compute an ID.
+    my $nameField = $self->{nameField};
+    my $name = $fields{$nameField};
+    my ($prefix, $suffix) = ERDB::ID::Magic::Name($name);
+    # Look for examples of this ID.
+    my ($id) = $erdb->GetFlat($entityName, "$entityName(id) LIKE ? ORDER BY $entityName(id) DESC LIMIT 1", ["$prefix%"], 'id');
+    # Was a version of this ID found?
+    if ($id) {
+        # Yes. Try to compute a suffix.
+        if ($id eq $prefix) {
+            # Here we've found the exact same ID. Use a suffix of 2 to distinguish us.
+            $suffix = 2;
+        } elsif (substr($id, length($prefix)) =~ /^(\d+)$/) {
+            # Here we've found the same ID with a numeric suffix. Compute a new suffix that is 1 greater.
+            $suffix = $1 + 1;
         }
-        # Try to insert, incrementing the suffix until we succeed.
-        my $okFlag;
-        while (! $okFlag) {
-            $retVal = $prefix . $suffix;
-            # In case the caller did "id => undef" to denote we have no ID, we need to put the ID value directly in
-            # the field hash, overriding the old value.
-            $fields{id} = $retVal;
-            $okFlag = $erdb->InsertObject($entityName, \%fields, dup => 'ignore');
-            # Increment the suffix. Note we go from empty string to 2. There is no "1" suffix unless the prefix ended with a digit.
-            $suffix = ($suffix ? $suffix + 1 : 2);
-        }
+    }
+    # Try to insert, incrementing the suffix until we succeed.
+    my $okFlag;
+    while (! $okFlag) {
+        $retVal = $prefix . $suffix;
+        # In case the caller did "id => undef" to denote we have no ID, we need to put the ID value directly in
+        # the field hash, overriding the old value.
+        $fields{id} = $retVal;
+        $okFlag = $erdb->InsertObject($entityName, \%fields, dup => 'ignore');
+        # Increment the suffix. Note we go from empty string to 2. There is no "1" suffix unless the prefix ended with a digit.
+        $suffix = ($suffix ? $suffix + 1 : 2);
     }
     # Return the entity instance ID.
     return $retVal;

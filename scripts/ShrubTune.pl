@@ -21,6 +21,7 @@ use warnings;
 use Shrub;
 use ERDB::Utils;
 use ScriptUtils;
+use File::Copy::Recursive;
 
 =head1 Shrub Creation and Tuning Script
 
@@ -83,9 +84,16 @@ my $shrub = Shrub->new_for_script($opt, externalDBD => 1);
 my $utils = ERDB::Utils->new($shrub);
 # Get the statistics object.
 my $stats = $utils->stats;
+# Display the DBD.
+print "Database definition taken from " . $shrub->GetMetaFileName() , ".\n";
 # Process the initialization options.
 my $cleared = $utils->Init($opt);
-if (! $cleared) {
+if ($cleared) {
+    # If we cleared the database, erase the DNA repository.
+    print "Erasing DNA repository.\n";
+    File::Copy::Recursive::pathempty($FIG_Config::shrub_dna) ||
+        die "Error clearing DNA repository: $!";
+} else {
     # We still have a database. Check for tuning options.
     if ($opt->fixup) {
         # Fix up the existing tables.

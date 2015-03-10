@@ -113,13 +113,14 @@ sub new {
         $loader->Open(LOAD_TABLES);
     }
     # Create the subsystem inserter.
-    my $inserter = ERDB::ID::Magic(Subsystem => $loader, $loader->stats, exclusive => $options{exclusive},
+    my $inserter = ERDB::ID::Magic->new(Subsystem => $loader, $loader->stats, exclusive => $options{exclusive},
             checkField => 'checksum', nameField => 'name');
     # Create the object.
     my $retVal = {
         loader => $loader,
         funcLoader => $funcLoader,
-        slow => $slow
+        slow => $slow,
+        inserter => $inserter
     };
     # Bless and return it.
     bless $retVal, $class;

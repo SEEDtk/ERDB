@@ -94,8 +94,10 @@ sub new {
     my $retVal;
     # Determine how to construct the object.
     if ($options{exclusive}) {
+        require ERDB::ID::Magic::Exclusive;
         $retVal = ERDB::ID::Magic::Exclusive->new($entityName, $loader, $stats, %options);
     } else {
+        require ERDB::ID::Magic::Shared;
         $retVal = ERDB::ID::Magic::Shared->new($entityName, $loader, $stats, %options);
     }
     # Save the name of the name field.

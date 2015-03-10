@@ -325,18 +325,20 @@ sub CurateNewGenomes {
             # (This works because all the core genomes are first in the list.)
             $incomingMD5s{$md5} = $genome;
             # Here we will build a list of genomes in the database that might conflict.
-            my @rivals;
+            my %rivals;
             # Check for an existing genome with the same ID.
             if ($genomesById{$genome}) {
-                push @rivals, $genome;
+                $rivals{$genome} = 1;
             }
             # Check for existing genomes with the same MD5.
             if ($genomesByMd5{$md5}) {
-                push @rivals, @{$genomesByMd5{$md5}};
+                for my $rival (@{$genomesByMd5{$md5}}) {
+                    $rivals{$rival} = 1;
+                }
             }
             # Loop through the rival genomes.
             my $discard;
-            for my $rivalGenome (@rivals) {
+            for my $rivalGenome (keys %rivals) {
                 # Get the rival genome's core flag.
                 my $rivalCore = $genomesById{$rivalGenome}[1];
                 # Discard the new genome if it has the same core status as the rival and the MISSING
@@ -347,15 +349,19 @@ sub CurateNewGenomes {
                 }
             }
             if ($discard) {
-                print "$genome skipped because of conflicts with existing genomes " . join(", ", @rivals) . "\n";
+                print "$genome skipped because of conflicts with existing genome(s) " . join(", ", keys %rivals) . "\n";
                 $stats->Add(genomeConflictSkip => 1);
                 # Remove the genome from the output hash.
                 delete $retVal{$genome};
             } else {
                 $stats->Add(genomeKept => 1);
                 # Here we are keeping the genome. Delete the rivals.
-                for my $rival (@rivals) {
-                    print "Deleting genome $rival to make way for $genome.\n";
+                for my $rival (keys %rivals) {
+                    if ($genome ne $rival) {
+                        print "Deleting genome $rival to make way for $genome.\n";
+                    } else {
+                        print "Deleting old version of $genome.\n";
+                    }
                     my $newStats = $shrub->Delete(Genome => $rival);
                     $stats->Accumulate($newStats);
                 }

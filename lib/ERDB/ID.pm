@@ -254,7 +254,7 @@ Return the loader object for inserting records into the database.
 =cut
 
 sub loader {
-    return $_[0]->loader;
+    return $_[0]->{loader};
 }
 
 
@@ -298,7 +298,7 @@ sub Insert {
     } else {
         # No, do an InsertNew.
         $stats->Add(insertIDNeeded => 1);
-        $retVal = InsertNew(%fields);
+        $retVal = $self->InsertNew(%fields);
         # If we have a checking hash, insert the new object.
         my $checkHash = $self->{checkHash};
         if ($checkHash) {
