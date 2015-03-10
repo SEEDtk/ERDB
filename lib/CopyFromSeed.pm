@@ -26,6 +26,7 @@ package CopyFromSeed;
     use File::Copy::Recursive;
     use MD5Computer;
     use BasicLocation;
+    use Shrub;
 
 =head1 CopyFromSeed Helper Object
 
@@ -194,7 +195,8 @@ The privilege level of the annotations-- 0 (public), 1 (projected), or
 sub common_options {
     return (
             ['repo|r=s', "location of the target repository", { default => "$FIG_Config::data/Inputs" }],
-            ["privilege=i", "privilege level of the annotations-- 0 (public), 1 (projected), or 2 (privileged)"],
+            ["privilege=i", "privilege level of the annotations-- 0 (public), 1 (projected), or 2 (privileged)",
+                    { default => Shrub::PUBLIC }],
             ["missing|m", "only copy missing subsystems and genomes"],
             ["clear", "erase the target repository before copying"]
         );
