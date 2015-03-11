@@ -133,10 +133,13 @@ sub InsertNew {
     my $entityName = $self->{entityName};
     # We will store the subsystem ID in here.
     my $retVal;
+    # Get the check field name.
+    my $checkField = $self->{checkField};
     # Find the name so we can compute an ID.
     my $nameField = $self->{nameField};
     my $name = $fields{$nameField};
     my ($prefix, $suffix) = ERDB::ID::Magic::Name($name);
+    $stats->Add($entityName . "IdRequested" => 1);
     # Look for examples of this ID.
     my ($id) = $erdb->GetFlat($entityName, "$entityName(id) LIKE ? ORDER BY $entityName(id) DESC LIMIT 1", ["$prefix%"], 'id');
     # Was a version of this ID found?
@@ -160,6 +163,20 @@ sub InsertNew {
         $okFlag = $erdb->InsertObject($entityName, \%fields, dup => 'ignore');
         # Increment the suffix. Note we go from empty string to 2. There is no "1" suffix unless the prefix ended with a digit.
         $suffix = ($suffix ? $suffix + 1 : 2);
+        # If there is a check field, we need to see if we were bounced by someone else inserting the same object
+        # before we could.
+        if ($checkField) {
+            my ($actual) = $erdb->GetFlat($entityName, "$entityName($checkField) = ?", [$fields{$checkField}], 'id');
+            if ($actual) {
+                # That is what happened. Return the information.
+                $retVal = $actual;
+                $okFlag = 1;
+                $stats->Add($entityName . "Duplicated" => 1);
+            }
+        }
+        if (! $okFlag) {
+            $stats->Add($entityName . "IdSuffixIncremented" => 1);
+        }
     }
     # Return the entity instance ID.
     return $retVal;

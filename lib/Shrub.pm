@@ -28,6 +28,7 @@ package Shrub;
     use DBKernel;
     use SeedUtils;
     use Digest::MD5;
+    use Shrub::Roles;
 
 
 =head1 Shrub Database Package
@@ -522,118 +523,7 @@ Return the maximum privilege level for functional assignments.
 
     use constant MAX_PRIVILEGE => 2;
 
-=head3 EC_PATTERN
-
-    $string =~ /$Shrub::EC_PATTERN/;
-
-Pre-compiled pattern for matching EC numbers.
-
-=cut
-
-    our $EC_PATTERN = qr/\(\s*E\.?C\.?(?:\s+|:)(\d\.(?:\d+|-)\.(?:\d+|-)\.(?:n?\d+|-)\s*)\)/;
-
-=head3 TC_PATTERN
-
-    $string =~ /$Shrub::TC_PATTERN/;
-
-Pre-compiled pattern for matchin TC numbers.
-
-=cut
-
-    our $TC_PATTERN = qr/\(\s*T\.?C\.?(?:\s+|:)(\d\.[A-Z]\.(?:\d+|-)\.(?:\d+|-)\.(?:\d+|-)\s*)\)/;
-
 =head2 Function and Role Utilities
-
-=head3 RoleNormalize
-
-    my $normalRole = Shrub::RoleNormalize($role);
-
-or
-
-    my $normalRole = $shrub->RoleNormalize($role);
-
-Normalize a role by removing extra spaces, stripping off the EC number, and converting it to lower case.
-
-=over 4
-
-=item role
-
-Role text to normalize.
-
-=item RETURN
-
-Returns a normalized form of the role.
-
-=back
-
-=cut
-
-sub RoleNormalize {
-    # Convert from the instance form of the call to a direct call.
-    shift if UNIVERSAL::isa($_[0], __PACKAGE__);
-    # Get the parameters.
-    my ($role) = @_;
-    # Remove the EC number.
-    $role =~ s/$EC_PATTERN//;
-    # Remove the TC identifier.
-    $role =~ s/$TC_PATTERN//;
-    # Remove the extra spaces.
-    $role =~ s/[\s,.:]+/ /g;
-    $role =~ s/^\s+//;
-    $role =~ s/\s+$//;
-    # Convert to lower case.
-    my $retVal = lc $role;
-    # Return the result.
-    return $retVal;
-}
-
-=head3 ParseRole
-
-    my ($roleText, $ecNum, $tcNum, $hypo) = $shrub->ParseRole($role);
-
-or
-
-    my ($roleText, $ecNum, $tcNum, $hypo) = Shrub::ParseRole($role);
-
-Parse a role. The EC and TC numbers are extracted and an attempt is made to determine if the role is
-hypothetical.
-
-=over 4
-
-=item role
-
-Text of the role to parse.
-
-=item RETURN
-
-Returns a four-element list consisting of the main role text, the EC number (if any),
-the TC number (if any), and a flag that is TRUE if the role is hypothetical and FALSE
-otherwise.
-
-=back
-
-=cut
-
-sub ParseRole {
-    # Convert from the instance form of the call to a direct call.
-    shift if UNIVERSAL::isa($_[0], __PACKAGE__);
-    # Get the parameters.
-    my ($role) = @_;
-    # Extract the EC number.
-    my ($ecNum, $tcNum) = ("", "");
-    my $roleText = $role;
-    if ($role =~ /(.+?)\s*$EC_PATTERN\s*(.*)/) {
-        $roleText = $1 . $3;
-        $ecNum = $2;
-    } elsif ($role =~ /(.+?)\s*$TC_PATTERN\s*(.*)/) {
-        $roleText = $1 . $3;
-        $tcNum = $2;
-    }
-    # Check for a hypothetical.
-    my $hypo = SeedUtils::hypo($roleText);
-    # Return the parse results.
-    return ($roleText, $ecNum, $tcNum, $hypo);
-}
 
 =head3 Checksum
 
@@ -768,7 +658,7 @@ sub ParseFunction {
         $checksum = Checksum($function);
     } else {
         # Here we have to compute a checksum from the roles and the separator.
-        my @normalRoles = map { RoleNormalize($_) } @roles;
+        my @normalRoles = map { Shrub::Roles::Normalize($_) } @roles;
         $checksum = Checksum($sep . join("\t", @normalRoles));
         # Now create the role hash.
         for (my $i = 0; $i < scalar(@roles); $i++) {

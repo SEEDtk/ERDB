@@ -122,6 +122,8 @@ sub new {
         slow => $slow,
         inserter => $inserter
     };
+    # Insure the function loader is queued to close when the loader closes.
+    $loader->QueueSubObject($funcLoader);
     # Bless and return it.
     bless $retVal, $class;
     return $retVal;

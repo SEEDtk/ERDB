@@ -16,7 +16,7 @@
 #
 
 
-package Shrub::RoleManager;
+package Shrub::Roles;
 
     use strict;
     use warnings;
@@ -51,7 +51,7 @@ An L<ERDB::ID::Magic> object for inserting roles.
 
 =head3 new
 
-    my $roleMgr = Shrub::RoleManager->new($loader, $stats, %options);
+    my $roleMgr = Shrub::Roles->new($loader, $stats, %options);
 
 Create a new role management object. The parameters are as follows.
 
@@ -95,16 +95,171 @@ sub new {
     # Are we exclusive?
     if ($options{exclusive}) {
         # Yes. Construct us as exclusive.
-        require Shrub::RoleManager::Exclusive;
-        Shrub::RoleManager::Exclusive::init($retVal, %options);
+        require Shrub::Roles::Exclusive;
+        Shrub::Roles::Exclusive::init($retVal, %options);
     } else {
         # No. Construct us as shared.
-        require Shrub::RoleManager::Shared;
-        Shrub::RoleManager::Shared::init($retVal, %options);
+        require Shrub::Roles::Shared;
+        Shrub::Roles::Shared::init($retVal, %options);
     }
     # Return the object.
     return $retVal;
 }
+
+=head2 Role Text Analysis Methods
+
+=head3 EC_PATTERN
+
+    $string =~ /$Shrub::EC_PATTERN/;
+
+Pre-compiled pattern for matching EC numbers.
+
+=cut
+
+    our $EC_PATTERN = qr/\(\s*E\.?C\.?(?:\s+|:)(\d\.(?:\d+|-)\.(?:\d+|-)\.(?:n?\d+|-)\s*)\)/;
+
+=head3 TC_PATTERN
+
+    $string =~ /$Shrub::TC_PATTERN/;
+
+Pre-compiled pattern for matchin TC numbers.
+
+=cut
+
+    our $TC_PATTERN = qr/\(\s*T\.?C\.?(?:\s+|:)(\d\.[A-Z]\.(?:\d+|-)\.(?:\d+|-)\.(?:\d+|-)\s*)\)/;
+
+=head3 Parse
+
+    my ($roleText, $ecNum, $tcNum, $hypo) = $roleMgr->Parse($role);
+
+or
+
+    my ($roleText, $ecNum, $tcNum, $hypo) = Shrub::Roles::Parse($role);
+
+Parse a role. The EC and TC numbers are extracted and an attempt is made to determine if the role is
+hypothetical.
+
+=over 4
+
+=item role
+
+Text of the role to parse.
+
+=item RETURN
+
+Returns a four-element list consisting of the main role text, the EC number (if any),
+the TC number (if any), and a flag that is TRUE if the role is hypothetical and FALSE
+otherwise.
+
+=back
+
+=cut
+
+sub Parse {
+    # Convert from the instance form of the call to a direct call.
+    shift if UNIVERSAL::isa($_[0], __PACKAGE__);
+    # Get the parameters.
+    my ($role) = @_;
+    # Extract the EC number.
+    my ($ecNum, $tcNum) = ("", "");
+    my $roleText = $role;
+    if ($role =~ /(.+?)\s*$EC_PATTERN\s*(.*)/) {
+        $roleText = $1 . $3;
+        $ecNum = $2;
+    } elsif ($role =~ /(.+?)\s*$TC_PATTERN\s*(.*)/) {
+        $roleText = $1 . $3;
+        $tcNum = $2;
+    }
+    # Fix spelling problems.
+    $roleText = FixupRole($roleText);
+    # Check for a hypothetical.
+    my $hypo = SeedUtils::hypo($roleText);
+    # Return the parse results.
+    return ($roleText, $ecNum, $tcNum, $hypo);
+}
+
+=head3 Normalize
+
+    my $normalRole = Shrub::Roles::Normalize($role);
+
+or
+
+    my $normalRole = $roleMgr->Normalize($role);
+
+Normalize a role by removing extra spaces, stripping off the EC number, and converting it to lower case.
+
+=over 4
+
+=item role
+
+Role text to normalize.
+
+=item RETURN
+
+Returns a normalized form of the role.
+
+=back
+
+=cut
+
+sub Normalize {
+    # Convert from the instance form of the call to a direct call.
+    shift if UNIVERSAL::isa($_[0], __PACKAGE__);
+    # Get the parameters.
+    my ($role) = @_;
+    # Fix spelling mistakes.
+    $role = FixupRole($role);
+    # Remove the EC number.
+    $role =~ s/$EC_PATTERN//;
+    # Remove the TC identifier.
+    $role =~ s/$TC_PATTERN//;
+    # Remove the extra spaces.
+    $role =~ s/[\s,.:]+/ /g;
+    # Convert to lower case.
+    my $retVal = lc $role;
+    # Return the result.
+    return $retVal;
+}
+
+
+=head3 FixupRole
+
+    my $roleText = Shrub::Roles::FixupRole($role);
+
+Perform basic fixups on the text of a role. This method is intended for internal use, and it performs
+spelling-type normalizations required both when computing a role's checksum or formatting the role
+for storage.
+
+=over 4
+
+=item role
+
+The text of a role.
+
+=item RETURN
+
+Returns the fixed-up text of a role.
+
+=back
+
+=cut
+
+sub FixupRole {
+    my ($retVal) = @_;
+    # Fix spelling mistakes.
+    $retVal =~ s/^\d{7}[a-z]\d{2}rik\b|\b(?:hyphothetical|hyothetical)\b/hypothetical/ig;
+    # Trim spaces;
+    $retVal =~ s/^\s+//;
+    $retVal =~ s/\s+$//;
+    # Remove quoting.
+    $retVal =~ s/^"//;
+    $retVal =~ s/"$//;
+    # Fix extra spaces.
+    $retVal =~ s/\s+/ /g;
+    # Return the fixed-up role.
+    return $retVal;
+}
+
 
 =head2 Subclass Methods
 
@@ -134,9 +289,9 @@ sub stats {
 
 =head2 Public Manipulation Methods
 
-=head3 ProcessRole
+=head3 Process
 
-    my ($roleID, $roleMD5) = $funcLoader->ProcessRole($role, $checksum);
+    my ($roleID, $roleMD5) = $roleMgr->Process($role, $checksum);
 
 Return the ID of a role in the database. If the role does not exist, it will be inserted.
 
@@ -159,21 +314,46 @@ role's MD5 checksum.
 
 =cut
 
-sub ProcessRole {
+sub Process {
     # Get the parameters.
-    my ($self, $role) = @_;
+    my ($self, $role, $checkSum) = @_;
     # Get the role inserter.
     my $roleThing = $self->{inserter};
     # Parse the role components.
     my ($roleText, $ecNum, $tcNum, $hypo) = Shrub::ParseRole($role);
     # Compute the checksum.
-    my $roleNorm = Shrub::RoleNormalize($role);
-    my $checkSum = Shrub::Checksum($roleNorm);
+    if (! defined $checkSum) {
+        my $roleNorm = Shrub::RoleNormalize($role);
+        $checkSum = Shrub::Checksum($roleNorm);
+    }
     # Insert the role.
     my $retVal = $self->InsertRole($checkSum, $ecNum, $tcNum, $hypo, $roleText);
     # Return the role information.
     return ($retVal, $checkSum);
 }
+
+=head3 SetEstimate
+
+    $helper->SetEstimate($estimate);
+
+Specify the expected number of inserts for this session. This helps to optimize certain types
+of ID processing.
+
+=over 4
+
+=item estimate
+
+The number of inserts of this entity type expected during the current session.
+
+=back
+
+=cut
+
+sub SetEstimate {
+    my ($self, $estimate) = @_;
+    $self->{inserter}->SetEstimate($estimate);
+}
+
 
 
 =head2 Virtual Methods
@@ -217,7 +397,7 @@ Returns the ID of the role in the database.
 =cut
 
 sub InsertRole {
-    Confess("Pure virtual Shrub::RoleMgr::InsertRole called.");
+    Confess("Pure virtual Shrub::Roles::InsertRole called.");
 }
 
 

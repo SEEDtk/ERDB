@@ -21,6 +21,7 @@ package Shrub::FunctionLoader;
 
     use strict;
     use Shrub::DBLoader;
+    use Shrub::Roles;
     use Shrub;
     use SeedUtils;
     use BasicLocation;
@@ -121,9 +122,8 @@ sub new {
         }
     }
     # Create the role inserter.
-    $retVal->{roles} = ERDB::ID::Magic->new(Role => $loader, $loader->stats,
-        exclusive => $options{exclusive}, nameField => 'description',
-        checkField => 'checksum');
+    $retVal->{roles} = Shrub::Roles->new($loader, $loader->stats,
+        exclusive => $options{exclusive});
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;
@@ -263,19 +263,8 @@ sub ProcessRole {
     my ($self, $role) = @_;
     # Get the role inserter.
     my $roleThing = $self->{roles};
-    # Parse the role components.
-    my ($roleText, $ecNum, $tcNum, $hypo) = Shrub::ParseRole($role);
-    # Compute the checksum.
-    my $roleNorm = Shrub::RoleNormalize($role);
-    my $checkSum = Shrub::Checksum($roleNorm);
-    # Do we already have this role?
-    my $retVal = $roleThing->Check($checkSum);
-    if (! $retVal) {
-        # No. Do an insert.
-        $retVal = $roleThing->Insert(checksum => $checkSum, 'ec-number' => $ecNum,
-                'tc-number' => $tcNum, hypo => $hypo, description => $roleText,
-                'proposed-description' => $roleText);
-    }
+    # Process the role.
+    my ($retVal, $checkSum) = $roleThing->Process($role);
     # Return the role information.
     return ($retVal, $checkSum);
 }

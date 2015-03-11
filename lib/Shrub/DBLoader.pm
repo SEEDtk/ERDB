@@ -500,8 +500,18 @@ Object to add to the queue.
 sub QueueSubObject {
     # Get the parameters.
     my ($self, $subObj) = @_;
-
-    ## TODO QueueSubObject, call for FuncLoader
+    # Insure this object is not already in the queue.
+    my $queue = $self->{closeQueue};
+    my $found;
+    for my $obj (@$queue) {
+        if ($obj eq $subObj) {
+            $found = 1;
+        }
+    }
+    # Add it if it was not found.
+    if (! $found) {
+        push @$queue, $subObj;
+    }
 }
 
 =head3 Close

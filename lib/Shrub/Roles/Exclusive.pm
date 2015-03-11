@@ -16,7 +16,7 @@
 #
 
 
-package Shrub::RoleManager::Exclusive;
+package Shrub::Roles::Exclusive;
 
     use strict;
     use warnings;
@@ -32,10 +32,10 @@ exclusive and shared operating modes.
 
 =cut
 
-## TODO RoleManager new
+## TODO Roles init (Exclusive)
 
 
 
-## TODO RoleManager insert
+## TODO Roles insert (Exclusive)
 
 1;

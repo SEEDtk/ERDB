@@ -118,6 +118,8 @@ sub new {
     # Create the object.
     my $retVal = { loader => $loader, md5 => undef,
         funcLoader => $funcLoader, slow => $slow };
+    # Insure the function loader is queued to close when the loader closes.
+    $loader->QueueSubObject($funcLoader);
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;
