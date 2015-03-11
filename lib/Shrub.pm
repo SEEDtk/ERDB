@@ -578,7 +578,7 @@ sub RoleNormalize {
     # Remove the TC identifier.
     $role =~ s/$TC_PATTERN//;
     # Remove the extra spaces.
-    $role =~ s/\s+/ /g;
+    $role =~ s/[\s,.:]+/ /g;
     $role =~ s/^\s+//;
     $role =~ s/\s+$//;
     # Convert to lower case.

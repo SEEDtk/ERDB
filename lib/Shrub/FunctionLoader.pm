@@ -27,6 +27,7 @@ package Shrub::FunctionLoader;
     use ERDB::ID::Counter;
     use ERDB::ID::Magic;
 
+##TODO use RoleMgr object, and unspool the roles at the end
 
 =head1 Shrub Function/Role Loader
 
@@ -260,8 +261,6 @@ role's MD5 checksum.
 sub ProcessRole {
     # Get the parameters.
     my ($self, $role) = @_;
-    # Get the loader object.
-    my $loader = $self->{loader};
     # Get the role inserter.
     my $roleThing = $self->{roles};
     # Parse the role components.
@@ -430,6 +429,21 @@ sub ReadFeatures {
              $stats->Add(featureFunction => 1);
          }
     }
+}
+
+=head3 Close
+
+    $funcLoader->Close();
+
+Unspool all accumulated updates.
+
+=cut
+
+sub Close {
+    # Get the parameters.
+    my ($self) = @_;
+    # Unspool any accumulated updates.
+    $self->{roles}->Close();
 }
 
 1;

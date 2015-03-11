@@ -63,6 +63,10 @@ we need to add the string to the database.
 
 Reference to a hash containing the names of the tables being inserted in replace mode.
 
+=item closeQueue
+
+Reference to a list of objects that should be closed before this object is closed.
+
 =back
 
 =head2 Special Methods
@@ -95,6 +99,7 @@ sub new {
     $retVal->{tables} = {};
     $retVal->{replaces} = {};
     $retVal->{tableList} = [];
+    $retVal->{closeQueue} = [];
     # Return the completed object.
     return $retVal;
 }
@@ -475,6 +480,30 @@ sub InsertObject {
     }
 }
 
+=head3 QueueSubObject
+
+    $loader->QueueSubObject($subObj);
+
+Add an object to the queue of objects to be closed during cleanup. This allows other objects to
+do any preliminary cleanup.
+
+=over 4
+
+=item subObj
+
+Object to add to the queue.
+
+=back
+
+=cut
+
+sub QueueSubObject {
+    # Get the parameters.
+    my ($self, $subObj) = @_;
+
+    ## TODO QueueSubObject, call for FuncLoader
+}
+
 =head3 Close
 
     $loader->Close();
@@ -497,6 +526,10 @@ sub Close {
     # Get the load hash and the list of tables.
     my $loadThings = $self->{tables};
     my $loadList = $self->{tableList};
+    # Close any sub-objects that need close processing.
+    for my $subObject (@{$self->{closeQueue}}) {
+        $subObject->Close();
+    }
     # Loop through the objects being loaded.
     for my $table (@$loadList) {
         my $loadThing = $loadThings->{$table};
