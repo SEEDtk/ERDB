@@ -659,7 +659,15 @@ sub ParseFunction {
     } else {
         # Here we have to compute a checksum from the roles and the separator.
         my @normalRoles = map { Shrub::Roles::Normalize($_) } @roles;
-        $checksum = Checksum($sep . join("\t", @normalRoles));
+        # if the separator is NOT '/', we sort the roles.
+        my @sortedRoles;
+        if ($sep ne '/' && scalar(@normalRoles) > 1) {
+            @sortedRoles = sort @normalRoles;
+        } else {
+            @sortedRoles = @normalRoles;
+        }
+        # Compute the checksum.
+        $checksum = Checksum($sep . join("\t", @sortedRoles));
         # Now create the role hash.
         for (my $i = 0; $i < scalar(@roles); $i++) {
             $roles{$roles[$i]} = Checksum($normalRoles[$i]);

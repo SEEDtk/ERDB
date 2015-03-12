@@ -21,6 +21,7 @@ package Shrub::Roles::Shared;
     use strict;
     use warnings;
     use ERDB::ID::Magic::Shared;
+    use base qw(Shrub::Roles);
 
 =head1 Shrub Role Manager
 

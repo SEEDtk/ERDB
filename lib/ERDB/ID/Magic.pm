@@ -81,6 +81,12 @@ The default is that no such field exists.
 
 The name of the field containing an entity instance's name string.
 
+=item hashes
+
+Reference to a list that contains the prefix hash and (if applicable) check hash
+for this entity type. If omitted, the hashes are created by reading the
+database. This option is only used if C<exclusive> is TRUE.
+
 =back
 
 =back

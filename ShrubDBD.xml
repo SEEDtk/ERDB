@@ -265,11 +265,6 @@
                 <Field name="description" type="long-string">
                     <Notes>textual description of the role</Notes>
                 </Field>
-                <Field name="proposed-description" type="long-string">
-                    <Notes>proposed new textual description of the role</Notes>
-                    <Asides>This description is one recommended by an unprivileged
-                    user but not yet confirmed by a privileged user.</Asides>
-                </Field>
                 <Field name="ec-number" type="string">
                     <Notes>EC number of this role (if any)</Notes>
                 </Field>
