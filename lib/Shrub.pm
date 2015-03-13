@@ -321,7 +321,7 @@ Return a list of all the features in a single subsystem.
 
 =item sub
 
-The ID of the subsystem of interest.
+The name or ID of the subsystem of interest.
 
 =item RETURN
 
@@ -335,47 +335,13 @@ been populated in the subsystem.
 sub Subsystem2Feature {
     # Get the parameters.
     my ($self, $sub) = @_;
-    # Read the subsystem features from the database.
+    # Read the subsystem features from the database. NOTE that right now the ID and name
+    # are the same field.
     my @retVal = $self->GetFlat('Subsystem2Row Row2Cell Cell2Feature', "Subsystem2Row(from-link) = ?", [$sub],
             'Cell2Feature(to-link)');
     # Return the result.
     return \@retVal;
 }
-
-=head3 Subsystem2Role
-
-    my @roles = $shrub->Subsystem2Role($sub);
-
-Return all the roles in a subsystem, in order. For each role, we return
-the ID and the description with the EC and TC numbers suffixed.
-
-=over 4
-
-=item sub
-
-ID of the subsystem whose roles are desired.
-
-=item RETURN
-
-Returns a list of 2-tuples, each containing (0) a role ID, and (1) a role description, with the EC and TC numbers
-included. The roles will be presented in their order within the subsystem.
-
-=back
-
-=cut
-
-sub Subsystem2Role {
-    # Get the parameters.
-    my ($self, $sub) = @_;
-    # Request the role data.
-    my @retVal = map { [$_->[0], $_->[1] . ($_->[2] ? " (EC $_->[2])" : '') . ($->[3] ? " (TC $_->[3])" : '')] }
-            $self->GetAll('Subsystem2Role Role', 'Subsystem2Role(from-link) = ? ORDER BY Subsystem2Role(ordinal)', [$sub],
-            'Role(id) Role(description) Role(ec-number) Role(tc-number)');
-    # Return the result.
-    return @retVal;
-}
-
-
 
 
 =head3 FeaturesInRegion
@@ -419,6 +385,39 @@ sub FeaturesInRegion {
                           [qw(Feature2Contig(from-link) Feature2Contig(begin)
                           Feature2Contig(dir) Feature2Contig(len))]);
     # Return them.
+    return @retVal;
+}
+
+=head3 Subsystem2Role
+
+    my @roles = $shrub->Subsystem2Role($sub);
+
+Return all the roles in a subsystem, in order. For each role, we return
+the ID and the description with the EC and TC numbers suffixed.
+
+=over 4
+
+=item sub
+
+ID of the subsystem whose roles are desired.
+
+=item RETURN
+
+Returns a list of 2-tuples, each containing (0) a role ID, and (1) a role description, with the EC and TC numbers
+included. The roles will be presented in their order within the subsystem.
+
+=back
+
+=cut
+
+sub Subsystem2Role {
+    # Get the parameters.
+    my ($self, $sub) = @_;
+    # Request the role data.
+    my @retVal = map { [$_->[0], $_->[1] . ($_->[2] ? " (EC $_->[2])" : '') . ($->[3] ? " (TC $_->[3])" : '')] }
+            $self->GetAll('Subsystem2Role Role', 'Subsystem2Role(from-link) = ? ORDER BY Subsystem2Role(ordinal)', [$sub],
+            'Role(id) Role(description) Role(ec-number) Role(tc-number)');
+    # Return the result.
     return @retVal;
 }
 
@@ -693,7 +692,15 @@ sub ParseFunction {
     } else {
         # Here we have to compute a checksum from the roles and the separator.
         my @normalRoles = map { Shrub::Roles::Normalize($_) } @roles;
-        $checksum = Checksum($sep . join("\t", @normalRoles));
+        # if the separator is NOT '/', we sort the roles.
+        my @sortedRoles;
+        if ($sep ne '/' && scalar(@normalRoles) > 1) {
+            @sortedRoles = sort @normalRoles;
+        } else {
+            @sortedRoles = @normalRoles;
+        }
+        # Compute the checksum.
+        $checksum = Checksum($sep . join("\t", @sortedRoles));
         # Now create the role hash.
         for (my $i = 0; $i < scalar(@roles); $i++) {
             $roles{$roles[$i]} = Checksum($normalRoles[$i]);

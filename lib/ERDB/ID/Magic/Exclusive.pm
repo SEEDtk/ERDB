@@ -23,9 +23,9 @@ package ERDB::ID::Magic::Exclusive;
     use base qw(ERDB::ID::Magic);
 
 
-=head1 ERDB Auto-Counter ID Helper for Exclusive Database Access
+=head1 ERDB Magic ID Helper for Exclusive Database Access
 
-This is a subclass for L<ERDB::ID> that manages auto-counter IDs for environments when the
+This is a subclass for L<ERDB::ID> that manages magic name IDs for environments when the
 client has exclusive access to the database. This allows a great deal of optimization, since
 once we load things into memory we don't have to worry about the information becoming obsolete.
 
@@ -35,7 +35,13 @@ In addition to the fields in the super-classes, this object contains the followi
 
 =item prefixHash
 
-For each magic name prefix, the number of the next available suffix.
+Reference to a hash that maps each existing magic name prefix to the next available suffix
+for it.
+
+=item checkHash
+
+If this entity type has a check field, reference to a hash that maps each entity instance's
+check field value to the corresponding ID.
 
 =back
 
@@ -43,7 +49,7 @@ For each magic name prefix, the number of the next available suffix.
 
 =head3 new
 
-    my $helper = ERDB::ID::Counter::Exclusive->new($entityName, $loader, $stats, %options);
+    my $helper = ERDB::ID::Magic::Exclusive->new($entityName, $loader, $stats, %options);
 
 Construct a new ID helper object for the specified entity.
 
@@ -63,7 +69,16 @@ A L<Stats> object used for tracking statistics.
 
 =item options
 
-A hash of options. The options are all interrogated by the super-classes.
+A hash of options. In addition to the options used by the super-classes, this can
+include
+
+=over 8
+
+=item hashes
+
+Reference to a list that contains the prefix hash and (if applicable) check hash
+for this entity type. If omitted, the hashes are created by reading the
+database.
 
 =back
 
@@ -75,33 +90,129 @@ sub new {
     # Create the object.
     my $retVal = ERDB::ID::new($class, $entityName, $loader, $stats, %options);
     # We need to create the prefix hash and the check-field hash.
-    my %prefixHash;
-    my %checkHash;
-    my $checkField = $retVal->{checkField};
-    my $fieldList = 'id' . ($checkField ? " $checkField" : '');
-    my $query = $retVal->db->Get($entityName, '', [], $fieldList);
-    while (my $record = $query->Fetch()) {
-        # Get the ID field and compute the next available suffix for its prefix.
-        my $id = $record->PrimaryValue('id');
-        if ($id =~ /^(.+?)(\d+)$/) {
-            $prefixHash{$1} = $2 + 1;
-        } else {
-            $prefixHash{$id} = 2;
+    if ($options{hashes}) {
+        # Here the caller passed them in.
+        $retVal->{prefixHash} = $options{hashes}[0];
+        $retVal->{checkHash} = $options{hashes}[1];
+    } else {
+        # Here we need to create them.
+        my %prefixHash;
+        my %checkHash;
+        my $checkField = $retVal->{checkField};
+        my $fieldList = 'id' . ($checkField ? " $checkField" : '');
+        my $query = $retVal->db->Get($entityName, '', [], $fieldList);
+        while (my $record = $query->Fetch()) {
+            # Get the ID field and compute the next available suffix for its prefix.
+            my $id = $record->PrimaryValue('id');
+            UpdatePrefixHash(\%prefixHash, $id);
+            # If there is a check field, put it in the check hash.
+            if ($checkField) {
+                my $check = $record->PrimaryValue($checkField);
+                $checkHash{$check} = $id;
+            }
         }
-        # If there is a check field, put it in the check hash.
+        # Store the hashes.
+        $retVal->{prefixHash} = \%prefixHash;
         if ($checkField) {
-            my $check = $record->PrimaryValue($checkField);
-            $checkHash{$check} = $id;
+            $retVal->{checkHash} = \%checkHash;
         }
-    }
-    # Store the hashes.
-    $retVal->{prefixHash} = \%prefixHash;
-    if ($checkField) {
-        $retVal->{checkHash} = \%checkHash;
     }
     # Return the object.
     return $retVal;
 }
+
+
+=head3 UpdatePrefixHash
+
+    ERDB::ID::Magic::Exclusive::UpdatePrefixHash(\%prefixHash, $id);
+
+Update a prefix hash with the next available suffix based on an incoming
+magic name ID. The magic name is parsed, and the incoming hash is
+interrogated to insure that it's specified next available suffix is truly
+available.
+
+=over 4
+
+=item prefixHash
+
+Reference to hash that maps each magic name prefix to the next available
+suffix.
+
+=item id
+
+New magic name ID to be used to update the hash.
+
+=back
+
+=cut
+
+sub UpdatePrefixHash {
+    # Get the parameters.
+    my ($prefixHash, $id) = @_;
+    # The default next suffix is 2.
+    my ($prefix, $suffix) = ($id, 2);
+    # Check for a pre-existing suffix.
+    if ($id =~ /^(.+)(\d+)$/) {
+        # We want one more than the pre-existing one.
+        ($prefix, $suffix) = ($1, $2 + 1);
+    }
+    # Store this new suffix if it's better than the old one.
+    my $oldSuffix = $prefixHash->{$prefix};
+    if (! defined $oldSuffix || $oldSuffix < $suffix) {
+        $prefixHash->{$prefix} = $suffix;
+    }
+}
+
+=head2 Public Methods
+
+=head3 ComputeID
+
+    my $newID = $helper->ComputeID($name);
+
+Compute the appropriate magic name ID for an entity instance with the specified name.
+
+=over 4
+
+=item name
+
+Name field value for the entity instance that needs an ID.
+
+=item RETURN
+
+Returns a new magic name ID appropriate to the entity instance.
+
+=back
+
+=cut
+
+sub ComputeID {
+    # Get the parameters.
+    my ($self, $name) = @_;
+    # Get the statistics and the entity name.
+    my $stats = $self->stats;
+    my $entityName = $self->{entityName};
+    # Compute the next available ID.
+    my $nameField = $self->{nameField};
+    my $prefixHash = $self->{prefixHash};
+    my ($prefix, $suffix) = ERDB::ID::Magic::Name($name);
+    # Has this prefix been used before?
+    my $savedSuffix = $prefixHash->{$prefix};
+    if ($savedSuffix) {
+        # Yes, update the suffix.
+        $suffix = $savedSuffix;
+        $prefixHash->{$prefix} = $suffix + 1;
+        $stats->Add($entityName . "NextSuffix" => 1);
+    } else {
+        # No. Store the next suffix in the prefix hash. It will always be 2.
+        $prefixHash->{$prefix} = 2;
+        $stats->Add($entityName . "Suffix" => 1);
+    }
+    # Save the resulting name.
+    my $retVal = $prefix . $suffix;
+    # Return it.
+    return $retVal;
+}
+
 
 =head2 Virtual Overrides
 
@@ -158,32 +269,14 @@ Returns the ID of the entity instance after it has been inserted.
 sub InsertNew {
     # Get the parameters.
     my ($self, %fields) = @_;
-    # Get the statistics and the entity name.
-    my $stats = $self->stats;
-    my $entityName = $self->{entityName};
-    # Compute the next available ID.
-    my $nameField = $self->{nameField};
-    my $prefixHash = $self->{prefixHash};
-    my ($prefix, $suffix) = ERDB::ID::Magic::Name($fields{$nameField});
-    # Has this prefix been used before?
-    my $savedSuffix = $prefixHash->{$prefix};
-    if ($savedSuffix) {
-        # Yes, update the suffix.
-        $suffix = $savedSuffix;
-        $prefixHash->{$prefix} = $suffix + 1;
-        $stats->Add($entityName . "NextSuffix" => 1);
-    } else {
-        # No. Store the next suffix in the prefix hash. It will always be 2.
-        $prefixHash->{$prefix} = 2;
-        $stats->Add($entityName . "Suffix" => 1);
-    }
-    # Save the resulting name.
-    my $retVal = $prefix . $suffix;
-    $fields{id} = $retVal;
+    # Get the name field value.
+    my $name = $fields{$self->{nameField}};
+    # Compute the magic name ID.
+    $fields{id} = $self->ComputeID($name);
     # Insert this record.
-    $self->loader->InsertObject($entityName, %fields);
+    $self->loader->InsertObject($self->{entityName}, %fields);
     # Return the new ID.
-    return $retVal;
+    return $fields{id};
 }
 
 

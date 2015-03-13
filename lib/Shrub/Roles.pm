@@ -51,7 +51,7 @@ An L<ERDB::ID::Magic> object for inserting roles.
 
 =head3 new
 
-    my $roleMgr = Shrub::Roles->new($loader, $stats, %options);
+    my $roleMgr = Shrub::Roles->new($loader, %options);
 
 Create a new role management object. The parameters are as follows.
 
@@ -59,12 +59,7 @@ Create a new role management object. The parameters are as follows.
 
 =item loader
 
-A I<loader object> that is to be used for inserting new records. This can either by an actual
-L<Shrub> object or a <Shrub::DBLoader> object.
-
-=item stats
-
-A L<Stats> object for tracking statistics about the current session.
+A L<Shrub::DBLoader> object for inserting into the database.
 
 =item options
 
@@ -86,21 +81,18 @@ is FALSE.
 
 sub new {
     # Get the parameters.
-    my ($class, $loader, $stats, %options) = @_;
-    # Create the inserter.
-    my $inserter = ERDB::ID::Magic('Role', $loader, $stats, checkField => 'checksum', nameField => 'description',
-            exclusive => $options{exclusive});
+    my ($class, $loader, %options) = @_;
     # This will be the return value.
-    my $retVal = { erdb => $loader->db, stats => $stats, inserter => $inserter };
+    my $retVal = { erdb => $loader->db, stats => $loader->stats, inserter => undef };
     # Are we exclusive?
     if ($options{exclusive}) {
         # Yes. Construct us as exclusive.
         require Shrub::Roles::Exclusive;
-        Shrub::Roles::Exclusive::init($retVal, %options);
+        Shrub::Roles::Exclusive::init($retVal, $loader, %options);
     } else {
         # No. Construct us as shared.
         require Shrub::Roles::Shared;
-        Shrub::Roles::Shared::init($retVal, %options);
+        Shrub::Roles::Shared::init($retVal, $loader, %options);
     }
     # Return the object.
     return $retVal;

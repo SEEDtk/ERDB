@@ -28,8 +28,6 @@ package Shrub::FunctionLoader;
     use ERDB::ID::Counter;
     use ERDB::ID::Magic;
 
-##TODO use RoleMgr object, and unspool the roles at the end
-
 =head1 Shrub Function/Role Loader
 
 This package is used to load functions and roles. During initialization, the functions and roles
@@ -122,8 +120,7 @@ sub new {
         }
     }
     # Create the role inserter.
-    $retVal->{roles} = Shrub::Roles->new($loader, $loader->stats,
-        exclusive => $options{exclusive});
+    $retVal->{roles} = Shrub::Roles->new($loader, exclusive => $options{exclusive});
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;
