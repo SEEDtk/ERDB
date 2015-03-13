@@ -71,6 +71,57 @@ sub new {
     return $retVal;
 }
 
+=head2 Public Methods
+
+=head3 ComputeID
+
+    my ($prefix, $suffix) = $helper->ComputeID($name);
+
+Compute the appropriate magic name ID for an entity instance with the specified name.
+
+=over 4
+
+=item name
+
+Name field value for the entity instance that needs an ID.
+
+=item RETURN
+
+Returns a two-element list containing the proposed prefix and suffix for the new magic name ID.
+The prefix part is fixed, but the suffix can be incremented to create a unique ID.
+
+=back
+
+=cut
+
+sub ComputeID {
+    # Get the parameters.
+    my ($self, $name) = @_;
+    # Get the entity name, the statistics, and the database object.
+    my $entityName = $self->{entityName};
+    my $erdb = $self->db;
+    my $stats = $self->stats;
+    # Compute a magic name ID.
+    my ($prefix, $suffix) = ERDB::ID::Magic::Name($name);
+    $stats->Add($entityName . "IdRequested" => 1);
+    # Look for examples of this ID.
+    my ($id) = $erdb->GetFlat($entityName, "$entityName(id) LIKE ? ORDER BY $entityName(id) DESC LIMIT 1",
+            ["$prefix%"], 'id');
+    # Was a version of this ID found?
+    if ($id) {
+        # Yes. Try to compute a suffix.
+        if ($id eq $prefix) {
+            # Here we've found the exact same ID. Use a suffix of 2 to distinguish us.
+            $suffix = 2;
+        } elsif (substr($id, length($prefix)) =~ /^(\d+)$/) {
+            # Here we've found the same ID with a numeric suffix. Compute a new suffix that is 1 greater.
+            $suffix = $1 + 1;
+        }
+    }
+    # Return the prefix and suffix.
+    return ($prefix, $suffix);
+}
+
 =head2 Virtual Overrides
 
 =head3 Check
@@ -138,21 +189,8 @@ sub InsertNew {
     # Find the name so we can compute an ID.
     my $nameField = $self->{nameField};
     my $name = $fields{$nameField};
-    my ($prefix, $suffix) = ERDB::ID::Magic::Name($name);
-    $stats->Add($entityName . "IdRequested" => 1);
-    # Look for examples of this ID.
-    my ($id) = $erdb->GetFlat($entityName, "$entityName(id) LIKE ? ORDER BY $entityName(id) DESC LIMIT 1", ["$prefix%"], 'id');
-    # Was a version of this ID found?
-    if ($id) {
-        # Yes. Try to compute a suffix.
-        if ($id eq $prefix) {
-            # Here we've found the exact same ID. Use a suffix of 2 to distinguish us.
-            $suffix = 2;
-        } elsif (substr($id, length($prefix)) =~ /^(\d+)$/) {
-            # Here we've found the same ID with a numeric suffix. Compute a new suffix that is 1 greater.
-            $suffix = $1 + 1;
-        }
-    }
+    # Get our best guess for the new ID.
+    my ($prefix, $suffix) = $self->ComputeID($name);
     # Try to insert, incrementing the suffix until we succeed.
     my $okFlag;
     while (! $okFlag) {

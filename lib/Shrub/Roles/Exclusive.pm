@@ -21,6 +21,7 @@ package Shrub::Roles::Exclusive;
     use strict;
     use warnings;
     use ERDB::ID::Magic::Exclusive;
+    use ERDB::ID::Magic;
     use base qw(Shrub::Roles);
 
 =head1 Shrub Role Manager
@@ -104,7 +105,7 @@ sub init {
     $self->{checkHash} = \%checkHash;
     # Create the Magic Name ID inserter. Note that we don't provide the check field. We do the
     # checksum handling in this object.
-    $self->{inserter} = ERDB::ID::Magic(Role => $loader, $loader->stats, exclusive => 1,
+    $self->{inserter} = ERDB::ID::Magic->new(Role => $loader, $loader->stats, exclusive => 1,
             nameField => 'description', hashes => [\%prefixHash]);
     # Create the update hash. It is initially empty.
     $self->{updates} = {};

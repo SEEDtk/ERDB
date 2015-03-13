@@ -299,7 +299,7 @@ sub Insert {
         # No, do an InsertNew.
         $stats->Add(insertIDNeeded => 1);
         $retVal = $self->InsertNew(%fields);
-        # If we have a checking hash, insert the new object.
+        # If we have a checking hash, insert the new object into it.
         my $checkHash = $self->{checkHash};
         if ($checkHash) {
             $checkHash->{$fields{$self->{checkField}}} = $retVal;
