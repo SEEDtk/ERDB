@@ -388,6 +388,39 @@ sub FeaturesInRegion {
     return @retVal;
 }
 
+=head3 Subsystem2Role
+
+    my @roles = $shrub->Subsystem2Role($sub);
+
+Return all the roles in a subsystem, in order. For each role, we return
+the ID and the description with the EC and TC numbers suffixed.
+
+=over 4
+
+=item sub
+
+ID of the subsystem whose roles are desired.
+
+=item RETURN
+
+Returns a list of 2-tuples, each containing (0) a role ID, and (1) a role description, with the EC and TC numbers
+included. The roles will be presented in their order within the subsystem.
+
+=back
+
+=cut
+
+sub Subsystem2Role {
+    # Get the parameters.
+    my ($self, $sub) = @_;
+    # Request the role data.
+    my @retVal = map { [$_->[0], $_->[1] . ($_->[2] ? " (EC $_->[2])" : '') . ($->[3] ? " (TC $_->[3])" : '')] }
+            $self->GetAll('Subsystem2Role Role', 'Subsystem2Role(from-link) = ? ORDER BY Subsystem2Role(ordinal)', [$sub],
+            'Role(id) Role(description) Role(ec-number) Role(tc-number)');
+    # Return the result.
+    return @retVal;
+}
+
 
 =head2 Query Methods
 
