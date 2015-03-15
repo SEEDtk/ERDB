@@ -47,6 +47,11 @@ An L<ERDB::ID::Magic> object for inserting roles.
 
 =back
 
+=head2 IMPORTANT NOTE
+
+This object assumes that roles won't be deleted by other processes. To insure the methods
+work, you cannot delete roles unless you have exclusive database access.
+
 =head2 Special Methods
 
 =head3 new

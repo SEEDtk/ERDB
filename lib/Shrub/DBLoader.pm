@@ -400,7 +400,6 @@ Name of the object (entity or relationship) being inserted.
 Hash mapping field names to values. Multi-value fields are passed as list references. All fields should already
 be encoded for insertion.
 
-
 =back
 
 =cut
@@ -479,6 +478,7 @@ sub InsertObject {
         }
     }
 }
+
 
 =head3 QueueSubObject
 

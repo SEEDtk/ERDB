@@ -20,8 +20,9 @@ package Shrub::Functions;
 
     use strict;
     use warnings;
+    use Digest::MD5;
 
-=head1 SHrub Function Manager
+=head1 Shrub Function Manager
 
 This object manages the insertion of functions into the database. Like roles,
 functions are a resource, and we have to deal with the possibility that the function
@@ -57,15 +58,10 @@ The feature hash multiple roles, each effected by a different protein domain.
 
 =back
 
-The roles are ordered for the slash, and unordered for the other separator. Thus
+The roles are unordered. Thus
 
     Urease beta subunit / Urease gamma subunit
     Urease gamma subunit / Urease beta subunit
-
-are different functions, but
-
-    Urease beta subunit @ Urease gamma subunit
-    Urease gamma subunit @ Urease beta subunit
 
 are the same.
 
@@ -85,7 +81,16 @@ L<Stats> object for tracking statistics about our operations.
 
 L<Shrub::Roles> object for inserting roles.
 
+=item funHash
+
+Hash containing the IDs of functions known to already be in the database.
+
 =back
+
+=head2 IMPORTANT NOTE
+
+This object assumes that functions won't be deleted by other processes. To insure the methods
+work, you cannot delete functions unless you have exclusive database access.
 
 =head2 Special Methods
 
@@ -124,46 +129,18 @@ sub new {
     my ($class, $loader, %options) = @_;
     # Get the role manager. If the client didn't give us one, we create it.
     my $roles = $options{roles} // Shrub::Roles->new($loader, %options);
-    # Create the object.
-    my $retVal = { loader => $loader, roles => $roles };
+    # This will be the function hash. In exclusive mode, we pre-load it.
+    my %funHash;
     # Are we exclusive?
     if ($options{exclusive}) {
-        # Construct us exclusively.
-        require Shrub::Functions::Exclusive;
-        Shrub::Functions::Exclusive::init($retVal, %options);
-    } else {
-        # Construct us for a shared database.
-        require Shrub::Functions::Shared;
-        Shrub::Functions::Shared::init($retVal, %options);
+        # Yes. Preload the function hash.
+        %funHash = map { $_ => 1 } $loader->db->GetFlat('Function', '', [], 'id');
     }
-    # Return the newly-created object.
+    # Create the object.
+    my $retVal = { loader => $loader, roles => $roles, funHash => \%funHash };
+    # Bless and return the newly-created object.
+    bless $retVal, $class;
     return $retVal;
-}
-
-=head2 Subclass Methods
-
-=head3 db
-
-    my $shrub = $funMgr->db;
-
-Return the attached L<Shrub> object.
-
-=cut
-
-sub db {
-    return $_[0]->{loader}->db;
-}
-
-=head3 stats
-
-    my $stats = $funMgr->stats;
-
-Return the attached statistics object.
-
-=cut
-
-sub stats {
-    return $_[0]->{loader}->stats;
 }
 
 =head2 Query Methods
@@ -234,9 +211,11 @@ sub Parse {
     my %roles;
     # Check for suspicious elements.
     my $malformed;
-    if (! $statement || $statement eq 'hypothetical protein') {
-        # Here we have a hypothetical protein. This is considered well-formed but without
-        # any roles.
+    if (! $statement) {
+        # Default a null to hypothetical protein.
+        $statement = 'hypothetical protein';
+    } elsif ($statement =~ /^hypothetical\s+\w+$/) {
+        # Here we have an unknown function for a non-protein. This also has no roles.
     } elsif ($function =~ /\b(?:similarit|blast\b|fasta|identity)|%|E=/i) {
         # Here we have suspicious elements.
         $malformed = 1;
@@ -317,11 +296,24 @@ sub Process {
     my $loader = $self->{loader};
     # Get the statistics object.
     my $stats = $loader->stats;
-    # Is this function already in the database?
-    ## TODO check function.
+    # We must insure we have the function's roles. From the roles we compute the ID, which we'll store
+    # in here.
     my $retVal;
-    if (! $retVal) {
-        # No, we must insert it. Start by insuring we have its roles.
+    # do we have any roles?
+    if (! keys %$roleH) {
+        # We have two cases-- a pure hypothetical, which is given a hyphenated key, and a malformed function, which
+        # is converted to a checksum. These are guaranteed unique, because magic names never contain hyphens.
+        if ($statement =~ /^hypothetical\s+(\w+)$/) {
+            $retVal = "hypo-$1";
+            $stats->Add(hypoFunction => 1);
+        } else {
+            $retVal = "malformed-" . Digest::MD5::hexdigest($statement);
+            $stats->Add(funnyFunction => 1);
+        }
+        # Now insert the function.
+        $self->Insert($retVal, $sep, $statement);
+    } else {
+        # We have roles. Get the role IDs.
         my @roleIDs;
         for my $role (keys %$roleH) {
             # Get this role's checksum.
@@ -330,25 +322,83 @@ sub Process {
             my ($roleID) = $self->ProcessRole($role, $roleCheck);
             push @roleIDs, $roleID;
         }
-        ## TODO remove checksum from function.
-        ## TODO function key formed from role IDs. How to know if new function created? if not, no F2R insert
-        ## TODO $funThing->Insert(sep => $sep, description => $statement);
-        # Connect the roles to the function.
-        for my $roleID (@roleIDs) {
-            $loader->InsertObject('Function2Role', 'from-link' => $retVal, 'to-link' => $roleID);
-            $stats->Add(function2role => 1);
+        # Sort the roles to compute the function ID.
+        $retVal = join($sep, sort @roleIDs);
+        # Insert the function.
+        my $inserted = $self->Insert($retVal, $sep, $statement);
+        # If we created a new function, connect the roles.
+        if ($inserted) {
+            # Connect the roles to the function. If the connections already exist, the inserts will
+            # simply be discarded.
+            for my $roleID (@roleIDs) {
+                $loader->InsertObject('Function2Role', 'from-link' => $retVal, 'to-link' => $roleID);
+                $stats->Add(function2role => 1);
+            }
         }
+        $stats->Add(normalFunction => 1);
     }
     # Return the function ID.
     return $retVal;
 }
 
 
-=head2 Virtual Methods
+=head2 Internal Utility Methods
+
+=head3 Insert
+
+    my $inserted = $self->Insert($funcID, $sep, $statement);
+
+Insure the specified function has been inserted in the database.
+
+=over 4
+
+=item funcID
+
+ID of the new function.
+
+=item sep
+
+Separator character describing the relationship among the function's roles.
+
+=item statement
+
+Statement of the function, generally consisting of the text of each role joined by the
+separator character.
+
+=item RETURN
+
+Returns TRUE if we inserted the function, FALSE if the function was already in the database.
+False positives are possible in shared mode, so the consequences should be harmless.
+
+=back
 
 =cut
 
-## TODO virtual methods for Shrub::Functions
+sub Insert {
+    # Get the parameters.
+    my ($self, $funcID, $sep, $statement) = @_;
+    # Declare the return variable.
+    my $retVal;
+    # Get the function hash and the loader object.
+    my $funHash = $self->{funHash};
+    my $loader = $self->{loader};
+    # Get the statistics object.
+    my $stats = $loader->stats;
+    # Have we seen this function before?
+    if ($funHash->{$funcID}) {
+        # Yes. We're done.
+        $stats->Add(functionFound => 1);
+    } else {
+        # No. Try to insert it.
+        $loader->InsertObject('Function', id => $funcID, sep => $sep, description => $statement);
+        $retVal = 1;
+        $stats->Add(functionNotFound => 1);
+        # Insure we know we have this function.
+        $funHash->{$funcID} = 1;
+    }
+    # Return the insert indicator.
+    return $retVal;
+}
 
 
 1;

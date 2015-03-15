@@ -128,13 +128,12 @@ sub InsertRole {
             # Yes. Get the role's data.
             $stats->Add(roleFound => 1);
             my ($id, $oldEC, $oldTC) = @$roleData;
-            # Verify the EC and TC numbers. If one of these updates fails, it's possible the role has been
-            # deleted, so we need to iterate again.
-            my $ecOK = $self->CheckRoleNumber('ec-number', $oldEC, $ecNum, $id);
-            my $tcOK = $self->CheckRoleNumber('tc-number', $oldTC, $tcNum, $id);
-            if ($ecOK && $tcOK) {
-                $retVal = $id;
-            }
+            # Verify the EC and TC numbers. If one of these updates fails, it means someone else
+            # stored a number, so we're ok.
+            $self->CheckRoleNumber('ec-number', $oldEC, $ecNum, $id);
+            $self->CheckRoleNumber('tc-number', $oldTC, $tcNum, $id);
+            # Denote we have the role.
+            $retVal = $id;
         } else {
             # The role does not exist. We try to insert it. Compute a prefix and suffix.
             # If we already have them, we just increment the suffix.

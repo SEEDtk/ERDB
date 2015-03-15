@@ -711,10 +711,9 @@ sub ReadFeatures {
             die "Invalid feature ID $fid.";
         }
         # If this is NOT a peg and has no function, change the function to
-        # 'unspecified'. Otherwise it will be converted to
-        # "hypothetical protein".
+        # the appropriate hypothetical.
         if ($ftype ne 'peg' && ! $function) {
-            $function = "unspecified $ftype";
+            $function = "hypothetical $ftype";
         }
         # Compute the total sequence length.
         my $seqLen = 0;
