@@ -98,7 +98,7 @@ sub init {
         # Save the EC and TC numbers for this role.
         $roleNums{$roleID} = [$ecNum, $tcNum];
         # Compute the next available suffix.
-        ERDB::ID::Magic::Exclusive::UpdatePrefixHash($roleID);
+        ERDB::ID::Magic::Exclusive::UpdatePrefixHash(\%prefixHash, $roleID);
     }
     # Store the hashes we just computed.
     $self->{roleNums} = \%roleNums;
@@ -109,6 +109,10 @@ sub init {
             nameField => 'description', hashes => [\%prefixHash]);
     # Create the update hash. It is initially empty.
     $self->{updates} = {};
+    # Remember the loder.
+    $self->{loader} = $loader;
+    # Insure we are queued to close when the loader closes.
+    $loader->QueueSubObject($self);
     # Bless this object.
     bless $self, __PACKAGE__;
 }
@@ -171,7 +175,7 @@ sub InsertRole {
         # It does.
         $stats->Add(roleFound => 1);
         # Do the EC and TC numbers match?
-        my $savedInfo = @{$roleNums->{$retVal}};
+        my $savedInfo = $roleNums->{$retVal};
         my ($oldEC, $oldTC) = @$savedInfo;
         my $bestEC = ($oldEC || $ecNum);
         my $bestTC = ($oldTC || $tcNum);
@@ -198,6 +202,8 @@ sub InsertRole {
         $stats->Add(roleUpdateQueued => 1);
         $updates->{$retVal} = { id => $retVal, checksum => $checkSum, description => $roleText,
                 'ec-number' => $ecNum, 'tc-number' => $tcNum, hypo => $hypo };
+        # Update the role number hash.
+        $roleNums->{$retVal} = [$ecNum, $tcNum];
     }
     # Return the role ID.
     return $retVal;
@@ -217,7 +223,7 @@ sub Close {
     my ($self) = @_;
     # Get the statistics object.
     my $stats = $self->stats;
-    # Get the loader object. Denote that we are in replace mode.
+    # Get the loader object. Denote that Roles are in replace mode.
     my $loader = $self->{loader};
     $loader->ReplaceMode('Role');
     # Loop through the updates.
@@ -226,6 +232,8 @@ sub Close {
         $stats->Add(roleUpdateUnspooled => 1);
         $loader->InsertObject('Role', %{$updates->{$roleID}});
     }
+    # Denote the updates are no longer queued.
+    $self->{updates} = {};
 }
 
 

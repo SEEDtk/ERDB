@@ -21,7 +21,7 @@ package Shrub::GenomeLoader;
 
     use strict;
     use MD5Computer;
-    use Shrub::FunctionLoader;
+    use Shrub::Functions;
     use File::Path;
 
 =head1 Shrub Genome Load Utilities
@@ -41,9 +41,9 @@ L<Shrub::DBLoader> object for accessing the database and statistics.
 
 L<MD5Computer> object for computing genome and contig MD5s.
 
-=item funcLoader
+=item funcMgr
 
-L<Shrub::FunctionLoader> object for computing function and role IDs.
+L<Shrub::Functions> object for processing functions and roles.
 
 =item slow
 
@@ -88,9 +88,9 @@ A hash of options, including one or more of the following.
 TRUE if we are to load using individual inserts, FALSE if we are to load by spooling
 inserts into files for mass loading. The default is FALSE.
 
-=item funcLoader
+=item funcMgr
 
-A L<Shrub::FunctionLoader> object for computing function and role IDs. If none is
+A L<Shrub::Functions> object for computing function and role IDs. If none is
 provided, one will be created internally.
 
 =back
@@ -105,11 +105,10 @@ sub new {
     # Get the slow-load flag.
     my $slow = $options{slow} || 0;
     # Get the function-loader object.
-    my $funcLoader = $options{funcLoader};
+    my $funcMgr = $options{funcMgr};
     # If the function loader was not provided, create one.
-    if (! $funcLoader) {
-        $funcLoader = Shrub::FunctionLoader->new($loader, slow => $slow,
-                exclusive => $options{exclusive});
+    if (! $funcMgr) {
+        $funcMgr = Shrub::Functions->new($loader, exclusive => $options{exclusive});
     }
     # If we are NOT in slow-loading mode, prepare the tables for spooling.
     if (! $slow) {
@@ -117,9 +116,7 @@ sub new {
     }
     # Create the object.
     my $retVal = { loader => $loader, md5 => undef,
-        funcLoader => $funcLoader, slow => $slow };
-    # Insure the function loader is queued to close when the loader closes.
-    $loader->QueueSubObject($funcLoader);
+        funcMgr => $funcMgr, slow => $slow };
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;
@@ -409,7 +406,7 @@ sub LoadGenome {
     my $shrub = $loader->db;
     my $stats = $loader->stats;
     # Get the function loader.
-    my $funcLoader = $self->{funcLoader};
+    my $funcMgr = $self->{funcMgr};
     # If we do not already have the metadata hash, read it in.
     if (! defined $metaHash) {
         $metaHash = $loader->ReadMetaData("$genomeDir/genome-info",
@@ -450,14 +447,67 @@ sub LoadGenome {
      if (-f $npFile) {
          # Read the feature data.
          print "Processing non-protein features.\n";
-         $funcLoader->ReadFeatures($genome, $npFile, $priv);
+         $funcMgr->ReadFeatures($genome, $npFile, $priv);
      }
      # Process the protein features.
      print "Reading proteins.\n";
-     my $protHash = $funcLoader->ReadProteins($genome, $genomeDir);
+     my $protHash = $self->ReadProteins($genome, $genomeDir);
      print "Processing protein features.\n";
-     $funcLoader->ReadFeatures($genome, "$genomeDir/peg-info", $priv, $protHash);
+     $funcMgr->ReadFeatures($genome, "$genomeDir/peg-info", $priv, $protHash);
 }
+
+=head3 ReadProteins
+
+    my $protHash = $loader->ReadProteins($genome, $genomeDir);
+
+Create a hash of the proteins in the specified FASTA file and insure they are in the
+database.
+
+=over 4
+
+=item genome
+
+ID of the genome whose protein file is to be read.
+
+=item genomeDir
+
+Directory containing the genome source files.
+
+=item RETURN
+
+Returns a reference to a hash mapping feature iDs to protein IDs. The proteins will have been
+inserted into the database.
+
+=back
+
+=cut
+
+sub ReadProteins {
+    # Get the parameters.
+    my ($self, $genome, $genomeDir) = @_;
+    # Get the loader object.
+    my $loader = $self->{loader};
+    # Get the statistics object.
+    my $stats = $loader->stats;
+    # The return hash will go in here.
+    my %retVal;
+    # Open the genome's protein FASTA.
+    print "Reading $genome proteins.\n";
+    my $fh = $loader->OpenFasta(protein => "$genomeDir/peg-trans");
+    # Loop through the proteins.
+    while (my $protDatum = $loader->GetLine(protein => $fh)) {
+        my ($pegId, undef, $seq) = @$protDatum;
+        # Compute the protein ID.
+        my $protID = Shrub::ProteinID($seq);
+        # Insert the protein into the database.
+        $loader->InsertObject('Protein', id => $protID, sequence => $seq);
+        # Connect the protein to the feature in the hash.
+        $retVal{$pegId} = $protID;
+    }
+    # Return the protein hash.
+    return \%retVal;
+}
+
 
 
 
@@ -601,6 +651,103 @@ sub AnalyzeContigFasta {
     # Return the contig and genome info.
     return (\@contigList, \%genomeHash);
 }
+
+=head3 ReadFeatures
+
+    $funcMgr->ReadFeatures($genome, $fileName, $priv, \%protHash);
+
+Read the feature information from a tab-delimited feature file. For each feature, the file contains
+the feature ID, its location string (Sapling format), and its functional assignment. This method
+will insert the feature, connect it to the genome and the contig, then attach the functional
+assignment.
+
+=over 4
+
+=item genome
+
+ID of the genome whose feature file is being processed.
+
+=item fileName
+
+Name of the file containing the feature data to process.
+
+=item priv
+
+Privilege level for the functional assignments.
+
+=item protHash (optional)
+
+A hash mapping feature IDs to protein IDs.
+
+=back
+
+=cut
+
+sub ReadFeatures {
+    # Get the parameters.
+    my ($self, $genome, $fileName, $priv, $protHash) = @_;
+    # Get the loader object.
+    my $loader = $self->{loader};
+    # Get the function processor.
+    my $funcMgr = $self->{funcMgr};
+    # If no protein hash was provided, create an empty one.
+    $protHash //= {};
+    # Get the statistics object.
+    my $stats = $loader->stats;
+    # Open the file for input.
+    my $ih = $loader->OpenFile(feature => $fileName);
+    # Loop through the feature file.
+    while (my $featureDatum = $loader->GetLine(feature => $ih)) {
+        # Get the feature elements.
+        my ($fid, $locString, $function) = @$featureDatum;
+        # Create a list of location objects from the location string.
+        my @locs = map { BasicLocation->new($_) } split /\s*,\s*/, $locString;
+        $stats->Add(featureLocs => scalar(@locs));
+        # Compute the feature type.
+        my $ftype;
+        if ($fid =~ /fig\|\d+\.\d+\.(\w+)\.\d+/) {
+            $ftype = $1;
+        } else {
+            die "Invalid feature ID $fid.";
+        }
+        # If this is NOT a peg and has no function, change the function to
+        # 'unspecified'. Otherwise it will be converted to
+        # "hypothetical protein".
+        if ($ftype ne 'peg' && ! $function) {
+            $function = "unspecified $ftype";
+        }
+        # Compute the total sequence length.
+        my $seqLen = 0;
+        for my $loc (@locs) {
+            $seqLen += $loc->Length;
+        }
+        # Compute the protein.
+        my $protID = $protHash->{$fid} // '';
+        # Connect the feature to the genome.
+        $loader->InsertObject('Feature', id => $fid, 'feature-type' => $ftype,
+                'sequence-length' => $seqLen, Genome2Feature_link => $genome,
+                Protein2Feature_link => $protID);
+        $stats->Add(feature => 1);
+        # Connect the feature to the contigs. This is where the location information figures in.
+        my $ordinal = 0;
+        for my $loc (@locs) {
+            $loader->InsertObject('Feature2Contig', 'from-link' => $fid, 'to-link' => ($genome . ":" . $loc->Contig),
+                    begin => $loc->Left, dir => $loc->Dir, len => $loc->Length, ordinal => ++$ordinal);
+            $stats->Add(featureSegment => 1);
+        }
+        # Parse the function.
+        my ($statement, $sep, $roleH, $comment) = Shrub::Functions::Parse($function);
+        # Insure it is in the database.
+        my $funcID = $funcMgr->Process($statement, $sep, $roleH);
+        # Connect the functions. Make the connection at each privilege level.
+        for (my $p = $priv; $p >= 0; $p--) {
+            $loader->InsertObject('Feature2Function', 'from-link' => $fid, 'to-link' => $funcID,
+                    comment => $comment, security => $p);
+            $stats->Add(featureFunction => 1);
+        }
+    }
+}
+
 
 =head2 Internal Utility Methods
 

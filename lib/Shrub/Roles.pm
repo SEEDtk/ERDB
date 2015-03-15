@@ -199,14 +199,14 @@ sub Normalize {
     shift if UNIVERSAL::isa($_[0], __PACKAGE__);
     # Get the parameters.
     my ($role) = @_;
-    # Fix spelling mistakes.
-    $role = FixupRole($role);
     # Remove the EC number.
     $role =~ s/$EC_PATTERN//;
     # Remove the TC identifier.
     $role =~ s/$TC_PATTERN//;
     # Remove the extra spaces.
     $role =~ s/[\s,.:]+/ /g;
+    # Fix spelling mistakes.
+    $role = FixupRole($role);
     # Convert to lower case.
     my $retVal = lc $role;
     # Return the result.
@@ -312,10 +312,10 @@ sub Process {
     # Get the role inserter.
     my $roleThing = $self->{inserter};
     # Parse the role components.
-    my ($roleText, $ecNum, $tcNum, $hypo) = Shrub::ParseRole($role);
+    my ($roleText, $ecNum, $tcNum, $hypo) = Parse($role);
     # Compute the checksum.
     if (! defined $checkSum) {
-        my $roleNorm = Shrub::RoleNormalize($role);
+        my $roleNorm = Normalize($role);
         $checkSum = Shrub::Checksum($roleNorm);
     }
     # Insert the role.

@@ -485,7 +485,8 @@ sub InsertObject {
     $loader->QueueSubObject($subObj);
 
 Add an object to the queue of objects to be closed during cleanup. This allows other objects to
-do any preliminary cleanup.
+do any preliminary cleanup. Such objects must allow for the possibility of being closed
+multiple times. After the first time, the close should have no effect.
 
 =over 4
 
@@ -500,18 +501,8 @@ Object to add to the queue.
 sub QueueSubObject {
     # Get the parameters.
     my ($self, $subObj) = @_;
-    # Insure this object is not already in the queue.
     my $queue = $self->{closeQueue};
-    my $found;
-    for my $obj (@$queue) {
-        if ($obj eq $subObj) {
-            $found = 1;
-        }
-    }
-    # Add it if it was not found.
-    if (! $found) {
-        push @$queue, $subObj;
-    }
+    push @$queue, $subObj;
 }
 
 =head3 Close

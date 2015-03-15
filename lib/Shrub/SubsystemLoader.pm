@@ -20,7 +20,7 @@ package Shrub::SubsystemLoader;
 
     use strict;
     use warnings;
-    use Shrub::FunctionLoader;
+    use Shrub::Roles;
     use Shrub::DBLoader;
     use Digest::MD5;
     use ERDB::ID::Magic;
@@ -36,14 +36,9 @@ subsystem repository. It contains the following fields.
 
 A L<Shrub::DBLoader> object for manipulating the database and the repository.
 
-=item funcLoader
+=item roleMrg
 
-A L<Shrub::FunctionLoader> object for computing function and role IDs.
-
-=item slow
-
-TRUE if we are to load using individual inserts, FALSE if we are to spool into files for mass insertion.
-(The effect of this option is managed by the L<Shrub::DBLoader> object.)
+A L<Shrub::Roles> object for computing role IDs.
 
 =item inserter
 
@@ -76,19 +71,19 @@ A hash containing zero or more of the following options.
 
 =over 8
 
-=item slow
+=item roleMrg
 
-If TRUE, then all loading will be performed using individual inserts. IF FALSE,
-all loading will be performed by spooling into load files. The default is FALSE.
-
-=item funcLoader
-
-A L<Shrub::FunctionLoader> object for computing role IDs. If none is provided, an
+A L<Shrub::Roles> object for computing role IDs. If none is provided, an
 object will be created internally.
 
 =item exclusive
 
 TRUE if we have exclusive access to the database, else FALSE. The default is FALSE.
+
+=item slow
+
+TRUE if we are to load using individual inserts, FALSE if we are to load by spooling
+inserts into files for mass loading.
 
 =back
 
@@ -101,12 +96,11 @@ sub new {
     my ($class, $loader, %options) = @_;
     # Get the slow-load flag.
     my $slow = $options{slow} || 0;
-    # Get the function-loader object.
-    my $funcLoader = $options{funcLoader};
-    # If the function loader was not provided, create one.
-    if (! $funcLoader) {
-        $funcLoader = Shrub::FunctionLoader->new($loader, rolesOnly => 1, slow => $slow,
-                exclusive => $options{exclusive});
+    # Get the role-loader object.
+    my $roleMrg = $options{roleMrg};
+    # If the role loader was not provided, create one.
+    if (! $roleMrg) {
+        $roleMrg = Shrub::Roles->new($loader, exclusive => $options{exclusive});
     }
     # If we are NOT in slow mode, prepare the tables for loading.
     if (! $slow) {
@@ -118,12 +112,9 @@ sub new {
     # Create the object.
     my $retVal = {
         loader => $loader,
-        funcLoader => $funcLoader,
-        slow => $slow,
+        roleMrg => $roleMrg,
         inserter => $inserter
     };
-    # Insure the function loader is queued to close when the loader closes.
-    $loader->QueueSubObject($funcLoader);
     # Bless and return it.
     bless $retVal, $class;
     return $retVal;
@@ -240,7 +231,7 @@ sub LoadSubsystem {
     # use an empty hash.
     $genomeHash //= {};
     # Get the function loader.
-    my $funcLoader = $self->{funcLoader};
+    my $roleMrg = $self->{roleMrg};
     # Load the subsystem.
     print "Creating $sub.\n";
     # We need the metadata.
@@ -264,7 +255,7 @@ sub LoadSubsystem {
         # Get this role's data.
         my ($abbr, $role) = @$roleData;
         # Compute the role ID. If the role is new, this inserts it in the database.
-        my ($roleID) = $funcLoader->ProcessRole($role);
+        my ($roleID) = $roleMrg->Process($role);
         # Link the subsystem to the role.
         $loader->InsertObject('Subsystem2Role', 'from-link' => $retVal, 'to-link' => $roleID,
                 ordinal => $ord, abbr => $abbr);

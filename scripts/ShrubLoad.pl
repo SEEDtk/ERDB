@@ -24,7 +24,7 @@ use Shrub::DBLoader;
 use ERDB::Utils;
 use Shrub::GenomeLoader;
 use Shrub::SubsystemLoader;
-use Shrub::FunctionLoader;
+use Shrub::Functions;
 use ScriptUtils;
 use File::Copy::Recursive;
 
@@ -159,21 +159,24 @@ if ($cleared) {
 # This hash will contain a list of genome IDs known to be in the database. The subsystem
 # loader needs this information to process its row information.
 my %genomes;
-# Create the function loader. Both the other loaders use it.
+# Create the function and role loaders.
 print "Analyzing functions and roles.\n";
-my $funcLoader = Shrub::FunctionLoader->new($loader, rolesOnly => ! $genomesLoading, slow => $slowFlag,
-        exclusive => $exclusive);
+my $roleMrg = Shrub::Roles->new($loader, slow => $slowFlag, exclusive => $exclusive);
+# We only need the function loader if we are loading genomes.
+my $funcMgr;
+if ($genomesLoading) {
+    $funcMgr = Shrub::Functions->new($loader, slow => $slowFlag, roles => $roleMrg,
+            exclusive => $exclusive);
+}
 # Here we process the genomes.
 if ($genomesLoading) {
     print "Processing genomes.\n";
-    my $gLoader = Shrub::GenomeLoader->new($loader, funcLoader => $funcLoader, slow => $slowFlag);
+    my $gLoader = Shrub::GenomeLoader->new($loader, funcMgr => $funcMgr, slow => $slowFlag);
     # Determine the list of genomes to load.
     my $gHash = $gLoader->ComputeGenomeList($genomeDir, $genomeSpec);
     # Curate the genome list to eliminate redundant genomes. This returns a hash of genome IDs to
     # metadata for the genomes to load.
     my $metaHash = $gLoader->CurateNewGenomes($gHash, $missingFlag, $cleared);
-    # Estimate the number of functions we are inserting.
-    $funcLoader->SetEstimates(scalar(keys %$metaHash) * 175);
     # Loop through the genomes, loading them.
     my @metaKeys = sort keys %$metaHash;
     my $gTotal = scalar @metaKeys;
@@ -189,7 +192,7 @@ if ($genomesLoading) {
 # Here we process the subsystems.
 if ($subsLoading) {
     print "Processing subsystems.\n";
-    my $sLoader = Shrub::SubsystemLoader->new($loader, funcLoader => $funcLoader, slow => $slowFlag);
+    my $sLoader = Shrub::SubsystemLoader->new($loader, roleMrg => $roleMrg, slow => $slowFlag);
     # Get the list of subsystems to load.
     my $subs = $sLoader->SelectSubsystems($subsSpec, $subsDir);
     # We need to be able to tell which subsystems are already in the database. If the number of subsystems
@@ -203,8 +206,6 @@ if ($subsLoading) {
             $subHash = { map { $_->[1] => $_->[0] } $shrub->GetAll('Subsystem', '', [], 'id name') };
         }
     }
-    # Estimate the number of roles we are inserting.
-    $funcLoader->SetEstimates($subTotal * 15);
     # Loop through the subsystems.
     print "Processing the subsystem list.\n";
     my $subCount = 0;
