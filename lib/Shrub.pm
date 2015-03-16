@@ -414,9 +414,9 @@ sub Subsystem2Role {
     # Get the parameters.
     my ($self, $sub) = @_;
     # Request the role data.
-    my @retVal = map { [$_->[0], $_->[1] . ($_->[2] ? " (EC $_->[2])" : '') . ($->[3] ? " (TC $_->[3])" : '')] }
+    my @retVal = map { [$_->[0], FormatRole($_->[1], $_->[2], $_->[3])] }
             $self->GetAll('Subsystem2Role Role', 'Subsystem2Role(from-link) = ? ORDER BY Subsystem2Role(ordinal)', [$sub],
-            'Role(id) Role(description) Role(ec-number) Role(tc-number)');
+            'Role(id) Role(ec-number) Role(tc-number) Role(description)');
     # Return the result.
     return @retVal;
 }
@@ -474,6 +474,40 @@ sub ProteinID {
     # Return the result.
     return $retVal;
 }
+
+
+=head3 FormatRole
+
+    my $roleText = Shrub::FormatRole($ecNum, $tcNum, $description)'
+
+Format the text of a role given its EC, TC, and description information.
+
+=over 4
+
+=item ecNum
+
+EC number of the role, or an empty string if there is no EC number.
+
+=item tcNum
+
+TC number of the role, or an empty string if there is no TC number.
+
+=item description
+
+Descriptive text of the role.
+
+=item RETURN
+
+Returns the full display text of the role.
+
+=back
+
+=cut
+
+sub FormatRole {
+    return ($_[2] . ($_[0] ? " (EC $_[0])" : '') . ($_[1] ? " (TC $_[1])" : ''));
+}
+
 
 =head3 NormalizedName
 

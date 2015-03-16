@@ -22,6 +22,7 @@ use Shrub;
 use ERDB::Utils;
 use ScriptUtils;
 use File::Copy::Recursive;
+use Shrub::Functions;
 
 =head1 Shrub Creation and Tuning Script
 
@@ -56,6 +57,11 @@ sides. This parameter can be specified more than once to process more than one r
 If the value is C<all>, all relationships will be verified, which can take an extremely long
 time.
 
+=item fixfuns
+
+Verify that each function is connected to its roles and has the correct description text.
+Mutually exclusive with C<clear>.
+
 =back
 
 =cut
@@ -67,7 +73,8 @@ $| = 1; # Prevent buffering on STDOUT.
 my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDB::Utils::init_options(),
     ['fixup|f', "fix existing tables to match the DBD"],
     ['missing|m', "create missing tables"],
-    ['relfix|r=s@', "verify relationship (all to verify all)"]
+    ['relfix|r=s@', "verify relationship (all to verify all)"],
+    ['fixfuns|F', "verify the functions table"]
     );
 # Validate the options.
 if ($opt->clear) {
@@ -75,6 +82,8 @@ if ($opt->clear) {
         die "Cannot specify both \"clear\" and \"fixup\".";
     } elsif ($opt->missing) {
         die "Cannot specify both \"clear\" and \"missing\".";
+    } elsif ($opt->fixfuns) {
+        die "Cannot specify both \"clear\" and \"fixfuns\".";
     }
 }
 # Connect to the database and get the command parameters.
@@ -94,7 +103,7 @@ if ($cleared) {
     File::Copy::Recursive::pathempty($FIG_Config::shrub_dna) ||
         die "Error clearing DNA repository: $!";
 } else {
-    # We still have a database. Check for tuning options.
+    # We still have a database. Check for DBD tuning options.
     if ($opt->fixup) {
         # Fix up the existing tables.
         my $badTables = $utils->FixDatabase();
@@ -117,6 +126,19 @@ if ($cleared) {
     for my $rel (@$rels) {
         $utils->FixRelationship($rel);
     }
+    # Check for a functions fix.
+    if ($opt->fixfuns) {
+        print "Function table will be verified.\n";
+        print "Reading role table.\n";
+        my %roles = map { $_->[0] => Shrub::FormatRole($_->[1], $_->[2], $_->[3]) } $shrub->GetAll('Role', '', [], 'id ec-number tc-number description');
+        # Get a map of the function-to-role connections.
+        my %funRoles;
+        map { $funRoles{$_->[0]}{$_->[1]} = 1; } $shrub->GetAll('Function2Role', '', [], 'from-link to-link');
+        # Now loop through the functions.
+        my $q = $shrub->Get('Function', '', [], 'id sep description');
+        ## TODO verify each function.
+    }
+    ## TODO opt->fixfuns
 }
 # Compute the total time.
 my $timer = time - $startTime;
