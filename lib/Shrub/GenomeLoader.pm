@@ -60,9 +60,8 @@ TRUE if we have exclusive access to the database, else FALSE. The default is FAL
 =cut
 
     # This is the list of tables we are loading.
-    use constant LOAD_TABLES => qw(Genome Contig Feature Protein Feature2Contig Feature2Function
-                                   Function Function2Role Role);
-
+    use constant LOAD_TABLES => qw(Role Function Function2Role Genome Contig Feature Protein
+            Feature2Contig Feature2Function);
 
 
 =head2 Special Methods
