@@ -23,6 +23,7 @@ package Shrub::GenomeLoader;
     use MD5Computer;
     use Shrub::Functions;
     use File::Path;
+    use BasicLocation;
 
 =head1 Shrub Genome Load Utilities
 
@@ -59,7 +60,8 @@ TRUE if we have exclusive access to the database, else FALSE. The default is FAL
 =cut
 
     # This is the list of tables we are loading.
-    use constant LOAD_TABLES => qw(Genome Contig Feature Protein Feature2Contig Feature2Function);
+    use constant LOAD_TABLES => qw(Genome Contig Feature Protein Feature2Contig Feature2Function
+                                   Function Function2Role Role);
 
 
 
@@ -447,13 +449,13 @@ sub LoadGenome {
      if (-f $npFile) {
          # Read the feature data.
          print "Processing non-protein features.\n";
-         $funcMgr->ReadFeatures($genome, $npFile, $priv);
+         $self->ReadFeatures($genome, $npFile, $priv);
      }
      # Process the protein features.
      print "Reading proteins.\n";
      my $protHash = $self->ReadProteins($genome, $genomeDir);
      print "Processing protein features.\n";
-     $funcMgr->ReadFeatures($genome, "$genomeDir/peg-info", $priv, $protHash);
+     $self->ReadFeatures($genome, "$genomeDir/peg-info", $priv, $protHash);
 }
 
 =head3 ReadProteins
@@ -692,6 +694,8 @@ sub ReadFeatures {
     my $funcMgr = $self->{funcMgr};
     # If no protein hash was provided, create an empty one.
     $protHash //= {};
+    # This will track our progress.
+    my $fcount = 0;
     # Get the statistics object.
     my $stats = $loader->stats;
     # Open the file for input.
@@ -744,7 +748,9 @@ sub ReadFeatures {
                     comment => $comment, security => $p);
             $stats->Add(featureFunction => 1);
         }
+        $fcount++;
     }
+    print "$fcount features processed.\n";
 }
 
 

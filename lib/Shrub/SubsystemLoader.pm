@@ -49,7 +49,7 @@ An L<ERDB::ID> object for inserting subsystem records.
 =cut
 
     # This is a list of the tables we are loading.
-    use constant LOAD_TABLES => qw(SubsystemRow SubsystemCell Subsystem2Role Feature2Cell);
+    use constant LOAD_TABLES => qw(SubsystemRow SubsystemCell Subsystem2Role Feature2Cell Role);
 
 =head2 Special Methods
 

@@ -310,7 +310,6 @@ sub Open {
     for my $table (@tables) {
         # Only proceed if this table is not already set up.
         if (exists $tableH->{$table}) {
-            warn "$table is being opened for loading more than once.\n";
             $stats->Add(duplicateOpen => 1);
         } else {
             # The file handles will be put in here.
@@ -397,8 +396,7 @@ Name of the object (entity or relationship) being inserted.
 
 =item fields
 
-Hash mapping field names to values. Multi-value fields are passed as list references. All fields should already
-be encoded for insertion.
+Hash mapping field names to values. Multi-value fields are passed as list references.
 
 =back
 
@@ -417,7 +415,7 @@ sub InsertObject {
         my $shrub = $self->{shrub};
         # Compute the duplicate-record mode.
         my $dup = ($self->{replaces}{$table} ? 'replace' : 'ignore');
-        $shrub->InsertObject($table, \%fields, encoded => 1, dup => $dup);
+        $shrub->InsertObject($table, \%fields, dup => $dup);
         $stats->Add("$table-insert" => 1);
     } else {
         # Yes, we need to output to the load files. Loop through the relation tables in the load thing.
@@ -448,7 +446,7 @@ sub InsertObject {
                         confess "Missing value for $name in $tName.";
                     } else {
                         # Store this value.
-                        push @values, $value;
+                        push @values, ERDB::encode($field->{type}, $value);
                     }
                 }
                 # Write the primary record.
@@ -461,8 +459,9 @@ sub InsertObject {
                 if (! defined $id) {
                     die "ID missing in output attempt of $table.";
                 }
-                # Get the secondary value.
+                # Get the secondary value and its type.
                 my $values = $fields{$map->[1]{name}};
+                my $type = $fields{$map->[1]{type}};
                 # Insure it is a list.
                 if (! defined $values) {
                     $values = [];
@@ -471,7 +470,8 @@ sub InsertObject {
                 }
                 # Loop through the values, writing them out.
                 for my $value (@$values) {
-                    print $handle "$id\t$value\n";
+                    my $encoded = ERDB::encode($type, $value);
+                    print $handle "$id\t$encoded\n";
                     $stats->Add("$table-value" => 1);
                 }
             }

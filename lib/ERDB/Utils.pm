@@ -197,7 +197,7 @@ sub GetTableNames {
 
 =head3 Init
 
-    my $cleared = $utils->InitCheck($opt);
+    my $cleared = $utils->Init($opt);
 
 This is an ad hoc method that processes the command-line options in L</init_options>. It will
 return TRUE if the database was cleared, else FALSE.

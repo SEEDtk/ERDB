@@ -124,7 +124,8 @@ pattern processing.
 
 =cut
 
-use constant LITTLES => { 'and' => 1, 'or' => 1, the => 1, a => 1, of => 1, in => 1, an => 1, to => 1, on => 1 };
+use constant LITTLES => { 'and' => 1, 'or' => 1, the => 1, a => 1, of => 1, in => 1, an => 1, to => 1, on => 1,
+                          putative => 1 };
 
 sub Name {
     # Get the parameter.

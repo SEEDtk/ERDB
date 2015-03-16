@@ -21,6 +21,7 @@ package Shrub::Functions;
     use strict;
     use warnings;
     use Digest::MD5;
+    use Shrub;
 
 =head1 Shrub Function Manager
 
@@ -201,7 +202,7 @@ sub Parse {
     # to an empty string.
     my $statement = $function // "";
     my $comment = "";
-    if ($function && $function =~ /(.+?)\s*[#!](.+)/) {
+    if ($function && $function =~ /(.+?)\s*[#!]\s*(.+)/) {
         ($statement, $comment) = ($1, $2);
     }
     # The roles and the separator will go in here.
@@ -247,7 +248,7 @@ sub Parse {
         my @normalRoles = map { Shrub::Roles::Normalize($_) } @roles;
         # Now create the role hash.
         for (my $i = 0; $i < scalar(@roles); $i++) {
-            $roles{$roles[$i]} = Checksum($normalRoles[$i]);
+            $roles{$roles[$i]} = Shrub::Checksum($normalRoles[$i]);
         }
     }
     # Return the parsed function data.
@@ -307,19 +308,21 @@ sub Process {
             $retVal = "hypo-$1";
             $stats->Add(hypoFunction => 1);
         } else {
-            $retVal = "malformed-" . Digest::MD5::hexdigest($statement);
+            $retVal = "malformed-" . Digest::MD5::md5_hex($statement);
             $stats->Add(funnyFunction => 1);
         }
         # Now insert the function.
         $self->Insert($retVal, $sep, $statement);
     } else {
-        # We have roles. Get the role IDs.
+        # We have roles. Get the role manager.
+        my $roleMgr = $self->{roles};
+        # Compute the role IDs.
         my @roleIDs;
         for my $role (keys %$roleH) {
             # Get this role's checksum.
             my $roleCheck = $roleH->{$role};
             # Get the role's ID.
-            my ($roleID) = $self->ProcessRole($role, $roleCheck);
+            my ($roleID) = $roleMgr->Process($role, $roleCheck);
             push @roleIDs, $roleID;
         }
         # Sort the roles to compute the function ID.
@@ -339,6 +342,40 @@ sub Process {
     }
     # Return the function ID.
     return $retVal;
+}
+
+
+=head3 Analyze
+
+    my ($funcID, $comment) = $funMgr->Analyze($function);
+
+Parse and process the specified functional assignment text. This method insures the function
+is properly inserted into the database, and returns the function ID and the comment (if any).
+
+=over 4
+
+=item function
+
+Text of the function to parse and process.
+
+=item RETURN
+
+Returns a two-element list consisting of (0) the function's database ID and (1) the function
+comment (or an empty string if there was no comment).
+
+=back
+
+=cut
+
+sub Analyze {
+    # Get the parameters.
+    my ($self, $function) = @_;
+    # Parse the function.
+    my ($statement, $sep, $roleH, $comment) = Parse($function);
+    # Insert it into the database and get the ID.
+    my $retVal = $self->Process($statement, $sep, $roleH);
+    # Return the ID and comment.
+    return ($retVal, $comment);
 }
 
 
