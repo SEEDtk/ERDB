@@ -451,7 +451,6 @@ sub LoadGenome {
          $self->ReadFeatures($genome, $npFile, $priv);
      }
      # Process the protein features.
-     print "Reading proteins.\n";
      my $protHash = $self->ReadProteins($genome, $genomeDir);
      print "Processing protein features.\n";
      $self->ReadFeatures($genome, "$genomeDir/peg-info", $priv, $protHash);
@@ -738,9 +737,9 @@ sub ReadFeatures {
             $stats->Add(featureSegment => 1);
         }
         # Parse the function.
-        my ($statement, $sep, $roleH, $comment) = Shrub::Functions::Parse($function);
+        my ($statement, $sep, $roles, $comment) = Shrub::Functions::Parse($function);
         # Insure it is in the database.
-        my $funcID = $funcMgr->Process($statement, $sep, $roleH);
+        my $funcID = $funcMgr->Process($statement, $sep, $roles);
         # Connect the functions. Make the connection at each privilege level.
         for (my $p = $priv; $p >= 0; $p--) {
             $loader->InsertObject('Feature2Function', 'from-link' => $fid, 'to-link' => $funcID,

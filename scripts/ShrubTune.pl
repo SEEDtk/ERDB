@@ -129,19 +129,124 @@ if ($cleared) {
     # Check for a functions fix.
     if ($opt->fixfuns) {
         print "Function table will be verified.\n";
-        print "Reading role table.\n";
-        my %roles = map { $_->[0] => Shrub::FormatRole($_->[1], $_->[2], $_->[3]) } $shrub->GetAll('Role', '', [], 'id ec-number tc-number description');
-        # Get a map of the function-to-role connections.
-        my %funRoles;
-        map { $funRoles{$_->[0]}{$_->[1]} = 1; } $shrub->GetAll('Function2Role', '', [], 'from-link to-link');
-        # Now loop through the functions.
-        my $q = $shrub->Get('Function', '', [], 'id sep description');
-        ## TODO verify each function.
+        FixFunctionTable($shrub, $stats);
     }
-    ## TODO opt->fixfuns
 }
 # Compute the total time.
 my $timer = time - $startTime;
 $stats->Add(totalTime => $timer);
 # Tell the user we're done.
 print "Database processed.\n" . $stats->Show();
+
+
+=head2 Utility Subroutines
+
+=head3 FixFunctionTable
+
+    FixFunctionTable($shrub, $stats);
+
+Verify the integrity of the function table. This implies insuring that each function is connected to all
+its roles and the roles have their EC and TC numbers included.
+
+=over 4
+
+=item shrub
+
+L<Shrub> object used to communicate with the datanase.
+
+=item stats
+
+L<Stats> object for keeping statistics about this operation.
+
+=back
+
+=cut
+
+sub FixFunctionTable {
+    # Get the parameters.
+    my ($shrub, $stats) = @_;
+    print "Reading role table.\n";
+    my %roles = map { $_->[0] => Shrub::FormatRole($_->[1], $_->[2], $_->[3]) } $shrub->GetAll('Role', '', [], 'id ec-number tc-number description');
+    my $roleCount = scalar keys %roles;
+    print "$roleCount roles found.\n";
+    $stats->Add(roleTable => $roleCount);
+    # Get a map of the function-to-role connections.
+    my %funRoles;
+    map { push @{$funRoles{$_->[0]}}, $_->[1] } $shrub->GetAll('Function2Role', '', [], 'from-link to-link');
+    # This will contain a list of the roles we couldn't find.
+    my %missing;
+    # Now loop through the functions.
+    my $q = $shrub->Get('Function', '', [], 'id sep description');
+    while (my $funData = $q->Fetch()) {
+        $stats->Add(functionChecked => 1);
+        # Get the function fields.
+        my ($id, $sep, $description) = $funData->Values('id sep description');
+        # Parse the function ID.
+        if ($id =~ /\-/) {
+            # Here we have a role-less function. Verify the separator.
+            if ($sep ne '-') {
+                $stats->Add(separatorFixed => 1);
+                $shrub->UpdateEntity(Function => $id, sep => '-');
+            }
+            # Insure there are no roles connected.
+            if (exists $funRoles{$id}) {
+                my $deleted = $shrub->Disconnect('Function2Role', Function => $id);
+                print "$deleted role connections removed from function $id: $description.\n";
+                $stats->Add(roleConnectionsDeleted => $deleted);
+            }
+        } else {
+            # Here the function has roles.
+            my @subRoles = sort split /[\/\@;]/, $id;
+            # Verify that the correct roles are connected.
+            my @connectedL = sort @{$funRoles{$id}};
+            # Compare the connected roles with the roles in the ID.
+            my $subI = 0;
+            my $subRole = $subRoles[$subI];
+            my $connected = shift @connectedL;
+            while (defined $subRole || defined $connected) {
+                if (! defined $connected || $subRole lt $connected) {
+                    # Here we have an unconnected role.
+                    print "Connecting $subRole to $id.\n";
+                    $shrub->InsertObject('Function2Role', 'from-link' => $id, 'to-link' => $subRole);
+                    $stats->Add(roleConnectionsAdded => 1);
+                    # Get the next sub-role.
+                    $subRole = $subRoles[++$subI];
+                } elsif (! defined $subRole || $subRole gt $connected) {
+                    # Here we have an extra connection.
+                    print "Disconnecting $connected from $id.\n";
+                    $shrub->DeleteRow('Function2Role', $id, $connected);
+                    $stats->Add(roleConnectionsDeleted => 1);
+                    # Get the next connected role.
+                    $connected = shift @connectedL;
+                } else {
+                    # Here both roles match.
+                    $stats->Add(roleConnectionCorrect => 1);
+                    $subRole = $subRoles[++$subI];
+                    $connected = shift @connectedL;
+                }
+            }
+            # Now compute the function text.
+            my $realSep = ($sep eq ';' ? '; ' : " $sep ");
+            my @roleNames;
+            for my $subRole (@subRoles) {
+                my $roleName = $roles{$subRole};
+                if (! $roleName) {
+                    $missing{$subRole}++;
+                    $stats->Add(missingRole => 1);
+                    print "Function $id refers to missing role $subRole.\n";
+                } else {
+                    push @roleNames, $roleName;
+                }
+            }
+            my $realDescription = join($realSep, @roleNames);
+            if ($realDescription ne $description) {
+                $shrub->UpdateEntity(Function => $id, description => $realDescription);
+                $stats->Add(descriptionUpdated => 1);
+            }
+        }
+    }
+    # Now add the missing roles to the statistics object.
+    for my $missingRole (sort keys %missing) {
+        $stats->AddMessage("$missingRole is missing from the Role table.");
+    }
+}

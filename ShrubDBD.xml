@@ -237,7 +237,8 @@
                     multiple roles by different domains, [b]@[/b] for multiple
                     roles by the same domain, or [b];[/b] when the function performs
                     one of several roles but the precise one cannot be determined.
-                    For a single-function role, a space is used.</Notes>
+                    For a single-function role, a space is used. For a malformed
+                    or hypothetical function (which has no roles) a hyphen is used.</Notes>
                 </Field>
             </Fields>
         </Entity>

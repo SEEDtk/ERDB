@@ -171,6 +171,14 @@ sub Parse {
     $roleText = FixupRole($roleText);
     # Check for a hypothetical.
     my $hypo = SeedUtils::hypo($roleText);
+    # If this is a hypothetical with a number, change it.
+    if ($roleText eq 'hypothetical protein' || ! $roleText) {
+        if ($ecNum) {
+            $roleText = "putative protein $ecNum";
+        } elsif ($tcNum) {
+            $roleText = "putative transporter $tcNum";
+        }
+    }
     # Return the parse results.
     return ($roleText, $ecNum, $tcNum, $hypo);
 }
@@ -183,13 +191,13 @@ or
 
     my $normalRole = $roleMgr->Normalize($role);
 
-Normalize a role by removing extra spaces, stripping off the EC number, and converting it to lower case.
+Normalize the text of a role by removing extra spaces and converting it to lower case.
 
 =over 4
 
 =item role
 
-Role text to normalize.
+Role text to normalize. This should be taken from the output of L</Parse>.
 
 =item RETURN
 
@@ -204,14 +212,10 @@ sub Normalize {
     shift if UNIVERSAL::isa($_[0], __PACKAGE__);
     # Get the parameters.
     my ($role) = @_;
-    # Remove the EC number.
-    $role =~ s/$EC_PATTERN//;
-    # Remove the TC identifier.
-    $role =~ s/$TC_PATTERN//;
-    # Remove the extra spaces.
-    $role =~ s/[\s,.:]+/ /g;
-    # Fix spelling mistakes.
-    $role = FixupRole($role);
+    # Remove the extra spaces and punctuation.
+    $role =~ s/[\s,.:]{2,}/ /g;
+    # Translate unusual white characters.
+    $role =~ s/\s/ /;
     # Convert to lower case.
     my $retVal = lc $role;
     # Return the result.
@@ -320,7 +324,7 @@ sub Process {
     my ($roleText, $ecNum, $tcNum, $hypo) = Parse($role);
     # Compute the checksum.
     if (! defined $checkSum) {
-        my $roleNorm = Normalize($role);
+        my $roleNorm = Normalize($roleText);
         $checkSum = Shrub::Checksum($roleNorm);
     }
     # Insert the role.
@@ -328,29 +332,6 @@ sub Process {
     # Return the role information.
     return ($retVal, $checkSum);
 }
-
-=head3 SetEstimate
-
-    $helper->SetEstimate($estimate);
-
-Specify the expected number of inserts for this session. This helps to optimize certain types
-of ID processing.
-
-=over 4
-
-=item estimate
-
-The number of inserts of this entity type expected during the current session.
-
-=back
-
-=cut
-
-sub SetEstimate {
-    my ($self, $estimate) = @_;
-    $self->{inserter}->SetEstimate($estimate);
-}
-
 
 
 =head2 Virtual Methods

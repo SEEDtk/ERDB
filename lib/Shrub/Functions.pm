@@ -148,11 +148,11 @@ sub new {
 
 =head3 Parse
 
-    my ($statement, $sep, \%roles, $comment) = $funMgr->Parse($function);
+    my ($statement, $sep, \@roles, $comment) = $funMgr->Parse($function);
 
 or
 
-    my ($statement, $sep, \%roles, $comment) = Shrub::Functions::Parse($function);
+    my ($statement, $sep, \@roles, $comment) = Shrub::Functions::Parse($function);
 
 Parse a functional assignment. This method breaks it into its constituent roles,
 pulls out the comment and the separator character, and computes the checksum.
@@ -180,7 +180,7 @@ functions, it could also be C</> or C<;>.
 
 =item roles
 
-Reference to a hash mapping each constituent role to its checksum.
+Reference to a list of the constituent roles.
 
 =item comment
 
@@ -205,11 +205,10 @@ sub Parse {
     if ($function && $function =~ /(.+?)\s*[#!]\s*(.+)/) {
         ($statement, $comment) = ($1, $2);
     }
-    # The roles and the separator will go in here.
+    # The roles and the separator will go in here. We default to the separator
+    # for the malformed case.
     my @roles;
-    my $sep = ' ';
-    # This will be the role hash.
-    my %roles;
+    my $sep = '-';
     # Check for suspicious elements.
     my $malformed;
     if (! $statement) {
@@ -229,10 +228,11 @@ sub Parse {
         } elsif (scalar(@roleParts) == 1) {
             # Here we have the normal case, a single-role function.
             @roles = @roleParts;
+            $sep = ' ';
         } else {
             # With multiple roles, we need to extract the separator and peel out the
-            # roles. Note we insure that all of the roles have text; this is to
-            # correct a common error in function definitions.
+            # roles. Note we insure that all of the roles have text; this corrects
+            # a common error in function definitions.
             $sep = substr($roleParts[1], -1);
             for (my $i = 0; $i < scalar(@roleParts); $i += 2) {
                 my $rolePart = $roleParts[$i];
@@ -242,17 +242,8 @@ sub Parse {
             }
         }
     }
-    # If we are not malformed, we must separate out the roles.
-    if (! $malformed) {
-        # Here we have to compute a checksum from the roles and the separator.
-        my @normalRoles = map { Shrub::Roles::Normalize($_) } @roles;
-        # Now create the role hash.
-        for (my $i = 0; $i < scalar(@roles); $i++) {
-            $roles{$roles[$i]} = Shrub::Checksum($normalRoles[$i]);
-        }
-    }
     # Return the parsed function data.
-    return ($statement, $sep, \%roles, $comment);
+    return ($statement, $sep, \@roles, $comment);
 }
 
 
@@ -261,7 +252,7 @@ sub Parse {
 
 =head3 Process
 
-    my $funcID = $funcMgr->Process($statement, $sep, $roleH);
+    my $funcID = $funcMgr->Process($statement, $sep, $roles);
 
 Store a function in the database and return its ID. If the function
 already exists, there will be no update, the ID will simply be returned.
@@ -280,7 +271,7 @@ Separator character for the roles (or a space, if there is only one role).
 
 =item roleH
 
-Reference to a hash mapping each role's text to its checksum.
+Reference to a list of the constituent roles.
 
 =item RETURN
 
@@ -292,7 +283,7 @@ Returns the ID of the function.
 
 sub Process {
     # Get the parameters.
-    my ($self, $statement, $sep, $roleH) = @_;
+    my ($self, $statement, $sep, $roles) = @_;
     # Get the loader object.
     my $loader = $self->{loader};
     # Get the statistics object.
@@ -301,7 +292,7 @@ sub Process {
     # in here.
     my $retVal;
     # do we have any roles?
-    if (! keys %$roleH) {
+    if (! @$roles) {
         # We have two cases-- a pure hypothetical, which is given a hyphenated key, and a malformed function, which
         # is converted to a checksum. These are guaranteed unique, because magic names never contain hyphens.
         if ($statement =~ /^hypothetical\s+(\w+)$/) {
@@ -318,11 +309,9 @@ sub Process {
         my $roleMgr = $self->{roles};
         # Compute the role IDs.
         my @roleIDs;
-        for my $role (keys %$roleH) {
-            # Get this role's checksum.
-            my $roleCheck = $roleH->{$role};
+        for my $role (@$roles) {
             # Get the role's ID.
-            my ($roleID) = $roleMgr->Process($role, $roleCheck);
+            my ($roleID) = $roleMgr->Process($role);
             push @roleIDs, $roleID;
         }
         # Sort the roles to compute the function ID.
@@ -371,9 +360,9 @@ sub Analyze {
     # Get the parameters.
     my ($self, $function) = @_;
     # Parse the function.
-    my ($statement, $sep, $roleH, $comment) = Parse($function);
+    my ($statement, $sep, $roles, $comment) = Parse($function);
     # Insert it into the database and get the ID.
-    my $retVal = $self->Process($statement, $sep, $roleH);
+    my $retVal = $self->Process($statement, $sep, $roles);
     # Return the ID and comment.
     return ($retVal, $comment);
 }
