@@ -1178,12 +1178,12 @@ sub GetEntityValues {
     # Get the parameters.
     my ($self, $entityType, $ID, $fields) = @_;
     # Get the specified entity.
-    my $entity = $self->GetEntity($entityType, $ID);
+    my ($entity) = $self->GetAll($entityType, "$entityType(id) = ?", [$ID], $fields);
     # Declare the return list.
     my @retVal = ();
     # If we found the entity, push the values into the return list.
     if ($entity) {
-        push @retVal, $entity->Values($fields);
+        push @retVal, @$entity;
     }
     # Return the result.
     return @retVal;
@@ -4027,7 +4027,7 @@ sub UpdateField {
     # filter was specified.
     my $realFilter = "$fieldName = ?";
     if ($filter) {
-        $realFilter .= " AND $filter";
+        $realFilter .= " AND ($filter)";
     }
     # Format the query filter.
     my $sqlHelper = ERDB::Helpers::SQLBuilder->new($self, $objectName);
@@ -4037,7 +4037,7 @@ sub UpdateField {
     $suffix =~ s/^FROM.+WHERE\s+//;
     my $fieldList = $sqlHelper->ComputeFieldList($fieldName);
     # Create the update statement.
-    my $command = "UPDATE $fieldList SET $fieldList = ? WHERE $suffix";
+    my $command = "UPDATE $objectName SET $fieldList = ? WHERE $suffix";
     # Get the database handle.
     my $dbh = $self->{_dbh};
     # Add the old and new values to the parameter list. Note we allow the

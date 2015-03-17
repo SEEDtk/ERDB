@@ -220,11 +220,12 @@
                 more.
             </Asides>
         </Entity>
-        <Entity name="Function" keyType="counter" autocounter="1">
+        <Entity name="Function" keyType="string">
             <DisplayInfo theme="blue" row="9" col="3" />
             <Notes>A function is a set of roles that represent the effects of a
                 protein. Most functions consist of a single role, but many can have two or three
-                roles. The key is a UUID.
+                roles. The key is the set of role IDs joined by the separator. Thus, a function
+                ID is directly computable from its role IDs.
             </Notes>
             <Fields>
                 <Field name="description" type="text">
@@ -236,22 +237,10 @@
                     multiple roles by different domains, [b]@[/b] for multiple
                     roles by the same domain, or [b];[/b] when the function performs
                     one of several roles but the precise one cannot be determined.
-                    For a single-function role, [b]@[/b] is used.</Notes>
-                </Field>
-                <Field name="checksum" type="hash-string">
-                    <Notes>Checksum for this function, formed by normalizing the roles,
-                    sorting them lexically, joining them with tab characters and prefixing
-                    the characters, then computing an MD5.</Notes>
+                    For a single-function role, a space is used. For a malformed
+                    or hypothetical function (which has no roles) a hyphen is used.</Notes>
                 </Field>
             </Fields>
-            <Indexes>
-                <Index unique="1">
-                    <Notes>This index allows searching for functions by the checksum string.</Notes>
-                    <IndexFields>
-                        <IndexField name="checksum" order="ascending" />
-                    </IndexFields>
-                </Index>
-            </Indexes>
         </Entity>
         <Entity name="Role" keyType="short-string">
             <DisplayInfo theme="blue" row="9" col="5" />
@@ -264,11 +253,6 @@
             <Fields>
                 <Field name="description" type="long-string">
                     <Notes>textual description of the role</Notes>
-                </Field>
-                <Field name="proposed-description" type="long-string">
-                    <Notes>proposed new textual description of the role</Notes>
-                    <Asides>This description is one recommended by an unprivileged
-                    user but not yet confirmed by a privileged user.</Asides>
                 </Field>
                 <Field name="ec-number" type="string">
                     <Notes>EC number of this role (if any)</Notes>

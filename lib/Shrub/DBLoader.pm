@@ -63,6 +63,10 @@ we need to add the string to the database.
 
 Reference to a hash containing the names of the tables being inserted in replace mode.
 
+=item closeQueue
+
+Reference to a list of objects that should be closed before this object is closed.
+
 =back
 
 =head2 Special Methods
@@ -95,6 +99,7 @@ sub new {
     $retVal->{tables} = {};
     $retVal->{replaces} = {};
     $retVal->{tableList} = [];
+    $retVal->{closeQueue} = [];
     # Return the completed object.
     return $retVal;
 }
@@ -305,7 +310,6 @@ sub Open {
     for my $table (@tables) {
         # Only proceed if this table is not already set up.
         if (exists $tableH->{$table}) {
-            warn "$table is being opened for loading more than once.\n";
             $stats->Add(duplicateOpen => 1);
         } else {
             # The file handles will be put in here.
@@ -392,9 +396,7 @@ Name of the object (entity or relationship) being inserted.
 
 =item fields
 
-Hash mapping field names to values. Multi-value fields are passed as list references. All fields should already
-be encoded for insertion.
-
+Hash mapping field names to values. Multi-value fields are passed as list references.
 
 =back
 
@@ -413,7 +415,7 @@ sub InsertObject {
         my $shrub = $self->{shrub};
         # Compute the duplicate-record mode.
         my $dup = ($self->{replaces}{$table} ? 'replace' : 'ignore');
-        $shrub->InsertObject($table, \%fields, encoded => 1, dup => $dup);
+        $shrub->InsertObject($table, \%fields, dup => $dup);
         $stats->Add("$table-insert" => 1);
     } else {
         # Yes, we need to output to the load files. Loop through the relation tables in the load thing.
@@ -444,7 +446,7 @@ sub InsertObject {
                         confess "Missing value for $name in $tName.";
                     } else {
                         # Store this value.
-                        push @values, $value;
+                        push @values, ERDB::encode($field->{type}, $value);
                     }
                 }
                 # Write the primary record.
@@ -457,8 +459,9 @@ sub InsertObject {
                 if (! defined $id) {
                     die "ID missing in output attempt of $table.";
                 }
-                # Get the secondary value.
+                # Get the secondary value and its type.
                 my $values = $fields{$map->[1]{name}};
+                my $type = $fields{$map->[1]{type}};
                 # Insure it is a list.
                 if (! defined $values) {
                     $values = [];
@@ -467,12 +470,39 @@ sub InsertObject {
                 }
                 # Loop through the values, writing them out.
                 for my $value (@$values) {
-                    print $handle "$id\t$value\n";
+                    my $encoded = ERDB::encode($type, $value);
+                    print $handle "$id\t$encoded\n";
                     $stats->Add("$table-value" => 1);
                 }
             }
         }
     }
+}
+
+
+=head3 QueueSubObject
+
+    $loader->QueueSubObject($subObj);
+
+Add an object to the queue of objects to be closed during cleanup. This allows other objects to
+do any preliminary cleanup. Such objects must allow for the possibility of being closed
+multiple times. After the first time, the close should have no effect.
+
+=over 4
+
+=item subObj
+
+Object to add to the queue.
+
+=back
+
+=cut
+
+sub QueueSubObject {
+    # Get the parameters.
+    my ($self, $subObj) = @_;
+    my $queue = $self->{closeQueue};
+    push @$queue, $subObj;
 }
 
 =head3 Close
@@ -497,6 +527,10 @@ sub Close {
     # Get the load hash and the list of tables.
     my $loadThings = $self->{tables};
     my $loadList = $self->{tableList};
+    # Close any sub-objects that need close processing.
+    for my $subObject (@{$self->{closeQueue}}) {
+        $subObject->Close();
+    }
     # Loop through the objects being loaded.
     for my $table (@$loadList) {
         my $loadThing = $loadThings->{$table};
