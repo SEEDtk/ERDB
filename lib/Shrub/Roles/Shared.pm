@@ -20,7 +20,7 @@ package Shrub::Roles::Shared;
 
     use strict;
     use warnings;
-    use ERDB::ID::Magic;
+    use ERDBtk::ID::Magic;
     use base qw(Shrub::Roles);
 
 =head1 Shrub Role Manager for Shared Database Access
@@ -63,7 +63,7 @@ sub init {
     # Get the parameters.
     my ($self, $loader, %options) = @_;
     # Create the inserter. Note again that we handle the check field here.
-    $self->{inserter} = ERDB::ID::Magic->new(Role => $loader, $loader->stats,
+    $self->{inserter} = ERDBtk::ID::Magic->new(Role => $loader, $loader->stats,
             nameField => 'description');
     # Bless this object.
     bless $self, __PACKAGE__;

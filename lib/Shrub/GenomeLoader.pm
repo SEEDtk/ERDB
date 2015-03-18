@@ -377,7 +377,7 @@ sub CurateNewGenomes {
     $loader->LoadGenome($genome, $genomeDir, $metaHash);
 
 Load a genome into the database.Any previous copy of the genome must already have been deleted.
-(This is done automatically by L</CurateNewGenomes>; otherwise, use the method L<ERDB/Dalete>).)
+(This is done automatically by L</CurateNewGenomes>; otherwise, use the method L<ERDBtk/Dalete>).)
 
 =over 4
 

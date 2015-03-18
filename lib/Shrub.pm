@@ -23,7 +23,7 @@ package Shrub;
     use strict;
     use FIG_Config;
     use Tracer;
-    use base qw(ERDB);
+    use base qw(ERDBtk);
     use Stats;
     use DBKernel;
     use SeedUtils;
@@ -37,7 +37,7 @@ package Shrub;
 
 The Shrub database is a new Entity-Relationship Database that implements
 the repository for the SEEDtk system. This object has minimal
-capabilities: most of its power comes the L<ERDB> base class.
+capabilities: most of its power comes the L<ERDBtk> base class.
 
 The fields in this object are as follows.
 
@@ -143,8 +143,8 @@ sub new {
     if (! $options{offline}) {
          $dbh = DBKernel->new($dbms, $dbName, $user, $pass, $port, $dbhost, $sock);
     }
-    # Create the ERDB object.
-    my $retVal = ERDB::new($class, $dbh, $dbd, %options);
+    # Create the ERDBtk object.
+    my $retVal = ERDBtk::new($class, $dbh, $dbd, %options);
     # Attach the repository pointer.
     $retVal->{dnaRepo} = $dnaRepo;
     # Return it.

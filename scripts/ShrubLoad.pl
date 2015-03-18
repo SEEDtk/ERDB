@@ -21,7 +21,7 @@ use warnings;
 use FIG_Config;
 use Shrub;
 use Shrub::DBLoader;
-use ERDB::Utils;
+use ERDBtk::Utils;
 use Shrub::GenomeLoader;
 use Shrub::SubsystemLoader;
 use Shrub::Functions;
@@ -38,7 +38,7 @@ its purpose is to allow initializing a complete database from a single script.
 
 =head2 Parameters
 
-The command-line options are those found in L<Shrub/script_options> and L<ERDB::Utils::init_options> plus
+The command-line options are those found in L<Shrub/script_options> and L<ERDBtk::Utils::init_options> plus
 the following.
 
 =over 4
@@ -86,7 +86,7 @@ greater care during operations. This is the default for remote databases.
 my $startTime = time;
 $| = 1; # Prevent buffering on STDOUT.
 # Get the command parameters.
-my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDB::Utils::init_options(),
+my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDBtk::Utils::init_options(),
         ['slow', "load using individual inserts instead of spooling to load files"],
         ['missing|m', "only load missing genomes and subsystems"],
         ['repo|r=s', "location of the input repository", { default => "$FIG_Config::data/Inputs" }],
@@ -143,8 +143,8 @@ my $shrub = Shrub->new_for_script($opt, externalDBD => $opt->store);
 my $loader = Shrub::DBLoader->new($shrub);
 # Get the statistics object.
 my $stats = $loader->stats;
-# Create the ERDB utility object.'
-my $utils = ERDB::Utils->new($shrub);
+# Create the ERDBtk utility object.'
+my $utils = ERDBtk::Utils->new($shrub);
 # Process the initialization options and remember if we cleared
 # the database.
 my $cleared = $utils->Init($opt);

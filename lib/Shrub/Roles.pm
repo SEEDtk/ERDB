@@ -20,7 +20,7 @@ package Shrub::Roles;
 
     use strict;
     use warnings;
-    use ERDB::ID::Magic;
+    use ERDBtk::ID::Magic;
     use Tracer;
 
 =head1 Shrub Role Manager
@@ -43,7 +43,7 @@ A L<Stats> object for tracking statistics in the current session.
 
 =item inserter
 
-An L<ERDB::ID::Magic> object for inserting roles.
+An L<ERDBtk::ID::Magic> object for inserting roles.
 
 =back
 
