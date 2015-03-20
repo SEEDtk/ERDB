@@ -153,7 +153,7 @@ $stats->Accumulate($utils->stats);
 # If we're clearing, we need to erase the DNA repository.
 if ($cleared) {
     print "Erasing DNA repository.\n";
-    File::Copy::Recursive::pathempty($FIG_Config::shrub_dna) ||
+    File::Copy::Recursive::pathempty($shrub->DNArepo) ||
         die "Error clearing DNA repository: $!";
 }
 # This hash will contain a list of genome IDs known to be in the database. The subsystem
