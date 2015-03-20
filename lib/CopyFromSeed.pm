@@ -188,6 +188,10 @@ replaced by the new information.
 The privilege level of the annotations-- 0 (public), 1 (projected), or
 2 (privileged).
 
+=item clear
+
+Erase the target repository before copying.
+
 =back
 
 =cut
