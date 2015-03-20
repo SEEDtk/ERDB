@@ -30,7 +30,7 @@ package HyperLink;
 
 This is a dinky object that can be used to encode and decode hyperlinks. The
 client can extract the text value, the URL value, or an HTML representation. It
-also contains L</Encode> and L</Decode> methods for use by L<ERDB>.
+also contains L</Encode> and L</Decode> methods for use by L<ERDBtk>.
 
 The hyperlink is stored in the database with the text first, to make
 indexing more natural. The text is followed by a space, then the URL,
@@ -136,7 +136,7 @@ Convert a string from the database to a Hyperlink object.
 
 =item string
 
-String read from an L<ERDB> database.
+String read from an L<ERDBtk> database.
 
 =item RETURN
 

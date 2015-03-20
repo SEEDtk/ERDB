@@ -127,7 +127,7 @@ sub db {
 
     my $id = $loader->CheckByName($entity, $field => $name, $entityHash);
 
-Check to determine if a particular entity instance is in the database. This is similar to L<ERDB/Exists> except
+Check to determine if a particular entity instance is in the database. This is similar to L<ERDBtk/Exists> except
 the check is performed based on a unique name field instead of the ID field and the caller can
 optionally specify a reference to a hash that maps names to IDs. If this is the case, the hash
 will be used instead of the database. The return value is the named instance's ID.
@@ -446,7 +446,7 @@ sub InsertObject {
                         confess "Missing value for $name in $tName.";
                     } else {
                         # Store this value.
-                        push @values, ERDB::encode($field->{type}, $value);
+                        push @values, ERDBtk::encode($field->{type}, $value);
                     }
                 }
                 # Write the primary record.
@@ -470,7 +470,7 @@ sub InsertObject {
                 }
                 # Loop through the values, writing them out.
                 for my $value (@$values) {
-                    my $encoded = ERDB::encode($type, $value);
+                    my $encoded = ERDBtk::encode($type, $value);
                     print $handle "$id\t$encoded\n";
                     $stats->Add("$table-value" => 1);
                 }

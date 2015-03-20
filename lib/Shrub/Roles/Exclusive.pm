@@ -20,8 +20,8 @@ package Shrub::Roles::Exclusive;
 
     use strict;
     use warnings;
-    use ERDB::ID::Magic::Exclusive;
-    use ERDB::ID::Magic;
+    use ERDBtk::ID::Magic::Exclusive;
+    use ERDBtk::ID::Magic;
     use base qw(Shrub::Roles);
 
 =head1 Shrub Role Manager
@@ -47,7 +47,7 @@ Reference to a hash that maps each role ID to a 2-tuple containing (0) its curre
 =item updates
 
 Reference to a hash containing all the roles that need to be updated or inserted during the L</Close>
-operation. The hash maps each role ID to a field hash suitable for L<ERDB/Insert>.
+operation. The hash maps each role ID to a field hash suitable for L<ERDBtk/Insert>.
 
 =item checkHash
 
@@ -98,14 +98,14 @@ sub init {
         # Save the EC and TC numbers for this role.
         $roleNums{$roleID} = [$ecNum, $tcNum];
         # Compute the next available suffix.
-        ERDB::ID::Magic::Exclusive::UpdatePrefixHash(\%prefixHash, $roleID);
+        ERDBtk::ID::Magic::Exclusive::UpdatePrefixHash(\%prefixHash, $roleID);
     }
     # Store the hashes we just computed.
     $self->{roleNums} = \%roleNums;
     $self->{checkHash} = \%checkHash;
     # Create the Magic Name ID inserter. Note that we don't provide the check field. We do the
     # checksum handling in this object.
-    $self->{inserter} = ERDB::ID::Magic->new(Role => $loader, $loader->stats, exclusive => 1,
+    $self->{inserter} = ERDBtk::ID::Magic->new(Role => $loader, $loader->stats, exclusive => 1,
             nameField => 'description', hashes => [\%prefixHash]);
     # Create the update hash. It is initially empty.
     $self->{updates} = {};

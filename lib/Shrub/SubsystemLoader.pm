@@ -23,7 +23,7 @@ package Shrub::SubsystemLoader;
     use Shrub::Roles;
     use Shrub::DBLoader;
     use Digest::MD5;
-    use ERDB::ID::Magic;
+    use ERDBtk::ID::Magic;
 
 =head1 Shrub Subsystem Load Helper
 
@@ -42,7 +42,7 @@ A L<Shrub::Roles> object for computing role IDs.
 
 =item inserter
 
-An L<ERDB::ID> object for inserting subsystem records.
+An L<ERDBtk::ID> object for inserting subsystem records.
 
 =back
 
@@ -107,7 +107,7 @@ sub new {
         $loader->Open(LOAD_TABLES);
     }
     # Create the subsystem inserter.
-    my $inserter = ERDB::ID::Magic->new(Subsystem => $loader, $loader->stats, exclusive => $options{exclusive},
+    my $inserter = ERDBtk::ID::Magic->new(Subsystem => $loader, $loader->stats, exclusive => $options{exclusive},
             checkField => 'checksum', nameField => 'name');
     # Create the object.
     my $retVal = {
@@ -188,7 +188,7 @@ sub SelectSubsystems {
     my $actualID = $subLoader->LoadSubsystem($subID => $sub, $subDir, \%genomes);
 
 Load a subsystem into the database. The subsystem cannot already exist: if it did exist,
-all traces of it must have been erased by a L<ERDB/Delete> call.
+all traces of it must have been erased by a L<ERDBtk/Delete> call.
 
 =over 4
 

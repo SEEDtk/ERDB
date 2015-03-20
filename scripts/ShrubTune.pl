@@ -19,7 +19,7 @@
 use strict;
 use warnings;
 use Shrub;
-use ERDB::Utils;
+use ERDBtk::Utils;
 use ScriptUtils;
 use File::Copy::Recursive;
 use Shrub::Functions;
@@ -36,7 +36,7 @@ the database when the design changes.
 =head2 Parameters
 
 The command-line options are those found in L<Shrub/script_options> and
-L<ERDB::Utils/init_options> plus the following.
+L<ERDBtk::Utils/init_options> plus the following.
 
 =over 4
 
@@ -70,7 +70,7 @@ Mutually exclusive with C<clear>.
 my $startTime = time;
 $| = 1; # Prevent buffering on STDOUT.
 # Get the command parameters.
-my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDB::Utils::init_options(),
+my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDBtk::Utils::init_options(),
     ['fixup|f', "fix existing tables to match the DBD"],
     ['missing|m', "create missing tables"],
     ['relfix|r=s@', "verify relationship (all to verify all)"],
@@ -90,7 +90,7 @@ if ($opt->clear) {
 print "Connecting to the database.\n";
 my $shrub = Shrub->new_for_script($opt, externalDBD => 1);
 # Get the utility helper.
-my $utils = ERDB::Utils->new($shrub);
+my $utils = ERDBtk::Utils->new($shrub);
 # Get the statistics object.
 my $stats = $utils->stats;
 # Display the DBD.

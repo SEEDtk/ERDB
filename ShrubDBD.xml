@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:noNamespaceSchemaLocation="http://pubseed.theseed.org/FIG/Html/ERDB_DBD.xsd">
+    xsi:noNamespaceSchemaLocation="http://pubseed.theseed.org/FIG/Html/ERDBtk_DBD.xsd">
     <Title>SEED Bioinformatics Database</Title>
     <Notes>[p]The SEED database manages bio-informatics data imported from
         exchange files. It contains information that can be used to derive
