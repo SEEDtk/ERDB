@@ -27,7 +27,7 @@
     <Diagram height="800" width="800" ratio="0.7" size="90"
         fontSize="12" editable="0" />
     <Entities>
-        <Entity name="Genome" keyType="short-string">
+        <Entity name="Genome" keyType="short-string" default="id name">
             <DisplayInfo theme="red" col="3" row="3" />
             <Notes>A genome represents a specific organism with DNA, or a
                 specific meta-genome. All DNA sequences in the database belong to
@@ -91,7 +91,7 @@
                 </Index>
             </Indexes>
         </Entity>
-        <Entity name="Contig" keyType="string">
+        <Entity name="Contig" keyType="string" default="id length">
             <DisplayInfo theme="red" col="1" row="5" />
             <Notes>A contig is a contiguous sequence of base pairs belonging to
                 a single genome. The key of the contig is the genome ID followed
@@ -120,7 +120,7 @@
                 </Index>
             </Indexes>
         </Entity>
-        <Entity name="Feature" keyType="string">
+        <Entity name="Feature" keyType="string" default="id">
             <DisplayInfo theme="green" col="3" row="5" />
             <Notes>A feature (sometimes also called a gene) is a part of a
                 genome that is of special interest. Features may be spread across
@@ -154,7 +154,7 @@
                 </Index>
             </Indexes>
         </Entity>
-        <Entity name="Protein" keyType="short-string">
+        <Entity name="Protein" keyType="short-string" default="id">
             <DisplayInfo theme="green" col="1" row="7" />
             <Notes>A protein sequence is a specific sequence of amino acids.
                 Unlike a DNA sequence, a protein sequence does not belong to a
@@ -170,7 +170,7 @@
                 </Field>
             </Fields>
         </Entity>
-        <Entity name="TaxonomicGrouping" keyType="short-string">
+        <Entity name="TaxonomicGrouping" keyType="short-string" default="id scientific-name">
             <DisplayInfo row="1" col="3" caption="Taxonomic\nGrouping"
                 theme="red" />
             <Notes>A taxonomic grouping is a segment of the classification for
@@ -210,7 +210,7 @@
                 </Index>
             </Indexes>
         </Entity>
-        <Entity name="GenomeSet" keyType="string">
+        <Entity name="GenomeSet" keyType="string" default="id">
             <DisplayInfo theme="red" caption="Genome Set" row="3"
                 col="1" />
             <Notes>A genome set is a named group of related genomes.</Notes>
@@ -220,7 +220,7 @@
                 more.
             </Asides>
         </Entity>
-        <Entity name="Function" keyType="string">
+        <Entity name="Function" keyType="string" default="id description">
             <DisplayInfo theme="blue" row="9" col="3" />
             <Notes>A function is a set of roles that represent the effects of a
                 protein. Most functions consist of a single role, but many can have two or three
@@ -242,7 +242,7 @@
                 </Field>
             </Fields>
         </Entity>
-        <Entity name="Role" keyType="short-string">
+        <Entity name="Role" keyType="short-string" default="id description ec-number">
             <DisplayInfo theme="blue" row="9" col="5" />
             <Notes>A role represents a single effect of a protein in a cell. The
                 fundamental	purpose of annotation is to assign roles to proteins.
@@ -300,7 +300,7 @@
                 </Index>
             </Indexes>
         </Entity>
-        <Entity name="Subsystem" keyType="short-string">
+        <Entity name="Subsystem" keyType="short-string" default="id name">
             <DisplayInfo theme="blue" col="7" row="5" />
             <Notes>A subsystem is a collection of roles that work together in a
                 cell. Identification of subsystems is an important tool for
@@ -347,7 +347,7 @@
                 </Index>
                 </Indexes>
         </Entity>
-        <Entity name="SubsystemRow" keyType="string">
+        <Entity name="SubsystemRow" keyType="string" default="id variant-code">
             <DisplayInfo theme="blue" col="5" row="3" caption="Subsystem\nRow" />
             <Notes>A subsystem row represents an implementation of a subsystem in a genome.
                 A genome could conceivably have more than one such implementation
@@ -379,14 +379,14 @@
                 </Field>
             </Fields>
         </Entity>
-        <Entity name="SubsystemCell" keyType="string">
+        <Entity name="SubsystemCell" keyType="string" default="id">
             <DisplayInfo theme="blue" col="5" row="5" caption="Subsystem\nCell" />
             <Notes>A subsystem cell represents a single role in a subsystem row.
                 It contains one or more features from the row's genome. The key is
                 the row ID followed by a colon and the role abbreviation.
             </Notes>
         </Entity>
-        <Entity name="Reaction" keyType="string">
+        <Entity name="Reaction" keyType="string" default="id">
             <DisplayInfo theme="navy" col="7" row="9" />
             <Notes>A reaction is a chemical process that converts one set of
             compounds (substrate) to another set (products). The reaction ID is
@@ -394,7 +394,7 @@
             is entered as two separate reactions so that each direction can be
             associated with the appropriate roles.</Notes>
         </Entity>
-        <Entity name="Compound" keyType="string">
+        <Entity name="Compound" keyType="string" default="id label">
             <DisplayInfo theme="navy" col="7" row="7"/>
             <Notes>A compound is a chemical that participates in a reaction. All compounds
                 have a unique ID and may also have one or more names. Both ligands and
