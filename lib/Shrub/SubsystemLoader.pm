@@ -174,7 +174,7 @@ sub SelectSubsystems {
         print scalar(@$retVal) . " subsystems read from $subsystemSpec.\n";
     } else {
         # Here we are processing all the subsystems in the subsystem directory.
-        $retVal = [ map { Shrub::NormalizedName($_) }
+        $retVal = [ map { $loader->NormalizedName($_) }
                 grep { -d "$subsysDirectory/$_" } $loader->OpenDir($subsysDirectory, 1) ];
         print scalar(@$retVal) . " subsystems found in repository at $subsysDirectory.\n";
     }
