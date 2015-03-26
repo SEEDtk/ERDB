@@ -233,7 +233,7 @@ Return the SQL data type for this field type.
 
 =item dbh
 
-Open L<DBKernel> handle for the database in question. This is used when the
+Open L<DBtk> handle for the database in question. This is used when the
 datatype may be different depending on the DBMS used.
 
 =item RETURN

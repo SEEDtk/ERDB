@@ -1,7 +1,6 @@
 package ERDBtk::Object;
 
     use strict;
-    use DBKernel;
     use Tracer;
 
 =head1 Entity-Relationship Database Package Instance Object

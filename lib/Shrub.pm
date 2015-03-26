@@ -25,7 +25,7 @@ package Shrub;
     use Tracer;
     use base qw(ERDBtk);
     use Stats;
-    use DBKernel;
+    use DBtk;
     use SeedUtils;
     use Digest::MD5;
     use Shrub::Roles;
@@ -141,7 +141,7 @@ sub new {
     # Connect to the database, if desired.
     my $dbh;
     if (! $options{offline}) {
-         $dbh = DBKernel->new($dbms, $dbName, $user, $pass, $port, $dbhost, $sock);
+         $dbh = DBtk->new($dbms, $dbName, $user, $pass, $port, $dbhost, $sock);
     }
     # Create the ERDBtk object.
     my $retVal = ERDBtk::new($class, $dbh, $dbd, %options);
