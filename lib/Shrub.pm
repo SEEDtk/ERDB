@@ -25,7 +25,7 @@ package Shrub;
     use Tracer;
     use base qw(ERDBtk);
     use Stats;
-    use DBKernel;
+    use DBtk;
     use SeedUtils;
     use Digest::MD5;
     use Shrub::Roles;
@@ -141,7 +141,7 @@ sub new {
     # Connect to the database, if desired.
     my $dbh;
     if (! $options{offline}) {
-         $dbh = DBKernel->new($dbms, $dbName, $user, $pass, $port, $dbhost, $sock);
+         $dbh = DBtk->new($dbms, $dbName, $user, $pass, $port, $dbhost, $sock);
     }
     # Create the ERDBtk object.
     my $retVal = ERDBtk::new($class, $dbh, $dbd, %options);
@@ -508,49 +508,6 @@ sub FormatRole {
     return ($_[2] . ($_[0] ? " (EC $_[0])" : '') . ($_[1] ? " (TC $_[1])" : ''));
 }
 
-
-=head3 NormalizedName
-
-    my $subName2 = $shrub->NormalizedName($subName);
-
-or
-
-    my $subName2 = Shrub::NormalizedName($subName);
-
-Return the normalized name of the subsystem with the specified name. A subsystem
-name with underscores for spaces will return the same normalized name as a subsystem
-name with the spaces still in it.
-
-=over 4
-
-=item subName
-
-Name of the relevant subsystem.
-
-=item RETURN
-
-Returns a normalized subsystem name.
-
-=back
-
-=cut
-
-sub NormalizedName {
-    # Convert from the instance form of the call to a direct call.
-    shift if UNIVERSAL::isa($_[0], __PACKAGE__);
-    # Get the parameters.
-    my ($subName) = @_;
-    # Normalize the subsystem name by converting underscores to spaces.
-    # Underscores at the beginning and end are not converted.
-    my $retVal = $subName;
-    my $trailer = chop $retVal;
-    my $prefix = substr($retVal,0,1);
-    $retVal = substr($retVal, 1);
-    $retVal =~ tr/_/ /;
-    $retVal = $prefix . $retVal . $trailer;
-    # Return the result.
-    return $retVal;
-}
 
 =head2 Public Constants
 

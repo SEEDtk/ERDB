@@ -21,6 +21,8 @@ package RepoLoader;
     use strict;
     use warnings;
     use base qw(Loader);
+    use File::Copy::Recursive;
+    use Archive::Tar;
 
 =head1 Repository Loader Utilities
 
@@ -176,8 +178,7 @@ sub FindSubsystem {
     # Get the parameters.
     my ($subsysDirectory, $subName) = @_;
     # Convert the subsystem name to a directory format.
-    my $fixedName = $subName;
-    $fixedName =~ tr/ /_/;
+    my $fixedName = DenormalizedName($subName);
     # Form the full directory name.
     my $retVal = "$subsysDirectory/$fixedName";
     # Verify that it exists.
@@ -185,6 +186,90 @@ sub FindSubsystem {
         die "Subsystem $subName not found in $subsysDirectory.";
     }
     # Return the directory name.
+    return $retVal;
+}
+
+
+=head3 NormalizedName
+
+    my $subName2 = $loader->NormalizedName($subName);
+
+or
+
+    my $subName2 = RepoLoader::NormalizedName($subName);
+
+Return the normalized name of the subsystem with the specified name. A subsystem
+name with underscores for spaces will return the same normalized name as a subsystem
+name with the spaces still in it.
+
+=over 4
+
+=item subName
+
+Name of the relevant subsystem.
+
+=item RETURN
+
+Returns a normalized subsystem name.
+
+=back
+
+=cut
+
+sub NormalizedName {
+    # Convert from the instance form of the call to a direct call.
+    shift if UNIVERSAL::isa($_[0], __PACKAGE__);
+    # Get the parameters.
+    my ($subName) = @_;
+    # Normalize the subsystem name by converting underscores to spaces.
+    # Underscores at the beginning and end are not converted.
+    my $retVal = $subName;
+    my $trailer = chop $retVal;
+    my $prefix = substr($retVal,0,1);
+    $retVal = substr($retVal, 1);
+    $retVal =~ tr/_;!/ :?/;
+    $retVal = $prefix . $retVal . $trailer;
+    # Return the result.
+    return $retVal;
+}
+
+
+=head3 DenormalizedName
+
+    my $dirName = $loader->DenormalizeName($subName);
+
+or
+
+    my $dirName = RepoLoader::DenormalizedName($subName);
+
+Convert a subsystem name to the name of the corresponding directory. This involves translating characters that
+are illegal in directory names to alternate forms.  Note that to make this process
+reversible, underscores (C<_>), semicolons (C<;>), and exclamation points (C<!>) should be avoided in subsystem
+names, though the underscore may be used at the beginning or end.
+
+=over 4
+
+=item subName
+
+Relevant subsystem name.
+
+=item RETURN
+
+Returns a version of the subsystem name suitable for use as a directory name.
+
+=back
+
+=cut
+
+sub DenormalizedName {
+    # Convert from the instance form of the call to a direct call.
+    shift if UNIVERSAL::isa($_[0], __PACKAGE__);
+    # Get the parameters.
+    my ($subName) = @_;
+    # Translate the characters.
+    my $retVal = $subName;
+    $retVal =~ tr/ :?/_;!/;
+    # Return the result.
     return $retVal;
 }
 
@@ -265,12 +350,68 @@ sub RepoPath {
         $species = "sp";
     }
     # Remove dangerous characters.
-    $genus =~ s/\[\]:\(\)//g;
-    $species =~ s/\[\]:\(\)//g;
+    $genus =~ s/\[\]:\(\)\?//g;
+    $species =~ s/\[\]:\(\)\?//g;
     # Compute the desired path.
     my $retVal = "$genus/$species";
     # Return the result.
     return $retVal;
+}
+
+
+=head3 ExtractRepo
+
+    $loader->ExtractRepo($sourceFile, $targetDir);
+
+Extract a repository from a source archive file into a target directory. The target directory
+will be erased first. Use of this method requires the L<Archive::Tar> module.
+
+=over 4
+
+=item sourceFile
+
+C<tar.gz> file containing an archive of the input repository.
+
+=item targetDir
+
+Directory into which the new input repository should be placed.
+
+=back
+
+=cut
+
+sub ExtractRepo {
+    # Get the parameters.
+    my ($self, $sourceFile, $targetDir) = @_;
+    # Get the statistics object.
+    my $stats = $self->stats;
+    # Clear the target directory.
+    print "Erasing $targetDir.\n";
+    File::Copy::Recursive::pathempty($targetDir);
+    # Create an iterator through the archive.
+    my $next = Archive::Tar->iter($sourceFile, COMPRESS_GZIP);
+    while (my $file = $next->()) {
+        if (! $file->is_file) {
+            $stats->Add(archiveNonFile => 1);
+        } else {
+            # Here we have a file in the archive. Check its name.
+            $stats->Add(archiveFile => 1);
+            if ($file->name =~ /((?:Genome|SubSystem)Data.+)/) {
+                # Compute the new file name.
+                my $newName = "$targetDir/$1";
+                # Insure it works in Windows.
+                $newName = DenormalizedName($newName);
+                # Extract the file.
+                my $ok = $file->extract($newName);
+                $stats->Add(archiveFileExtracted => 1);
+                if (! $ok) {
+                    die "Error extracting into $newName.";
+                }
+            } else {
+                $stats->Add(archiveFileSkipped => 1);
+            }
+        }
+    }
 }
 
 

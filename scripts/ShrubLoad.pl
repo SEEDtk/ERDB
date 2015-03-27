@@ -75,8 +75,14 @@ significant optimization. This is the default for localhost databases.
 
 =item shared
 
-If speified, it will be presumed we have only shared access to the database, requiring
+If specified, it will be presumed we have only shared access to the database, requiring
 greater care during operations. This is the default for remote databases.
+
+=item tar
+
+If specified, it will be presumed the input repository is stored in the specified C<tar.gz>
+file.  Currently, packaged repository files have a root directory named C<Inputs>. This must
+match the leaf directory name of the specified repository or nothing will work right.
 
 =back
 
@@ -92,6 +98,7 @@ my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDBtk::Utils::init_opt
         ['repo|r=s', "location of the input repository", { default => "$FIG_Config::data/Inputs" }],
         ['genomes=s', "file listing IDs of genomes to load, \"all\", or \"none\"", { default => 'all' }],
         ['subsystems|subs=s', "file listing IDs of subsystems to load, \"all\", or \"none\"", { default => 'all' }],
+        ['tar=s', "file containing compressed copy of the input repository"],
         [xmode => [["exclusive|X", "exclusive database access"], ["shared|S", "shared database access"]]],
         );
 # Find out what we are loading.
@@ -99,21 +106,16 @@ my $genomeSpec = $opt->genomes;
 my $subsSpec = $opt->subsystems;
 my $genomesLoading = ($genomeSpec ne 'none');
 my $subsLoading = ($subsSpec ne 'none');
-# Compute the genome and subsystem repository locations.
-my $repo = $opt->repo;
-my ($genomeDir, $subsDir) = map { "$repo/$_" } qw(GenomeData SubSystemData);
-if (! -d $repo) {
-    die "Could not find main repository directory $repo.";
-} elsif ($genomesLoading && ! -d $genomeDir) {
-    die "Could not find GenomeData in $repo.";
-} elsif ($subsLoading && ! -d $subsDir) {
-    die "Could not find SubSystemData in $repo.";
-}
 # Validate the load specifications.
 if ($genomesLoading && $genomeSpec ne 'all' && ! -f $genomeSpec) {
     die "Could not find genome list file $genomeSpec.";
 } elsif ($subsLoading && $subsSpec ne 'all' && ! -f $subsSpec) {
     die "Could not find subsystem list file $subsSpec.";
+}
+# Get the input repository.
+my $repo = $opt->repo;
+if (! -d $repo) {
+    die "Could not find main repository directory $repo.";
 }
 # We need to determine shared or exclusive mode. First, see if the user gave us
 # explicit instructions.
@@ -145,6 +147,17 @@ my $loader = Shrub::DBLoader->new($shrub);
 my $stats = $loader->stats;
 # Create the ERDBtk utility object.'
 my $utils = ERDBtk::Utils->new($shrub);
+# Create the repository if necessary.
+if ($opt->tar) {
+    $loader->ExtractRepo($opt->tar, $repo);
+}
+# Compute the genome and subsystem repository locations.
+my ($genomeDir, $subsDir) = map { "$repo/$_" } qw(GenomeData SubSystemData);
+if ($genomesLoading && ! -d $genomeDir) {
+    die "Could not find GenomeData in $repo.";
+} elsif ($subsLoading && ! -d $subsDir) {
+    die "Could not find SubSystemData in $repo.";
+}
 # Process the initialization options and remember if we cleared
 # the database.
 my $cleared = $utils->Init($opt);

@@ -180,7 +180,7 @@ sub GetTableNames {
     my $erdb = $self->{erdb};
     # Do we need to ask for the table names?
     if (! $self->{tables} || $options{refresh}) {
-        # Yes. Get the DBKernel object.
+        # Yes. Get the DBtk object.
         my $dbh = $erdb->{_dbh};
         # Ask for the table names. Note we use grep to eliminate system tables and we
         # convert the table name to lower case, because SQL is case-insensitive.
@@ -336,7 +336,7 @@ sub DropAll {
     my ($self, %options) = @_;
     # Get the database object.
     my $erdb = $self->{erdb};
-    # Get the DBKernel handle.
+    # Get the DBtk handle.
     my $dbh = $erdb->{_dbh};
     # Get the statistics object.
     my $stats = $self->stats;
@@ -439,7 +439,7 @@ sub FixupTable {
     my $erdb = $self->{erdb};
     # Get the statistics object.
     my $stats = $self->stats;
-    # Get the DBKernel handle.
+    # Get the DBtk handle.
     my $dbh = $erdb->{_dbh};
     # This will be set to FALSE if we can't fix the table.
     my $retVal = 1;

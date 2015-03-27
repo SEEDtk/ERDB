@@ -843,7 +843,7 @@ sub ComputeGenomes {
         # Check for a genome ID input file.
         if ($opt->genomes ne 'all') {
             # We have one, so read the genomes from it.
-            $retVal = $self->GetNamesFromList(genome => $opt->genomes);
+            $retVal = $self->GetNamesFromFile(genome => $opt->genomes);
             print scalar(@$retVal) . " genome IDs read from input file.\n";
         } else {
             # No genome input file, so read all the genomes in the genome

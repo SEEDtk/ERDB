@@ -847,7 +847,7 @@ Create a new ERDBtk object.
 
 =item dbh
 
-L<DBKernel> database object for the target database.
+L<DBtk> database object for the target database.
 
 =item metaFileName
 
@@ -3847,7 +3847,7 @@ sub CreateIndex {
     # Get the index descriptor.
     my $relationData = $self->FindRelation($relationName);
     my $indexData = $relationData->{Indexes}{$indexName};
-    # Get the DBKernel handle.
+    # Get the DBtk handle.
     my $dbh = $self->{_dbh};
     # Get the quote character.
     my $q = $self->q;
@@ -4574,7 +4574,7 @@ sub Delete {
     my $crossingTable = $self->{_metaData}{CrossingTable};
     # Encode the object ID.
     my $idParameter = $self->EncodeField("$entityName(id)", $objectID);
-    # Get the DBKernel object.
+    # Get the DBtk object.
     my $db = $self->{_dbh};
     # We're going to generate all the paths branching out from the starting
     # entity. One of the things we have to be careful about is preventing loops.
@@ -5668,7 +5668,7 @@ specified directory.
 
 =item dbh
 
-DBKernel object for accessing the database.
+DBtk object for accessing the database.
 
 =item directoryName
 

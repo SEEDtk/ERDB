@@ -61,6 +61,7 @@
             <xs:attribute name="autocounter" type="xs:integer"/>
             <xs:attribute name="keyType" use="required" type="dataType"/>
             <xs:attribute name="name" use="required" type="xs:string"/>
+            <xs:attribute name="default" use="required" type="xs:string" />
         </xs:complexType>
     </xs:element>
     <xs:element name="Indexes">

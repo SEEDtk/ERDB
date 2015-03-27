@@ -1,9 +1,7 @@
 package ERDBtk::Query;
 
     use strict;
-    use DBKernel;
     use ERDBtk::Object;
-    use DBI;
     use Tracer;
 
 =head1 Entity-Relationship Database Package Query Iterator
@@ -48,7 +46,7 @@ The L<ERDBtk> object for the relevant database.
 
 =item _sth
 
-The L<DBKernel> statement handle.
+The L<DBtk> statement handle.
 
 =item _helper
 
@@ -89,7 +87,7 @@ sub Fetch {
         # okay, because we'll be returning an undefined value in $retVal. If an
         # error occurred, we need to abort.
         if ($sth->err) {
-            # Get the error message from the DBKernel object.
+            # Get the error message from the DBtk object.
             my $dbh = $self->{_db}->{_dbh};
             my $msg = $dbh->ErrorMessage($sth);
             # Throw an error with it.

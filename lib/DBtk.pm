@@ -16,7 +16,7 @@
 # http://www.theseed.org/LICENSE.TXT.
 ########################################################################
 
-package DBKernel;
+package DBtk;
 
 use strict;
 use FIG_Config;
@@ -29,9 +29,7 @@ use Carp;
 =head1 Reduced-Instruction Database Kernel
 
 This is a reduced-function subset of the B<DBRtns> package that was created for
-reasons that made sense to Bruce before they changed his medication but which he
-cannot now remember. At some point it will be merged into DBRtns proper. For now,
-it functions as the DBRtns base class.
+the SEEDtk project.
 
 =cut
 
@@ -41,7 +39,7 @@ it functions as the DBRtns base class.
 
 =head3 new
 
-    my $dbh = DBKernel->new($dbms, $dbname, $dbuser, $dbpass, $dbport, $dbhost, $dbsock);
+    my $dbh = DBtk->new($dbms, $dbname, $dbuser, $dbpass, $dbport, $dbhost, $dbsock);
 
 Construct a database object. This process creates a standard PERL DBI handle and
 caches it for our use.
@@ -144,7 +142,7 @@ sub new {
 
 =head3 Connect
 
-    my $dbh = DBKernel::Connect($data_source, $dbuser, $dbpass, $dbms);
+    my $dbh = DBtk::Connect($data_source, $dbuser, $dbpass, $dbms);
 
 Connect to the database using the specified information. This method has
 been separated out from the constructor to make it possible to reconnect
@@ -250,7 +248,7 @@ sub test_mode {
 
 C<<$db->set_readonly_handle($readonly_db); >>
 
-Set up a DBKernel instance that should be use to make readonly (select) queries
+Set up a DBtk instance that should be use to make readonly (select) queries
 with. This is used in a mirroring setup where any queries that change the database
 are made on an external database, but readonly queries can be made on a local mirror
 for better performance.
@@ -317,7 +315,7 @@ SQL statement to execute.
 =item verbose
 
 C<1> if the command should be traced, else C<0>. This option is deprecated. You
-can cause SQL commands to be traced by setting the trace level for C<DBKernel>
+can cause SQL commands to be traced by setting the trace level for C<DBtk>
 to 3 (information).
 
 =item bind_values1, bind_values2, ... bind_valuesN
