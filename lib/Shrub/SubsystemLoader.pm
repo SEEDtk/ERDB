@@ -36,7 +36,7 @@ subsystem repository. It contains the following fields.
 
 A L<Shrub::DBLoader> object for manipulating the database and the repository.
 
-=item roleMrg
+=item roleMgr
 
 A L<Shrub::Roles> object for computing role IDs.
 
@@ -71,7 +71,7 @@ A hash containing zero or more of the following options.
 
 =over 8
 
-=item roleMrg
+=item roleMgr
 
 A L<Shrub::Roles> object for computing role IDs. If none is provided, an
 object will be created internally.
@@ -97,10 +97,10 @@ sub new {
     # Get the slow-load flag.
     my $slow = $options{slow} || 0;
     # Get the role-loader object.
-    my $roleMrg = $options{roleMrg};
+    my $roleMgr = $options{roleMgr};
     # If the role loader was not provided, create one.
-    if (! $roleMrg) {
-        $roleMrg = Shrub::Roles->new($loader, exclusive => $options{exclusive});
+    if (! $roleMgr) {
+        $roleMgr = Shrub::Roles->new($loader, exclusive => $options{exclusive});
     }
     # If we are NOT in slow mode, prepare the tables for loading.
     if (! $slow) {
@@ -112,7 +112,7 @@ sub new {
     # Create the object.
     my $retVal = {
         loader => $loader,
-        roleMrg => $roleMrg,
+        roleMgr => $roleMgr,
         inserter => $inserter
     };
     # Bless and return it.
@@ -231,7 +231,7 @@ sub LoadSubsystem {
     # use an empty hash.
     $genomeHash //= {};
     # Get the function loader.
-    my $roleMrg = $self->{roleMrg};
+    my $roleMgr = $self->{roleMgr};
     # Load the subsystem.
     print "Creating $sub.\n";
     # We need the metadata.
@@ -255,7 +255,7 @@ sub LoadSubsystem {
         # Get this role's data.
         my ($abbr, $role) = @$roleData;
         # Compute the role ID. If the role is new, this inserts it in the database.
-        my ($roleID) = $roleMrg->Process($role);
+        my ($roleID) = $roleMgr->Process($role);
         # Link the subsystem to the role.
         $loader->InsertObject('Subsystem2Role', 'from-link' => $retVal, 'to-link' => $roleID,
                 ordinal => $ord, abbr => $abbr);
