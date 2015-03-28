@@ -4,7 +4,7 @@ package ERDBtk;
     use base qw(Exporter);
     use vars qw(@EXPORT_OK);
     @EXPORT_OK = qw(encode);
-    use Tracer;
+    use StringUtils;
     use Data::Dumper;
     use XML::Simple;
     use ERDBtk::Query;
@@ -1629,7 +1629,7 @@ sub ComputeFieldTable {
     # We'll stash the rows in here.
     my @rows;
     # Loop through the fields in their proper order.
-    for my $field (Tracer::SortByValue(\%sorter)) {
+    for my $field (StringUtils::SortByValue(\%sorter)) {
         # Get the field's descriptor.
         my $fieldInfo = $fieldData->{$field};
         # Format the type.

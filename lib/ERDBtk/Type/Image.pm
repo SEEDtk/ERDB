@@ -21,7 +21,7 @@
 package ERDBtk::Type::Image;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use ERDBtk;
     use GD;
     use MIME::Base64;

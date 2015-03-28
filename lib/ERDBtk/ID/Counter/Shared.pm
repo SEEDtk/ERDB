@@ -21,7 +21,7 @@ package ERDBtk::ID::Counter::Shared;
     use strict;
     use warnings;
     use base qw(ERDBtk::ID::Counter);
-    use Tracer;
+    use StringUtils;
 
 
 =head1 ERDBtk Auto-Counter ID Helper for Shared Database Access

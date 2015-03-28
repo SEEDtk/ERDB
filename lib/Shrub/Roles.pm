@@ -21,7 +21,7 @@ package Shrub::Roles;
     use strict;
     use warnings;
     use ERDBtk::ID::Magic;
-    use Tracer;
+    use StringUtils;
 
 =head1 Shrub Role Manager
 

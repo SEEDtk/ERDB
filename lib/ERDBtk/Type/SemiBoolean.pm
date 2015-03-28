@@ -21,7 +21,7 @@
 package ERDBtk::Type::SemiBoolean;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use ERDBtk;
     use CGI qw(-nosticky);
     use base qw(ERDBtk::Type);

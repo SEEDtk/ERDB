@@ -21,7 +21,7 @@
 package ERDBtk::Type::Text;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use ERDBtk;
     use base qw(ERDBtk::Type);
 
@@ -110,7 +110,7 @@ sub validate {
     # Assume it's valid until we prove otherwise.
     my $retVal = "";
     # Escape the text.
-    my $text = Tracer::Escape($value);
+    my $text = StringUtils::Escape($value);
     # Verify the length.
     if (length $text > 16777216) {
         $retVal = "Text string too long.";

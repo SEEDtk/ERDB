@@ -20,7 +20,7 @@
 package ERDBtk::Type::CountVector;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use ERDBtk;
     use CGI;
     use base qw(ERDBtk::Type);

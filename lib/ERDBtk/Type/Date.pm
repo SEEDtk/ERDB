@@ -20,7 +20,7 @@
 package ERDBtk::Type::Date;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use ERDBtk;
     use Time::Local qw(timelocal_nocheck);
     use POSIX qw(strftime);

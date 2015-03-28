@@ -2,7 +2,7 @@ package ERDBtk::Query;
 
     use strict;
     use ERDBtk::Object;
-    use Tracer;
+    use StringUtils;
 
 =head1 Entity-Relationship Database Package Query Iterator
 

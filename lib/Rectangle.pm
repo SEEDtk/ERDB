@@ -20,7 +20,7 @@
 package Rectangle;
 
     use strict;
-    use Tracer;
+    use StringUtils;
 
 =head1 Rectangular Region Object
 

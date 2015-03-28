@@ -22,7 +22,7 @@ package Shrub;
 
     use strict;
     use FIG_Config;
-    use Tracer;
+    use StringUtils;
     use base qw(ERDBtk);
     use Stats;
     use DBtk;
