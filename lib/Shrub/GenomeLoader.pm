@@ -426,7 +426,7 @@ sub LoadGenome {
      # of bases, and the list of contigs. We also copy it to the output
      # repository.
      print "Analyzing contigs.\n";
-     my ($contigList, $genomeHash) = $self->AnalyzeContigFasta("$genomeDir/contigs", "$absPath/$genome.fa");
+     my ($contigList, $genomeHash) = $self->AnalyzeContigFasta($genome, "$genomeDir/contigs", "$absPath/$genome.fa");
      # Get the annotation privilege level for this genome.
      my $priv = $metaHash->{privilege};
      # Now we can create the genome record.
@@ -513,13 +513,17 @@ sub ReadProteins {
 
 =head3 AnalyzeContigFasta
 
-    my ($contigList, $genomeHash) = $genomeLoader->AnalyzeContigFasta($inFile, $fileName);
+    my ($contigList, $genomeHash) = $genomeLoader->AnalyzeContigFasta($genome, $inFile, $fileName);
 
 Read and analyze the contig FASTA for a genome. This method computes the length, GC count, ID, and
 MD5 for each contig in the FASTA file and returns the information in a list of hashes along with
 a hash of global data for the genome. It also copies the contig file to the DNA repository.
 
 =over 4
+
+=item genome
+
+ID of the relevant genome
 
 =item inFile
 
@@ -579,7 +583,7 @@ sequence.
 
 sub AnalyzeContigFasta {
     # Get the parameters.
-    my ($self, $inFile, $fileName) = @_;
+    my ($self, $genome, $inFile, $fileName) = @_;
     # Get the loader object.
     my $loader = $self->{loader};
     # Get the statistics object.
@@ -605,26 +609,31 @@ sub AnalyzeContigFasta {
         # Here we have an invalid header.
         die "Invalid header in contig FASTA $fileName";
     } else {
-        # Echo the line to the output.
-        print $oh $line;
+        # Compute the contig ID.
+        my $contigID = RealContigID($genome, $1);
+        # Write the real contig ID to the output.
+        print $oh ">$contigID\n";
         # Initialize the contig hash with the ID.
         my $contigHash = $self->_InitializeContig($1);
         $stats->Add(contigHeaders => 1);
         # Loop through the FASTA file.
         while (! eof $ih) {
-            # Read the next line and write it out.
+            # Read the next line.
             my $line = <$ih>;
-            print $oh $line;
             # Is this a contig header?
             if ($line =~ /^>(\S+)/) {
                 # Yes. Close the old contig and start a new one.
-                my $contigID = $1;
+                my $contigID = RealContigID($genome, $1);
                 $self->_CloseContig($contigHash);
                 push @contigList, $contigHash;
                 $contigHash = $self->_InitializeContig($contigID);
                 $stats->Add(contigHeaders => 1);
+                # Write the new contig ID.
+                print $oh ">$contigID\n";
             } else {
-                # No. Get the lengthand update the contig hash.
+                # No. Echo the output line.
+                print $oh $line;
+                # Get the length and update the contig hash.
                 chomp $line;
                 my $len = length $line;
                 $contigHash->{'length'} += $len;
@@ -750,6 +759,46 @@ sub ReadFeatures {
     }
     print "$fcount features processed.\n";
 }
+
+
+=head3 RealContigID
+
+    my $realContigID = GenomeLoader::RealContigID($genome, $contigID);
+
+Convert a contig ID into a real contig ID with a genome ID attached. If
+the genome ID is already attached, do not change anything.
+
+=over 4
+
+=item genome
+
+Genome ID for this contig.
+
+=item contigID
+
+Internal ID for this contig.
+
+=item RETURN
+
+Returns a contig ID with the genome ID prefixed.
+
+=back
+
+=cut
+
+sub RealContigID {
+    # Get the parameters.
+    my ($genome, $contigID) = @_;
+    # Start with the internal contig ID.
+    my $retVal = $contigID;
+    # If there is no genome ID in it, add one.
+    if ($retVal =~ /^[^:]+$/) {
+        $retVal = "$genome:$contigID";
+    }
+    # Return the result.
+    return $retVal;
+}
+
 
 
 =head2 Internal Utility Methods
