@@ -398,9 +398,7 @@ sub ExtractRepo {
             $stats->Add(archiveFile => 1);
             if ($file->name =~ /((?:Genome|SubSystem)Data.+)/) {
                 # Compute the new file name.
-                my $newName = "$targetDir/$1";
-                # Insure it works in Windows.
-                $newName = DenormalizedName($newName);
+                my $newName = join("/", $targetDir, DenormalizedName($1));
                 # Extract the file.
                 my $ok = $file->extract($newName);
                 $stats->Add(archiveFileExtracted => 1);
