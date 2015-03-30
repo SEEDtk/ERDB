@@ -586,16 +586,31 @@ sub CopyGenome {
             print "$genome has no contigs file.\n";
             $stats->Add('genome-no-contigs' => 1);
         } else {
-            # Now find out if this genome is prokaryotic. If we don't know
-            # for sure, then it isn't. Note we take steps to insure the flag
-            # value is not undefined.
+            # Now find out this genome's domain.
             my $taxonomy = ReadFlagFile("$genomeDir/TAXONOMY");
-            my $prokFlag = ($taxonomy && $taxonomy =~ /^Archaea|Bacteria/) || 0;
+            my $domain;
+            if ($taxonomy) {
+                ($domain) = split /\s*;\s*/, $taxonomy, 2;
+            } else {
+                $domain = 'unknown';
+            }
+            my $prokFlag = ($domain =~ /^(?:Archaea|Bacteria)/) || 0;
             if ($opt->proks && ! $prokFlag) {
                 # Here we are only loading proks and this isn't one, so we
                 # skip it.
                 $stats->Add('non-prokaryotic-skipped' => 1);
             } else {
+                # Compute the genetic code.
+                my $geneticCode = ReadFlagFile("$genomeDir/GENETIC_CODE");
+                if (! $geneticCode) {
+                    $stats->Add(geneticCodeDefaulted => 1);
+                    $geneticCode = 11;
+                    if ($domain eq 'Eukaryota') {
+                        $geneticCode = 1;
+                    } elsif ($genomeName =~ /^(?:Achole|Meso|Myco|Spiro|Urea)plasma/) {
+                        $geneticCode = 4;
+                    }
+                }
                 # Compute the output directory.
                 my $relPath = $self->RepoPath($genomeName);
                 # This will be set to TRUE if we are skipping this genome.
@@ -639,7 +654,7 @@ sub CopyGenome {
                     my $md5 = $self->ProcessContigFile($genomeDir, $outDir);
                     # Build the metahash.
                     my %metaHash = (md5 => $md5, name => $genomeName, privilege => $privilege,
-                            prokaryotic => $prokFlag);
+                            prokaryotic => $prokFlag, domain => $domain, code => $geneticCode);
                     # Look for a taxonomy ID.
                     my $taxID = ReadFlagFile("$genomeDir/TAXONOMY_ID");
                     if (defined $taxID) {

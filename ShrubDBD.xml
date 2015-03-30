@@ -67,6 +67,13 @@
                 <Field name="prokaryotic" type="boolean">
                     <Notes>TRUE if this is a prokaryotic genome, else FALSE.</Notes>
                 </Field>
+                <Field name="domain" type="string">
+                    <Notes>Domain for this genome-- Eukaryota, Archaea, Bacteria, etc.</Notes>
+                </Field>
+                <Field name="genetic-code" type="int">
+                    <Notes>Genetic code for translating this genome's coding features to
+                    proteins.</Notes>
+                </Field>
             </Fields>
             <Indexes>
                 <Index>

@@ -29,6 +29,7 @@ package Shrub;
     use SeedUtils;
     use Digest::MD5;
     use Shrub::Roles;
+    use gjoseqlib;
 
 
 =head1 Shrub Database Package
