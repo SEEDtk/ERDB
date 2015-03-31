@@ -20,7 +20,7 @@
 package ERDBtk::Type;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use CGI qw(-nosticky);
     use ERDBtk;
 

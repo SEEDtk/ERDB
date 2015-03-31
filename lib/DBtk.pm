@@ -21,7 +21,7 @@ package DBtk;
 use strict;
 use FIG_Config;
 use DBI;
-use Tracer;
+use StringUtils;
 use Data::Dumper;
 use FileHandle;
 use Carp;

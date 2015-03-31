@@ -174,17 +174,18 @@ if ($cleared) {
 my %genomes;
 # Create the function and role loaders.
 print "Analyzing functions and roles.\n";
-my $roleMrg = Shrub::Roles->new($loader, slow => $slowFlag, exclusive => $exclusive);
+my $roleMgr = Shrub::Roles->new($loader, slow => $slowFlag, exclusive => $exclusive);
 # We only need the function loader if we are loading genomes.
 my $funcMgr;
 if ($genomesLoading) {
-    $funcMgr = Shrub::Functions->new($loader, slow => $slowFlag, roles => $roleMrg,
+    $funcMgr = Shrub::Functions->new($loader, slow => $slowFlag, roles => $roleMgr,
             exclusive => $exclusive);
 }
 # Here we process the genomes.
 if ($genomesLoading) {
     print "Processing genomes.\n";
-    my $gLoader = Shrub::GenomeLoader->new($loader, funcMgr => $funcMgr, slow => $slowFlag);
+    my $gLoader = Shrub::GenomeLoader->new($loader, funcMgr => $funcMgr, slow => $slowFlag,
+            exclusive => $exclusive);
     # Determine the list of genomes to load.
     my $gHash = $gLoader->ComputeGenomeList($genomeDir, $genomeSpec);
     # Curate the genome list to eliminate redundant genomes. This returns a hash of genome IDs to
@@ -205,7 +206,8 @@ if ($genomesLoading) {
 # Here we process the subsystems.
 if ($subsLoading) {
     print "Processing subsystems.\n";
-    my $sLoader = Shrub::SubsystemLoader->new($loader, roleMrg => $roleMrg, slow => $slowFlag);
+    my $sLoader = Shrub::SubsystemLoader->new($loader, roleMgr => $roleMgr, slow => $slowFlag,
+            exclusive => $exclusive);
     # Get the list of subsystems to load.
     my $subs = $sLoader->SelectSubsystems($subsSpec, $subsDir);
     # We need to be able to tell which subsystems are already in the database. If the number of subsystems

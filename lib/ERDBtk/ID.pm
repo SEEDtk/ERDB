@@ -20,7 +20,7 @@ package ERDBtk::ID;
 
     use strict;
     use warnings;
-    use Tracer;
+    use StringUtils;
 
 =head1 ERDBtk ID Helper
 

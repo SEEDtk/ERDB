@@ -21,7 +21,7 @@
 package ERDBtk::Type::ProteinData;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use ERDBtk;
     use base qw(ERDBtk::Type);
 
@@ -147,7 +147,7 @@ sub encode {
     # Get the parameters.
     my ($self, $value, $mode) = @_;
     # Convert the list to a string.
-    my $retVal = Tracer::Escape(join("\n", map { join("\t", @$_) } @$value));
+    my $retVal = StringUtils::Escape(join("\n", map { join("\t", @$_) } @$value));
     # Return the result.
     return $retVal;
 }
@@ -178,7 +178,7 @@ sub decode {
     # Get the parameters.
     my ($self, $string) = @_;
     # Unescape and split the string.
-    my $retVal = [map { [split /\t/, $_] } split /\n/, Tracer::UnEscape($string)];
+    my $retVal = [map { [split /\t/, $_] } split /\n/, StringUtils::UnEscape($string)];
     # Return the result.
     return $retVal;
 }

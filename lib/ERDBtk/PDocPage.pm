@@ -21,7 +21,7 @@
 package ERDBtk::PDocPage;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use ERDBtk;
     use CGI;
     use ERDBtkExtras;

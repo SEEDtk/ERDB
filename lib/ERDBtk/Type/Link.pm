@@ -21,7 +21,7 @@
 package ERDBtk::Type::Link;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use ERDBtk;
     use HyperLink;
     use base qw(ERDBtk::Type);

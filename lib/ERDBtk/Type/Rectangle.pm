@@ -21,7 +21,7 @@
 package ERDBtk::Type::Rectangle;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use ERDBtk;
     use CGI;
     use Rectangle;

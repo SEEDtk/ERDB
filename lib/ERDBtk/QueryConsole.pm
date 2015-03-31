@@ -22,7 +22,7 @@
 package ERDBtk::QueryConsole;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use CGI;
     use ERDBtk;
     use Stats;
@@ -669,7 +669,7 @@ sub Summary {
     }
     # Now we display the statistics in alphabetical order, using a table.
     my $statMap = $stats->Map();
-    my @keys = sort { Tracer::Cmp($a, $b) } keys %$statMap;
+    my @keys = sort { StringUtils::Cmp($a, $b) } keys %$statMap;
     $retVal .= CGI::h3("Query Statistics");
     $retVal .= CGI::table(
         map { CGI::Tr(CGI::th($_), CGI::td({ align => 'right' },

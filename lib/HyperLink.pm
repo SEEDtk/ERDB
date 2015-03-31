@@ -21,7 +21,7 @@
 package HyperLink;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use CGI qw(-nosticky);
 
 =head1 HyperLink Package
@@ -150,7 +150,7 @@ sub Decode {
     # Get the parameters.
     my ($class, $string) = @_;
     # Unescape the input string.
-    my $realString = Tracer::UnEscape($string);
+    my $realString = StringUtils::UnEscape($string);
     # The default is to treat the string as all text, without a URL.
     my $text = $realString;
     my $url;
@@ -190,7 +190,7 @@ sub Encode {
     # Assemble the pieces.
     my $string = "$text $url ::$textLen";
     # Escape the assembled string.
-    my $retVal = Tracer::Escape($string);
+    my $retVal = StringUtils::Escape($string);
     # Return the result.
     return $retVal;
 }

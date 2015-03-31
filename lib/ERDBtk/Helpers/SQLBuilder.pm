@@ -20,7 +20,7 @@ package ERDBtk::Helpers::SQLBuilder;
 
     use strict;
     use warnings;
-    use Tracer;
+    use StringUtils;
 
 
 =head1 ERDBtk SQL Statement Builder
