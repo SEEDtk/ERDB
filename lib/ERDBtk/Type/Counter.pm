@@ -20,7 +20,7 @@
 package ERDBtk::Type::Counter;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use ERDBtk;
     use base qw(ERDBtk::Type);
 

@@ -411,7 +411,7 @@ sub LoadGenome {
     # If we do not already have the metadata hash, read it in.
     if (! defined $metaHash) {
         $metaHash = $loader->ReadMetaData("$genomeDir/genome-info",
-                required => [qw(name md5 privilege prokaryotic)]);
+                required => [qw(name md5 privilege prokaryotic domain)]);
     }
      # Get the DNA repository directory.
      my $dnaRepo = $shrub->DNArepo;
@@ -429,11 +429,13 @@ sub LoadGenome {
      my ($contigList, $genomeHash) = $self->AnalyzeContigFasta($genome, "$genomeDir/contigs", "$absPath/$genome.fa");
      # Get the annotation privilege level for this genome.
      my $priv = $metaHash->{privilege};
+     # Compute the genetic code.
+     my $code = $metaHash->{code} // 11;
      # Now we can create the genome record.
      print "Storing $genome in database.\n";
      $loader->InsertObject('Genome', id => $genome, %$genomeHash,
              core => $metaHash->{type}, name => $metaHash->{name}, prokaryotic => $metaHash->{prokaryotic},
-             'contig-file' => "$relPath/$genome.fa");
+             'contig-file' => "$relPath/$genome.fa", 'genetic-code' => $code, domain => $metaHash->{domain});
      $stats->Add(genomeInserted => 1);
      # Connect the contigs to it.
      for my $contigDatum (@$contigList) {

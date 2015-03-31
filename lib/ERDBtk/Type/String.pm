@@ -21,7 +21,7 @@
 package ERDBtk::Type::String;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use ERDBtk;
     use base qw(ERDBtk::Type);
 
@@ -111,7 +111,7 @@ sub validate {
     # Assume it's valid until we prove otherwise.
     my $retVal = "";
     # Verify the length after escaping.
-    my $testVal = Tracer::Escape($value);
+    my $testVal = StringUtils::Escape($value);
     if (length($testVal) > 250) {
         $retVal = "String too long.";
     }
@@ -148,7 +148,7 @@ sub encode {
     # Get the parameters.
     my ($self, $value, $mode) = @_;
     # Escape the string.
-    my $retVal = Tracer::Escape($value);
+    my $retVal = StringUtils::Escape($value);
     # Return the result.
     return $retVal;
 }
@@ -179,7 +179,7 @@ sub decode {
     # Get the parameters.
     my ($self, $string) = @_;
     # Declare the return variable.
-    my $retVal = Tracer::UnEscape($string);
+    my $retVal = StringUtils::UnEscape($string);
     # Return the result.
     return $retVal;
 }

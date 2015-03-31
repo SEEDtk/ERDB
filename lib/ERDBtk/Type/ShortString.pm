@@ -21,7 +21,7 @@
 package ERDBtk::Type::ShortString;
 
     use strict;
-    use Tracer;
+    use StringUtils;
     use ERDBtk;
     use base qw(ERDBtk::Type);
 

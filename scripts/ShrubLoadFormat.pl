@@ -18,7 +18,7 @@
 #
 
 use strict;
-use Tracer;
+use StringUtils;
 use Shrub;
 use Shrub::DBLoader;
 use ScriptUtils;

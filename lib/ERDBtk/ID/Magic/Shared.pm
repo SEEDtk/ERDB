@@ -21,7 +21,7 @@ package ERDBtk::ID::Magic::Shared;
     use strict;
     use warnings;
     use base qw(ERDBtk::ID::Magic);
-    use Tracer;
+    use StringUtils;
 
 
 =head1 ERDBtk Magic Name Helper for Shared Database Access

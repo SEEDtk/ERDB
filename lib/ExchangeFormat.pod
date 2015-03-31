@@ -101,13 +101,17 @@ optional) comments.
 The privilege level of the genome's annotations-- C<0> for public (unprivileged),
 C<1> for projected, and C<2> for privileged.
 
-=item prokaryotic
+=item domain
 
-C<1> if this is a prokaryotic genome, else C<0>.
+Domain of this genome.
 
 =item taxid
 
 The genome's taxonomy ID (if known).
+
+=item code
+
+The genetic code to use for protein translation. If omitted, this defaults to 11.
 
 =back
 
