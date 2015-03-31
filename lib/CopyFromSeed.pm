@@ -324,27 +324,29 @@ sub ComputeSubsystems {
         my $subBase = "$self->{figDisk}/FIG/Data/Subsystems";
         # Get the input list of subsystems.
         my $subFile = $opt->subsystems;
-        my @inputSubs;
         if ($subFile ne 'all') {
             # Get the list of subsystem names from the file.
             my $subList = $self->GetNamesFromFile(subsystem => $subFile);
             print scalar(@$subList) . " subsystem names read from $subFile.\n";
             # Insure all the subsystems exist.
-            for my $sub (@inputSubs) {
+            for my $sub (@$subList) {
                 # Convert the subsystem name to a directory name.
                 my $dirName = $sub;
                 $dirName =~ tr/ /_/;
                 # Verify the directory.
-                if (! -d "$subBase/$sub") {
+                if (! -d "$subBase/$dirName") {
                     print "Subsystem $sub not found in SEED.\n";
                     $stats->Add(subsystemNotFound => 1);
-                } elsif (! -f "$subBase/$sub/EXCHANGEABLE") {
+                } elsif (! -f "$subBase/$dirName/EXCHANGEABLE") {
                     print "Subsystem $sub is private in SEED.\n";
                     $stats->Add(subsystemPrivate => 1);
-                } elsif (! -f "$subBase/$sub/spreadsheet") {
+                } elsif (! -f "$subBase/$dirName/spreadsheet") {
                     # This is a real subsystem. Save it.
                     push @retVal, $dirName;
                     $stats->Add(subsystemKept => 1);
+                } else {
+                    print "Subsystem $sub has no spreadsheet.\n";
+                    $stats->Add(subsystemNoSheet => 1);
                 }
             }
         } else {
