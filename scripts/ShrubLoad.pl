@@ -21,10 +21,10 @@ use warnings;
 use FIG_Config;
 use Shrub;
 use Shrub::DBLoader;
-use ERDB::Utils;
+use ERDBtk::Utils;
 use Shrub::GenomeLoader;
 use Shrub::SubsystemLoader;
-use Shrub::FunctionLoader;
+use Shrub::Functions;
 use ScriptUtils;
 use File::Copy::Recursive;
 
@@ -38,7 +38,7 @@ its purpose is to allow initializing a complete database from a single script.
 
 =head2 Parameters
 
-The command-line options are those found in L<Shrub/script_options> and L<ERDB::Utils::init_options> plus
+The command-line options are those found in L<Shrub/script_options> and L<ERDBtk::Utils::init_options> plus
 the following.
 
 =over 4
@@ -75,8 +75,14 @@ significant optimization. This is the default for localhost databases.
 
 =item shared
 
-If speified, it will be presumed we have only shared access to the database, requiring
+If specified, it will be presumed we have only shared access to the database, requiring
 greater care during operations. This is the default for remote databases.
+
+=item tar
+
+If specified, it will be presumed the input repository is stored in the specified C<tar.gz>
+file.  Currently, packaged repository files have a root directory named C<Inputs>. This must
+match the leaf directory name of the specified repository or nothing will work right.
 
 =back
 
@@ -86,12 +92,13 @@ greater care during operations. This is the default for remote databases.
 my $startTime = time;
 $| = 1; # Prevent buffering on STDOUT.
 # Get the command parameters.
-my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDB::Utils::init_options(),
+my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDBtk::Utils::init_options(),
         ['slow', "load using individual inserts instead of spooling to load files"],
         ['missing|m', "only load missing genomes and subsystems"],
         ['repo|r=s', "location of the input repository", { default => "$FIG_Config::data/Inputs" }],
         ['genomes=s', "file listing IDs of genomes to load, \"all\", or \"none\"", { default => 'all' }],
         ['subsystems|subs=s', "file listing IDs of subsystems to load, \"all\", or \"none\"", { default => 'all' }],
+        ['tar=s', "file containing compressed copy of the input repository"],
         [xmode => [["exclusive|X", "exclusive database access"], ["shared|S", "shared database access"]]],
         );
 # Find out what we are loading.
@@ -99,21 +106,16 @@ my $genomeSpec = $opt->genomes;
 my $subsSpec = $opt->subsystems;
 my $genomesLoading = ($genomeSpec ne 'none');
 my $subsLoading = ($subsSpec ne 'none');
-# Compute the genome and subsystem repository locations.
-my $repo = $opt->repo;
-my ($genomeDir, $subsDir) = map { "$repo/$_" } qw(GenomeData SubSystemData);
-if (! -d $repo) {
-    die "Could not find main repository directory $repo.";
-} elsif ($genomesLoading && ! -d $genomeDir) {
-    die "Could not find GenomeData in $repo.";
-} elsif ($subsLoading && ! -d $subsDir) {
-    die "Could not find SubSystemData in $repo.";
-}
 # Validate the load specifications.
 if ($genomesLoading && $genomeSpec ne 'all' && ! -f $genomeSpec) {
     die "Could not find genome list file $genomeSpec.";
 } elsif ($subsLoading && $subsSpec ne 'all' && ! -f $subsSpec) {
     die "Could not find subsystem list file $subsSpec.";
+}
+# Get the input repository.
+my $repo = $opt->repo;
+if (! -d $repo) {
+    die "Could not find main repository directory $repo.";
 }
 # We need to determine shared or exclusive mode. First, see if the user gave us
 # explicit instructions.
@@ -143,8 +145,19 @@ my $shrub = Shrub->new_for_script($opt, externalDBD => $opt->store);
 my $loader = Shrub::DBLoader->new($shrub);
 # Get the statistics object.
 my $stats = $loader->stats;
-# Create the ERDB utility object.'
-my $utils = ERDB::Utils->new($shrub);
+# Create the ERDBtk utility object.'
+my $utils = ERDBtk::Utils->new($shrub);
+# Create the repository if necessary.
+if ($opt->tar) {
+    $loader->ExtractRepo($opt->tar, $repo);
+}
+# Compute the genome and subsystem repository locations.
+my ($genomeDir, $subsDir) = map { "$repo/$_" } qw(GenomeData SubSystemData);
+if ($genomesLoading && ! -d $genomeDir) {
+    die "Could not find GenomeData in $repo.";
+} elsif ($subsLoading && ! -d $subsDir) {
+    die "Could not find SubSystemData in $repo.";
+}
 # Process the initialization options and remember if we cleared
 # the database.
 my $cleared = $utils->Init($opt);
@@ -153,27 +166,31 @@ $stats->Accumulate($utils->stats);
 # If we're clearing, we need to erase the DNA repository.
 if ($cleared) {
     print "Erasing DNA repository.\n";
-    File::Copy::Recursive::pathempty($FIG_Config::shrub_dna) ||
+    File::Copy::Recursive::pathempty($shrub->DNArepo) ||
         die "Error clearing DNA repository: $!";
 }
 # This hash will contain a list of genome IDs known to be in the database. The subsystem
 # loader needs this information to process its row information.
 my %genomes;
-# Create the function loader. Both the other loaders use it.
+# Create the function and role loaders.
 print "Analyzing functions and roles.\n";
-my $funcLoader = Shrub::FunctionLoader->new($loader, rolesOnly => ! $genomesLoading, slow => $slowFlag,
-        exclusive => $exclusive);
+my $roleMgr = Shrub::Roles->new($loader, slow => $slowFlag, exclusive => $exclusive);
+# We only need the function loader if we are loading genomes.
+my $funcMgr;
+if ($genomesLoading) {
+    $funcMgr = Shrub::Functions->new($loader, slow => $slowFlag, roles => $roleMgr,
+            exclusive => $exclusive);
+}
 # Here we process the genomes.
 if ($genomesLoading) {
     print "Processing genomes.\n";
-    my $gLoader = Shrub::GenomeLoader->new($loader, funcLoader => $funcLoader, slow => $slowFlag);
+    my $gLoader = Shrub::GenomeLoader->new($loader, funcMgr => $funcMgr, slow => $slowFlag,
+            exclusive => $exclusive);
     # Determine the list of genomes to load.
     my $gHash = $gLoader->ComputeGenomeList($genomeDir, $genomeSpec);
     # Curate the genome list to eliminate redundant genomes. This returns a hash of genome IDs to
     # metadata for the genomes to load.
     my $metaHash = $gLoader->CurateNewGenomes($gHash, $missingFlag, $cleared);
-    # Estimate the number of functions we are inserting.
-    $funcLoader->SetEstimates(scalar(keys %$metaHash) * 175);
     # Loop through the genomes, loading them.
     my @metaKeys = sort keys %$metaHash;
     my $gTotal = scalar @metaKeys;
@@ -189,7 +206,8 @@ if ($genomesLoading) {
 # Here we process the subsystems.
 if ($subsLoading) {
     print "Processing subsystems.\n";
-    my $sLoader = Shrub::SubsystemLoader->new($loader, funcLoader => $funcLoader, slow => $slowFlag);
+    my $sLoader = Shrub::SubsystemLoader->new($loader, roleMgr => $roleMgr, slow => $slowFlag,
+            exclusive => $exclusive);
     # Get the list of subsystems to load.
     my $subs = $sLoader->SelectSubsystems($subsSpec, $subsDir);
     # We need to be able to tell which subsystems are already in the database. If the number of subsystems
@@ -203,8 +221,6 @@ if ($subsLoading) {
             $subHash = { map { $_->[1] => $_->[0] } $shrub->GetAll('Subsystem', '', [], 'id name') };
         }
     }
-    # Estimate the number of roles we are inserting.
-    $funcLoader->SetEstimates($subTotal * 15);
     # Loop through the subsystems.
     print "Processing the subsystem list.\n";
     my $subCount = 0;

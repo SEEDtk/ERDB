@@ -22,12 +22,14 @@ package Shrub;
 
     use strict;
     use FIG_Config;
-    use Tracer;
-    use base qw(ERDB);
+    use StringUtils;
+    use base qw(ERDBtk);
     use Stats;
-    use DBKernel;
+    use DBtk;
     use SeedUtils;
     use Digest::MD5;
+    use Shrub::Roles;
+    use gjoseqlib;
 
 
 =head1 Shrub Database Package
@@ -36,7 +38,7 @@ package Shrub;
 
 The Shrub database is a new Entity-Relationship Database that implements
 the repository for the SEEDtk system. This object has minimal
-capabilities: most of its power comes the L<ERDB> base class.
+capabilities: most of its power comes the L<ERDBtk> base class.
 
 The fields in this object are as follows.
 
@@ -140,10 +142,10 @@ sub new {
     # Connect to the database, if desired.
     my $dbh;
     if (! $options{offline}) {
-         $dbh = DBKernel->new($dbms, $dbName, $user, $pass, $port, $dbhost, $sock);
+         $dbh = DBtk->new($dbms, $dbName, $user, $pass, $port, $dbhost, $sock);
     }
-    # Create the ERDB object.
-    my $retVal = ERDB::new($class, $dbh, $dbd, %options);
+    # Create the ERDBtk object.
+    my $retVal = ERDBtk::new($class, $dbh, $dbd, %options);
     # Attach the repository pointer.
     $retVal->{dnaRepo} = $dnaRepo;
     # Return it.
@@ -387,6 +389,39 @@ sub FeaturesInRegion {
     return @retVal;
 }
 
+=head3 Subsystem2Role
+
+    my @roles = $shrub->Subsystem2Role($sub);
+
+Return all the roles in a subsystem, in order. For each role, we return
+the ID and the description with the EC and TC numbers suffixed.
+
+=over 4
+
+=item sub
+
+ID of the subsystem whose roles are desired.
+
+=item RETURN
+
+Returns a list of 2-tuples, each containing (0) a role ID, and (1) a role description, with the EC and TC numbers
+included. The roles will be presented in their order within the subsystem.
+
+=back
+
+=cut
+
+sub Subsystem2Role {
+    # Get the parameters.
+    my ($self, $sub) = @_;
+    # Request the role data.
+    my @retVal = map { [$_->[0], FormatRole($_->[1], $_->[2], $_->[3])] }
+            $self->GetAll('Subsystem2Role Role', 'Subsystem2Role(from-link) = ? ORDER BY Subsystem2Role(ordinal)', [$sub],
+            'Role(id) Role(ec-number) Role(tc-number) Role(description)');
+    # Return the result.
+    return @retVal;
+}
+
 
 =head2 Query Methods
 
@@ -441,48 +476,39 @@ sub ProteinID {
     return $retVal;
 }
 
-=head3 NormalizedName
 
-    my $subName2 = $shrub->NormalizedName($subName);
+=head3 FormatRole
 
-or
+    my $roleText = Shrub::FormatRole($ecNum, $tcNum, $description)'
 
-    my $subName2 = Shrub::NormalizedName($subName);
-
-Return the normalized name of the subsystem with the specified name. A subsystem
-name with underscores for spaces will return the same normalized name as a subsystem
-name with the spaces still in it.
+Format the text of a role given its EC, TC, and description information.
 
 =over 4
 
-=item subName
+=item ecNum
 
-Name of the relevant subsystem.
+EC number of the role, or an empty string if there is no EC number.
+
+=item tcNum
+
+TC number of the role, or an empty string if there is no TC number.
+
+=item description
+
+Descriptive text of the role.
 
 =item RETURN
 
-Returns a normalized subsystem name.
+Returns the full display text of the role.
 
 =back
 
 =cut
 
-sub NormalizedName {
-    # Convert from the instance form of the call to a direct call.
-    shift if UNIVERSAL::isa($_[0], __PACKAGE__);
-    # Get the parameters.
-    my ($subName) = @_;
-    # Normalize the subsystem name by converting underscores to spaces.
-    # Underscores at the beginning and end are not converted.
-    my $retVal = $subName;
-    my $trailer = chop $retVal;
-    my $prefix = substr($retVal,0,1);
-    $retVal = substr($retVal, 1);
-    $retVal =~ tr/_/ /;
-    $retVal = $prefix . $retVal . $trailer;
-    # Return the result.
-    return $retVal;
+sub FormatRole {
+    return ($_[2] . ($_[0] ? " (EC $_[0])" : '') . ($_[1] ? " (TC $_[1])" : ''));
 }
+
 
 =head2 Public Constants
 
@@ -522,118 +548,7 @@ Return the maximum privilege level for functional assignments.
 
     use constant MAX_PRIVILEGE => 2;
 
-=head3 EC_PATTERN
-
-    $string =~ /$Shrub::EC_PATTERN/;
-
-Pre-compiled pattern for matching EC numbers.
-
-=cut
-
-    our $EC_PATTERN = qr/\(\s*E\.?C\.?(?:\s+|:)(\d\.(?:\d+|-)\.(?:\d+|-)\.(?:n?\d+|-)\s*)\)/;
-
-=head3 TC_PATTERN
-
-    $string =~ /$Shrub::TC_PATTERN/;
-
-Pre-compiled pattern for matchin TC numbers.
-
-=cut
-
-    our $TC_PATTERN = qr/\(\s*T\.?C\.?(?:\s+|:)(\d\.[A-Z]\.(?:\d+|-)\.(?:\d+|-)\.(?:\d+|-)\s*)\)/;
-
 =head2 Function and Role Utilities
-
-=head3 RoleNormalize
-
-    my $normalRole = Shrub::RoleNormalize($role);
-
-or
-
-    my $normalRole = $shrub->RoleNormalize($role);
-
-Normalize a role by removing extra spaces, stripping off the EC number, and converting it to lower case.
-
-=over 4
-
-=item role
-
-Role text to normalize.
-
-=item RETURN
-
-Returns a normalized form of the role.
-
-=back
-
-=cut
-
-sub RoleNormalize {
-    # Convert from the instance form of the call to a direct call.
-    shift if UNIVERSAL::isa($_[0], __PACKAGE__);
-    # Get the parameters.
-    my ($role) = @_;
-    # Remove the EC number.
-    $role =~ s/$EC_PATTERN//;
-    # Remove the TC identifier.
-    $role =~ s/$TC_PATTERN//;
-    # Remove the extra spaces.
-    $role =~ s/\s+/ /g;
-    $role =~ s/^\s+//;
-    $role =~ s/\s+$//;
-    # Convert to lower case.
-    my $retVal = lc $role;
-    # Return the result.
-    return $retVal;
-}
-
-=head3 ParseRole
-
-    my ($roleText, $ecNum, $tcNum, $hypo) = $shrub->ParseRole($role);
-
-or
-
-    my ($roleText, $ecNum, $tcNum, $hypo) = Shrub::ParseRole($role);
-
-Parse a role. The EC and TC numbers are extracted and an attempt is made to determine if the role is
-hypothetical.
-
-=over 4
-
-=item role
-
-Text of the role to parse.
-
-=item RETURN
-
-Returns a four-element list consisting of the main role text, the EC number (if any),
-the TC number (if any), and a flag that is TRUE if the role is hypothetical and FALSE
-otherwise.
-
-=back
-
-=cut
-
-sub ParseRole {
-    # Convert from the instance form of the call to a direct call.
-    shift if UNIVERSAL::isa($_[0], __PACKAGE__);
-    # Get the parameters.
-    my ($role) = @_;
-    # Extract the EC number.
-    my ($ecNum, $tcNum) = ("", "");
-    my $roleText = $role;
-    if ($role =~ /(.+?)\s*$EC_PATTERN\s*(.*)/) {
-        $roleText = $1 . $3;
-        $ecNum = $2;
-    } elsif ($role =~ /(.+?)\s*$TC_PATTERN\s*(.*)/) {
-        $roleText = $1 . $3;
-        $tcNum = $2;
-    }
-    # Check for a hypothetical.
-    my $hypo = SeedUtils::hypo($roleText);
-    # Return the parse results.
-    return ($roleText, $ecNum, $tcNum, $hypo);
-}
 
 =head3 Checksum
 
@@ -663,121 +578,11 @@ sub Checksum {
     # Convert from the instance form of the call to a direct call.
     shift if UNIVERSAL::isa($_[0], __PACKAGE__);
     # Return the digested string.
-    return Digest::MD5::md5_base64($_[0]);
+    my ($text) = @_;
+    my $retVal = Digest::MD5::md5_base64($text);
+    return $retVal;
 }
 
-=head3 ParseFunction
-
-    my ($checksum, $statement, $sep, \%roles, $comment) = $shrub->ParseFunction($function);
-
-or
-
-    my ($checksum, $statement, $sep, \%roles, $comment) = Shrub::ParseFunction($function);
-
-Parse a functional assignment. This method breaks it into its constituent roles,
-pulls out the comment and the separator character, and computes the checksum.
-
-=over 4
-
-=item function
-
-Functional assignment to parse.
-
-=item RETURN
-
-Returns a five-element list containing the following.
-
-=over 8
-
-=item checksum
-
-The unique checksum for this function. Any function with the same roles and the same
-separator will have the same checksum.
-
-=item statement
-
-The text of the function with the EC numbers and comments removed.
-
-=item sep
-
-The separator character. For a single-role function, this is always C<@>. For multi-role
-functions, it could also be C</> or C<;>.
-
-=item roles
-
-Reference to a hash mapping each constituent role to its checksum.
-
-=item comment
-
-The comment string containing in the function. If there is no comment, will be an empty
-string.
-
-=back
-
-=back
-
-=cut
-
-sub ParseFunction {
-    # Convert from the instance form of the call to a direct call.
-    shift if UNIVERSAL::isa($_[0], __PACKAGE__);
-    # Get the parameters.
-    my ($function) = @_;
-    # Separate out the comment (if any). Note we convert an undefined function
-    # to an empty string.
-    my $statement = $function // "";
-    my $comment = "";
-    if ($function && $function =~ /(.+?)\s*[#!](.+)/) {
-        ($statement, $comment) = ($1, $2);
-    }
-    # The roles and the separator will go in here.
-    my @roles;
-    my $sep = '@';
-    # This will be the role hash.
-    my %roles;
-    # This will contain the checksum.
-    my $checksum;
-    # Check for suspicious elements.
-    my $malformed;
-    if (! $statement || $statement eq 'hypothetical protein') {
-        # Here we have a hypothetical protein. This is considered well-formed but without
-        # any roles.
-    } elsif ($function =~ /\b(?:similarit|blast\b|fasta|identity)|%|E=/i) {
-        # Here we have suspicious elements.
-        $malformed = 1;
-    } else {
-        # Parse out the roles.
-        my @roleParts = split(/\s*(\s\@|\s\/|;)\s+/, $statement);
-        # Check for a role that is too long.
-        if (grep { length($_) > 250 } @roles) {
-            $malformed = 1;
-        } elsif (scalar(@roleParts) == 1) {
-            # Here we have the normal case, a single-role function.
-            @roles = @roleParts;
-        } else {
-            # With multiple roles, we need to extract the separator and peel out the
-            # roles.
-            $sep = substr($roleParts[1], -1);
-            for (my $i = 0; $i < scalar(@roleParts); $i += 2) {
-                push @roles, $roleParts[$i];
-            }
-        }
-    }
-    # If we are malformed, there are no roles, but we checksum the function.
-    if ($malformed) {
-        $checksum = Checksum($function);
-    } else {
-        # Here we have to compute a checksum from the roles and the separator.
-        my @normalRoles = map { RoleNormalize($_) } @roles;
-        $checksum = Checksum($sep . join("\t", @normalRoles));
-        # Now create the role hash.
-        for (my $i = 0; $i < scalar(@roles); $i++) {
-            $roles{$roles[$i]} = Checksum($normalRoles[$i]);
-        }
-    }
-    # Return the parsed function data.
-    return ($checksum, $statement, $sep, \%roles, $comment);
-}
 
 
 =head2 Virtual Methods

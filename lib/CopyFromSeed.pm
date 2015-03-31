@@ -26,6 +26,7 @@ package CopyFromSeed;
     use File::Copy::Recursive;
     use MD5Computer;
     use BasicLocation;
+    use Shrub;
 
 =head1 CopyFromSeed Helper Object
 
@@ -187,6 +188,10 @@ replaced by the new information.
 The privilege level of the annotations-- 0 (public), 1 (projected), or
 2 (privileged).
 
+=item clear
+
+Erase the target repository before copying.
+
 =back
 
 =cut
@@ -194,7 +199,8 @@ The privilege level of the annotations-- 0 (public), 1 (projected), or
 sub common_options {
     return (
             ['repo|r=s', "location of the target repository", { default => "$FIG_Config::data/Inputs" }],
-            ["privilege=i", "privilege level of the annotations-- 0 (public), 1 (projected), or 2 (privileged)"],
+            ["privilege=i", "privilege level of the annotations-- 0 (public), 1 (projected), or 2 (privileged)",
+                    { default => Shrub::PUBLIC }],
             ["missing|m", "only copy missing subsystems and genomes"],
             ["clear", "erase the target repository before copying"]
         );
@@ -318,27 +324,29 @@ sub ComputeSubsystems {
         my $subBase = "$self->{figDisk}/FIG/Data/Subsystems";
         # Get the input list of subsystems.
         my $subFile = $opt->subsystems;
-        my @inputSubs;
         if ($subFile ne 'all') {
             # Get the list of subsystem names from the file.
             my $subList = $self->GetNamesFromFile(subsystem => $subFile);
             print scalar(@$subList) . " subsystem names read from $subFile.\n";
             # Insure all the subsystems exist.
-            for my $sub (@inputSubs) {
+            for my $sub (@$subList) {
                 # Convert the subsystem name to a directory name.
                 my $dirName = $sub;
                 $dirName =~ tr/ /_/;
                 # Verify the directory.
-                if (! -d "$subBase/$sub") {
+                if (! -d "$subBase/$dirName") {
                     print "Subsystem $sub not found in SEED.\n";
                     $stats->Add(subsystemNotFound => 1);
-                } elsif (! -f "$subBase/$sub/EXCHANGEABLE") {
+                } elsif (! -f "$subBase/$dirName/EXCHANGABLE") {
                     print "Subsystem $sub is private in SEED.\n";
                     $stats->Add(subsystemPrivate => 1);
-                } elsif (! -f "$subBase/$sub/spreadsheet") {
+                } elsif (-f "$subBase/$dirName/spreadsheet") {
                     # This is a real subsystem. Save it.
                     push @retVal, $dirName;
                     $stats->Add(subsystemKept => 1);
+                } else {
+                    print "Subsystem $sub has no spreadsheet.\n";
+                    $stats->Add(subsystemNoSheet => 1);
                 }
             }
         } else {
@@ -580,16 +588,31 @@ sub CopyGenome {
             print "$genome has no contigs file.\n";
             $stats->Add('genome-no-contigs' => 1);
         } else {
-            # Now find out if this genome is prokaryotic. If we don't know
-            # for sure, then it isn't. Note we take steps to insure the flag
-            # value is not undefined.
+            # Now find out this genome's domain.
             my $taxonomy = ReadFlagFile("$genomeDir/TAXONOMY");
-            my $prokFlag = ($taxonomy && $taxonomy =~ /^Archaea|Bacteria/) || 0;
+            my $domain;
+            if ($taxonomy) {
+                ($domain) = split /\s*;\s*/, $taxonomy, 2;
+            } else {
+                $domain = 'unknown';
+            }
+            my $prokFlag = ($domain =~ /^(?:Archaea|Bacteria)/) || 0;
             if ($opt->proks && ! $prokFlag) {
                 # Here we are only loading proks and this isn't one, so we
                 # skip it.
                 $stats->Add('non-prokaryotic-skipped' => 1);
             } else {
+                # Compute the genetic code.
+                my $geneticCode = ReadFlagFile("$genomeDir/GENETIC_CODE");
+                if (! $geneticCode) {
+                    $stats->Add(geneticCodeDefaulted => 1);
+                    $geneticCode = 11;
+                    if ($domain eq 'Eukaryota') {
+                        $geneticCode = 1;
+                    } elsif ($genomeName =~ /^(?:Achole|Meso|Myco|Spiro|Urea)plasma/) {
+                        $geneticCode = 4;
+                    }
+                }
                 # Compute the output directory.
                 my $relPath = $self->RepoPath($genomeName);
                 # This will be set to TRUE if we are skipping this genome.
@@ -633,7 +656,7 @@ sub CopyGenome {
                     my $md5 = $self->ProcessContigFile($genomeDir, $outDir);
                     # Build the metahash.
                     my %metaHash = (md5 => $md5, name => $genomeName, privilege => $privilege,
-                            prokaryotic => $prokFlag);
+                            prokaryotic => $prokFlag, domain => $domain, code => $geneticCode);
                     # Look for a taxonomy ID.
                     my $taxID = ReadFlagFile("$genomeDir/TAXONOMY_ID");
                     if (defined $taxID) {
@@ -837,7 +860,7 @@ sub ComputeGenomes {
         # Check for a genome ID input file.
         if ($opt->genomes ne 'all') {
             # We have one, so read the genomes from it.
-            $retVal = $self->GetNamesFromList(genome => $opt->genomes);
+            $retVal = $self->GetNamesFromFile(genome => $opt->genomes);
             print scalar(@$retVal) . " genome IDs read from input file.\n";
         } else {
             # No genome input file, so read all the genomes in the genome

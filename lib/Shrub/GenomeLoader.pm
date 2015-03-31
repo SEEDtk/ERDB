@@ -21,8 +21,9 @@ package Shrub::GenomeLoader;
 
     use strict;
     use MD5Computer;
-    use Shrub::FunctionLoader;
+    use Shrub::Functions;
     use File::Path;
+    use BasicLocation;
 
 =head1 Shrub Genome Load Utilities
 
@@ -41,9 +42,9 @@ L<Shrub::DBLoader> object for accessing the database and statistics.
 
 L<MD5Computer> object for computing genome and contig MD5s.
 
-=item funcLoader
+=item funcMgr
 
-L<Shrub::FunctionLoader> object for computing function and role IDs.
+L<Shrub::Functions> object for processing functions and roles.
 
 =item slow
 
@@ -59,8 +60,8 @@ TRUE if we have exclusive access to the database, else FALSE. The default is FAL
 =cut
 
     # This is the list of tables we are loading.
-    use constant LOAD_TABLES => qw(Genome Contig Feature Protein Feature2Contig Feature2Function);
-
+    use constant LOAD_TABLES => qw(Role Function Function2Role Genome Contig Feature Protein
+            Feature2Contig Feature2Function);
 
 
 =head2 Special Methods
@@ -88,9 +89,9 @@ A hash of options, including one or more of the following.
 TRUE if we are to load using individual inserts, FALSE if we are to load by spooling
 inserts into files for mass loading. The default is FALSE.
 
-=item funcLoader
+=item funcMgr
 
-A L<Shrub::FunctionLoader> object for computing function and role IDs. If none is
+A L<Shrub::Functions> object for computing function and role IDs. If none is
 provided, one will be created internally.
 
 =back
@@ -105,11 +106,10 @@ sub new {
     # Get the slow-load flag.
     my $slow = $options{slow} || 0;
     # Get the function-loader object.
-    my $funcLoader = $options{funcLoader};
+    my $funcMgr = $options{funcMgr};
     # If the function loader was not provided, create one.
-    if (! $funcLoader) {
-        $funcLoader = Shrub::FunctionLoader->new($loader, slow => $slow,
-                exclusive => $options{exclusive});
+    if (! $funcMgr) {
+        $funcMgr = Shrub::Functions->new($loader, exclusive => $options{exclusive});
     }
     # If we are NOT in slow-loading mode, prepare the tables for spooling.
     if (! $slow) {
@@ -117,7 +117,7 @@ sub new {
     }
     # Create the object.
     my $retVal = { loader => $loader, md5 => undef,
-        funcLoader => $funcLoader, slow => $slow };
+        funcMgr => $funcMgr, slow => $slow };
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;
@@ -377,7 +377,7 @@ sub CurateNewGenomes {
     $loader->LoadGenome($genome, $genomeDir, $metaHash);
 
 Load a genome into the database.Any previous copy of the genome must already have been deleted.
-(This is done automatically by L</CurateNewGenomes>; otherwise, use the method L<ERDB/Dalete>).)
+(This is done automatically by L</CurateNewGenomes>; otherwise, use the method L<ERDBtk/Dalete>).)
 
 =over 4
 
@@ -407,11 +407,11 @@ sub LoadGenome {
     my $shrub = $loader->db;
     my $stats = $loader->stats;
     # Get the function loader.
-    my $funcLoader = $self->{funcLoader};
+    my $funcMgr = $self->{funcMgr};
     # If we do not already have the metadata hash, read it in.
     if (! defined $metaHash) {
         $metaHash = $loader->ReadMetaData("$genomeDir/genome-info",
-                required => [qw(name md5 privilege prokaryotic)]);
+                required => [qw(name md5 privilege prokaryotic domain)]);
     }
      # Get the DNA repository directory.
      my $dnaRepo = $shrub->DNArepo;
@@ -426,14 +426,16 @@ sub LoadGenome {
      # of bases, and the list of contigs. We also copy it to the output
      # repository.
      print "Analyzing contigs.\n";
-     my ($contigList, $genomeHash) = $self->AnalyzeContigFasta("$genomeDir/contigs", "$absPath/$genome.fa");
+     my ($contigList, $genomeHash) = $self->AnalyzeContigFasta($genome, "$genomeDir/contigs", "$absPath/$genome.fa");
      # Get the annotation privilege level for this genome.
      my $priv = $metaHash->{privilege};
+     # Compute the genetic code.
+     my $code = $metaHash->{code} // 11;
      # Now we can create the genome record.
      print "Storing $genome in database.\n";
      $loader->InsertObject('Genome', id => $genome, %$genomeHash,
              core => $metaHash->{type}, name => $metaHash->{name}, prokaryotic => $metaHash->{prokaryotic},
-             'contig-file' => "$relPath/$genome.fa");
+             'contig-file' => "$relPath/$genome.fa", 'genetic-code' => $code, domain => $metaHash->{domain});
      $stats->Add(genomeInserted => 1);
      # Connect the contigs to it.
      for my $contigDatum (@$contigList) {
@@ -448,26 +450,82 @@ sub LoadGenome {
      if (-f $npFile) {
          # Read the feature data.
          print "Processing non-protein features.\n";
-         $funcLoader->ReadFeatures($genome, $npFile, $priv);
+         $self->ReadFeatures($genome, $npFile, $priv);
      }
      # Process the protein features.
-     print "Reading proteins.\n";
-     my $protHash = $funcLoader->ReadProteins($genome, $genomeDir);
+     my $protHash = $self->ReadProteins($genome, $genomeDir);
      print "Processing protein features.\n";
-     $funcLoader->ReadFeatures($genome, "$genomeDir/peg-info", $priv, $protHash);
+     $self->ReadFeatures($genome, "$genomeDir/peg-info", $priv, $protHash);
 }
+
+=head3 ReadProteins
+
+    my $protHash = $loader->ReadProteins($genome, $genomeDir);
+
+Create a hash of the proteins in the specified FASTA file and insure they are in the
+database.
+
+=over 4
+
+=item genome
+
+ID of the genome whose protein file is to be read.
+
+=item genomeDir
+
+Directory containing the genome source files.
+
+=item RETURN
+
+Returns a reference to a hash mapping feature iDs to protein IDs. The proteins will have been
+inserted into the database.
+
+=back
+
+=cut
+
+sub ReadProteins {
+    # Get the parameters.
+    my ($self, $genome, $genomeDir) = @_;
+    # Get the loader object.
+    my $loader = $self->{loader};
+    # Get the statistics object.
+    my $stats = $loader->stats;
+    # The return hash will go in here.
+    my %retVal;
+    # Open the genome's protein FASTA.
+    print "Reading $genome proteins.\n";
+    my $fh = $loader->OpenFasta(protein => "$genomeDir/peg-trans");
+    # Loop through the proteins.
+    while (my $protDatum = $loader->GetLine(protein => $fh)) {
+        my ($pegId, undef, $seq) = @$protDatum;
+        # Compute the protein ID.
+        my $protID = Shrub::ProteinID($seq);
+        # Insert the protein into the database.
+        $loader->InsertObject('Protein', id => $protID, sequence => $seq);
+        # Connect the protein to the feature in the hash.
+        $retVal{$pegId} = $protID;
+    }
+    # Return the protein hash.
+    return \%retVal;
+}
+
 
 
 
 =head3 AnalyzeContigFasta
 
-    my ($contigList, $genomeHash) = $genomeLoader->AnalyzeContigFasta($inFile, $fileName);
+    my ($contigList, $genomeHash) = $genomeLoader->AnalyzeContigFasta($genome, $inFile, $fileName);
 
 Read and analyze the contig FASTA for a genome. This method computes the length, GC count, ID, and
 MD5 for each contig in the FASTA file and returns the information in a list of hashes along with
 a hash of global data for the genome. It also copies the contig file to the DNA repository.
 
 =over 4
+
+=item genome
+
+ID of the relevant genome
 
 =item inFile
 
@@ -527,7 +585,7 @@ sequence.
 
 sub AnalyzeContigFasta {
     # Get the parameters.
-    my ($self, $inFile, $fileName) = @_;
+    my ($self, $genome, $inFile, $fileName) = @_;
     # Get the loader object.
     my $loader = $self->{loader};
     # Get the statistics object.
@@ -553,26 +611,31 @@ sub AnalyzeContigFasta {
         # Here we have an invalid header.
         die "Invalid header in contig FASTA $fileName";
     } else {
-        # Echo the line to the output.
-        print $oh $line;
+        # Compute the contig ID.
+        my $contigID = RealContigID($genome, $1);
+        # Write the real contig ID to the output.
+        print $oh ">$contigID\n";
         # Initialize the contig hash with the ID.
         my $contigHash = $self->_InitializeContig($1);
         $stats->Add(contigHeaders => 1);
         # Loop through the FASTA file.
         while (! eof $ih) {
-            # Read the next line and write it out.
+            # Read the next line.
             my $line = <$ih>;
-            print $oh $line;
             # Is this a contig header?
             if ($line =~ /^>(\S+)/) {
                 # Yes. Close the old contig and start a new one.
-                my $contigID = $1;
+                my $contigID = RealContigID($genome, $1);
                 $self->_CloseContig($contigHash);
                 push @contigList, $contigHash;
                 $contigHash = $self->_InitializeContig($contigID);
                 $stats->Add(contigHeaders => 1);
+                # Write the new contig ID.
+                print $oh ">$contigID\n";
             } else {
-                # No. Get the lengthand update the contig hash.
+                # No. Echo the output line.
+                print $oh $line;
+                # Get the length and update the contig hash.
                 chomp $line;
                 my $len = length $line;
                 $contigHash->{'length'} += $len;
@@ -599,6 +662,146 @@ sub AnalyzeContigFasta {
     # Return the contig and genome info.
     return (\@contigList, \%genomeHash);
 }
+
+=head3 ReadFeatures
+
+    $funcMgr->ReadFeatures($genome, $fileName, $priv, \%protHash);
+
+Read the feature information from a tab-delimited feature file. For each feature, the file contains
+the feature ID, its location string (Sapling format), and its functional assignment. This method
+will insert the feature, connect it to the genome and the contig, then attach the functional
+assignment.
+
+=over 4
+
+=item genome
+
+ID of the genome whose feature file is being processed.
+
+=item fileName
+
+Name of the file containing the feature data to process.
+
+=item priv
+
+Privilege level for the functional assignments.
+
+=item protHash (optional)
+
+A hash mapping feature IDs to protein IDs.
+
+=back
+
+=cut
+
+sub ReadFeatures {
+    # Get the parameters.
+    my ($self, $genome, $fileName, $priv, $protHash) = @_;
+    # Get the loader object.
+    my $loader = $self->{loader};
+    # Get the function processor.
+    my $funcMgr = $self->{funcMgr};
+    # If no protein hash was provided, create an empty one.
+    $protHash //= {};
+    # This will track our progress.
+    my $fcount = 0;
+    # Get the statistics object.
+    my $stats = $loader->stats;
+    # Open the file for input.
+    my $ih = $loader->OpenFile(feature => $fileName);
+    # Loop through the feature file.
+    while (my $featureDatum = $loader->GetLine(feature => $ih)) {
+        # Get the feature elements.
+        my ($fid, $locString, $function) = @$featureDatum;
+        # Create a list of location objects from the location string.
+        my @locs = map { BasicLocation->new($_) } split /\s*,\s*/, $locString;
+        $stats->Add(featureLocs => scalar(@locs));
+        # Compute the feature type.
+        my $ftype;
+        if ($fid =~ /fig\|\d+\.\d+\.(\w+)\.\d+/) {
+            $ftype = $1;
+        } else {
+            die "Invalid feature ID $fid.";
+        }
+        # If this is NOT a peg and has no function, change the function to
+        # the appropriate hypothetical.
+        if ($ftype ne 'peg' && ! $function) {
+            $function = "hypothetical $ftype";
+        }
+        # Compute the total sequence length.
+        my $seqLen = 0;
+        for my $loc (@locs) {
+            $seqLen += $loc->Length;
+        }
+        # Compute the protein.
+        my $protID = $protHash->{$fid} // '';
+        # Connect the feature to the genome.
+        $loader->InsertObject('Feature', id => $fid, 'feature-type' => $ftype,
+                'sequence-length' => $seqLen, Genome2Feature_link => $genome,
+                Protein2Feature_link => $protID);
+        $stats->Add(feature => 1);
+        # Connect the feature to the contigs. This is where the location information figures in.
+        my $ordinal = 0;
+        for my $loc (@locs) {
+            $loader->InsertObject('Feature2Contig', 'from-link' => $fid, 'to-link' => ($genome . ":" . $loc->Contig),
+                    begin => $loc->Left, dir => $loc->Dir, len => $loc->Length, ordinal => ++$ordinal);
+            $stats->Add(featureSegment => 1);
+        }
+        # Parse the function.
+        my ($statement, $sep, $roles, $comment) = Shrub::Functions::Parse($function);
+        # Insure it is in the database.
+        my $funcID = $funcMgr->Process($statement, $sep, $roles);
+        # Connect the functions. Make the connection at each privilege level.
+        for (my $p = $priv; $p >= 0; $p--) {
+            $loader->InsertObject('Feature2Function', 'from-link' => $fid, 'to-link' => $funcID,
+                    comment => $comment, security => $p);
+            $stats->Add(featureFunction => 1);
+        }
+        $fcount++;
+    }
+    print "$fcount features processed.\n";
+}
+
+
+=head3 RealContigID
+
+    my $realContigID = GenomeLoader::RealContigID($genome, $contigID);
+
+Convert a contig ID into a real contig ID with a genome ID attached. If
+the genome ID is already attached, do not change anything.
+
+=over 4
+
+=item genome
+
+Genome ID for this contig.
+
+=item contigID
+
+Internal ID for this contig.
+
+=item RETURN
+
+Returns a contig ID with the genome ID prefixed.
+
+=back
+
+=cut
+
+sub RealContigID {
+    # Get the parameters.
+    my ($genome, $contigID) = @_;
+    # Start with the internal contig ID.
+    my $retVal = $contigID;
+    # If there is no genome ID in it, add one.
+    if ($retVal =~ /^[^:]+$/) {
+        $retVal = "$genome:$contigID";
+    }
+    # Return the result.
+    return $retVal;
+}
+
+
 
 =head2 Internal Utility Methods
 

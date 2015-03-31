@@ -66,9 +66,14 @@ if ($opt->clear) {
 # Compute the list of subsystems to load.
 print "Determining list of subsystems to process.\n";
 my $subList = $loader->ComputeSubsystems();
+# These will be used as progress counters.
+my ($count, $total);
 # Loop through the subsystems, loading them.
 print "Processing subsystems.\n";
+$count = 0; $total = scalar @$subList;
 for my $sub (@$subList) {
+    $count++;
+    print "Loading subsystem $count of $total.\n";
     $loader->CopySubsystem($sub);
 }
 # Determine the remaining genomes.
@@ -76,7 +81,10 @@ print "Determining list of genomes to process.\n";
 my $genomeList = $loader->ComputeGenomes();
 # Loop through the genomes, loading them.
 print "Processing genomes.\n";
+$count = 0; $total = scalar @$genomeList;
 for my $genome (@$genomeList) {
+    $count++;
+    print "Loading genome $count of $total.\n";
     $loader->CopyGenome($genome);
 }
 # If we have genome output, create the genome index.
