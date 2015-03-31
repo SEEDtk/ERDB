@@ -340,7 +340,7 @@ sub ComputeSubsystems {
                 } elsif (! -f "$subBase/$dirName/EXCHANGABLE") {
                     print "Subsystem $sub is private in SEED.\n";
                     $stats->Add(subsystemPrivate => 1);
-                } elsif (! -f "$subBase/$dirName/spreadsheet") {
+                } elsif (-f "$subBase/$dirName/spreadsheet") {
                     # This is a real subsystem. Save it.
                     push @retVal, $dirName;
                     $stats->Add(subsystemKept => 1);
