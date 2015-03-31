@@ -337,7 +337,7 @@ sub ComputeSubsystems {
                 if (! -d "$subBase/$dirName") {
                     print "Subsystem $sub not found in SEED.\n";
                     $stats->Add(subsystemNotFound => 1);
-                } elsif (! -f "$subBase/$dirName/EXCHANGEABLE") {
+                } elsif (! -f "$subBase/$dirName/EXCHANGABLE") {
                     print "Subsystem $sub is private in SEED.\n";
                     $stats->Add(subsystemPrivate => 1);
                 } elsif (! -f "$subBase/$dirName/spreadsheet") {
