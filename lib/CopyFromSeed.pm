@@ -400,7 +400,8 @@ sub CopySubsystem {
     # We'll put the output file handles in here.
     my ($rh, $gh, $ph);
     # Compute the output directory.
-    my $outDir = "$self->{subsysOutput}/$sub";
+    my $dsub = DenormalizedName($sub);
+    my $outDir = "$self->{subsysOutput}/$dsub";
     # We'll set this to TRUE if we're skipping this subsystem.
     my $skip;
     # Insure the output directory exists.
