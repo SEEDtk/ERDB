@@ -97,11 +97,11 @@ Returns a DNA sequence corresponding to the specified feature.
 
 =cut
 
-sub dna {
+sub fdna {
     # Get the parameters.
     my ($self, $fid) = @_;
     # Get the locations for the feature.
-    my @flocs = $self->{shrub}->GetAll('Feature2Contig', 'Feature2Contig(from-link) = ? ORDER BY Feature2Contig(from-link) Feature2Contig(ordinal)',
+    my @flocs = $self->{shrub}->GetAll('Feature2Contig', 'Feature2Contig(from-link) = ? ORDER BY Feature2Contig(from-link), Feature2Contig(ordinal)',
             [$fid], 'to-link begin dir len');
     # Compute the DNA.
     my $retVal = $self->dna(@flocs);
