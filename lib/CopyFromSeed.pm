@@ -332,29 +332,26 @@ sub ComputeSubsystems {
     my ($self, $subList) = @_;
     # Declare the return variable.
     my @retVal;
-    # Only proceed if we're loading subsystems at all.
-    if ($self->{subsystemsOK}) {
-        # Get the statistics object.
-        my $stats = $self->stats;
-        # Check the input list of subsystems.
-        my @subs;
-        if (! $subList) {
-            # Here we getting all subsystems. Read the directory.
-            my $subBase = "$self->{figDisk}/FIG/Data/Subsystems";
-            @subs = grep { substr($_,0,1) ne '.' } $self->OpenDir($subBase);
-        } else {
-            # Here we are using the caller-specified list.
-            push @subs, @$subList;
-        }
-        # Check each subsystem.
-        for my $sub (@subs) {
-            my $dir = CheckSubsystem($sub);
-            if ($dir) {
-                push @retVal, $sub;
-            }
-        }
-        print scalar(@retVal) . " subsystems selected for copying.\n";
+    # Get the statistics object.
+    my $stats = $self->stats;
+    # Check the input list of subsystems.
+    my @subs;
+    if (! $subList) {
+        # Here we getting all subsystems. Read the directory.
+        my $subBase = "$self->{figDisk}/FIG/Data/Subsystems";
+        @subs = grep { substr($_,0,1) ne '.' } $self->OpenDir($subBase);
+    } else {
+        # Here we are using the caller-specified list.
+        push @subs, @$subList;
     }
+    # Check each subsystem.
+    for my $sub (@subs) {
+        my $dir = CheckSubsystem($sub);
+        if ($dir) {
+            push @retVal, $sub;
+        }
+    }
+    print scalar(@retVal) . " subsystems selected for copying.\n";
     # Return the result.
     return \@retVal;
 }
