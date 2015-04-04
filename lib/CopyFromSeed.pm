@@ -341,7 +341,7 @@ sub ComputeSubsystems {
         if (! $subList) {
             # Here we getting all subsystems. Read the directory.
             my $subBase = "$self->{figDisk}/FIG/Data/Subsystems";
-            @subs = grep { substr($_,0,1) } $self->OpenDir($subBase);
+            @subs = grep { substr($_,0,1) ne '.' } $self->OpenDir($subBase);
         } else {
             # Here we are using the caller-specified list.
             push @subs, @$subList;
