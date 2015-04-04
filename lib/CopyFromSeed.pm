@@ -1082,6 +1082,9 @@ sub SetSEED {
     $self->{privilege} = $privilege;
     $self->{subPriv} = ($privilege == Shrub::PRIV ? 1 : 0);
     $stats->Add(coreSeeds => $self->{subPriv});
+    # Clear the tracking hashes.
+    $self->{genomesProcessed} = {};
+    $self->{genomeNames} = {};
 }
 
 
