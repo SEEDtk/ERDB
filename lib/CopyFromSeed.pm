@@ -346,7 +346,7 @@ sub ComputeSubsystems {
     }
     # Check each subsystem.
     for my $sub (@subs) {
-        my $dir = CheckSubsystem($sub);
+        my $dir = $self->CheckSubsystem($sub);
         if ($dir) {
             push @retVal, $sub;
         }
