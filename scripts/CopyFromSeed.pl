@@ -52,6 +52,10 @@ my $opt = ScriptUtils::Opts('fig_disk', CopyFromSeed::subsys_options(),
 # Get a helper object and the associated statistics object.
 my $loader = CopyFromSeed->new($opt, $ARGV[0]);
 my $stats = $loader->stats;
+# Insure we have a SEED FIGdisk.
+if (! $ARGV[0]) {
+    die "A FIG disk is required.";
+}
 # Are we clearing?
 if ($opt->clear) {
     print "Erasing genome repository.\n";
@@ -65,7 +69,16 @@ if ($opt->clear) {
 }
 # Compute the list of subsystems to load.
 print "Determining list of subsystems to process.\n";
-my $subList = $loader->ComputeSubsystems();
+my $subList;
+my $subFile = $opt->subsystems;
+if ($subFile eq 'none') {
+    $subList = [];
+} elsif ($subFile ne 'all') {
+    $subList = $loader->GetNamesFromFile(subsystem => $subFile);
+    print scalar(@$subList) . " subsystem names read from $subFile.\n";
+}
+# Curate the subsystem list.
+$subList = $loader->ComputeSubsystems($subList);
 # These will be used as progress counters.
 my ($count, $total);
 # Loop through the subsystems, loading them.
@@ -78,7 +91,16 @@ for my $sub (@$subList) {
 }
 # Determine the remaining genomes.
 print "Determining list of genomes to process.\n";
-my $genomeList = $loader->ComputeGenomes();
+my $genomeList;
+my $genomeFile = $opt->genomes;
+if ($genomeFile eq 'none') {
+    $genomeList = [];
+} elsif ($genomeFile eq 'all') {
+    $genomeList = $loader->AllGenomes();
+} else {
+    $genomeList = $loader->GetNamesFromFile(genome => $genomeFile);
+    print scalar(@$genomeList) . " genomes read from $genomeFile.\n";
+}
 # Loop through the genomes, loading them.
 print "Processing genomes.\n";
 $count = 0; $total = scalar @$genomeList;

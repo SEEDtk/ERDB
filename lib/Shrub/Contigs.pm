@@ -28,6 +28,16 @@ This object contains the contigs for a specific genome. it provides methods for 
 DNA and exporting the contigs in different forms.
 
 The object is a subclass of L<Contigs> that gets the contig data from the L<Shrub> database.
+In addition to the fields in the base-class object. It contains the following.
+
+=over 4
+
+=item shrub
+
+L<Shrub> object for accessing the database.
+
+=back
+
 
 =head2 Special Methods
 
@@ -58,9 +68,45 @@ sub new {
     my $contigFile = "$repo/$contigPath";
     # Create the contigs object.
     my $retVal = Contigs::new($class, $contigFile, genomeID => $genomeID, genetic_code => $geneticCode);
+    # Add the shrub reference.
+    $retVal->{shrub} = $shrub;
     # Return it.
     return $retVal;
 }
 
+
+=head2 Query Methods
+
+=head3 fdna
+
+    my $seq = $contigs->fdna($fid);
+
+Return the DNA for the specified feature.
+
+=over 4
+
+=item fid
+
+The ID of a feature in this object's genome.
+
+=item RETURN
+
+Returns a DNA sequence corresponding to the specified feature.
+
+=back
+
+=cut
+
+sub fdna {
+    # Get the parameters.
+    my ($self, $fid) = @_;
+    # Get the locations for the feature.
+    my @flocs = $self->{shrub}->GetAll('Feature2Contig', 'Feature2Contig(from-link) = ? ORDER BY Feature2Contig(from-link), Feature2Contig(ordinal)',
+            [$fid], 'to-link begin dir len');
+    # Compute the DNA.
+    my $retVal = $self->dna(@flocs);
+    # Return the result.
+    return $retVal;
+}
 
 1;

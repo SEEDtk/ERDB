@@ -89,6 +89,14 @@ If TRUE, then genomes are being copied. If FALSE, genomes are turned off.
 
 If TRUE, then subsystems are being copied. If FALSE, subsystems are turned off.
 
+=item privilege
+
+Privilege level of the incoming annotations.
+
+=item subPriv
+
+TRUE if the subsystems are core subsystems, else FALSE.
+
 =back
 
 =head2 Command-Line Option Groups
@@ -161,7 +169,6 @@ sub genome_options {
     return (
             ["genomes=s", "file listing genomes to copy (default all)", { default => 'all' }],
             ["proks", "if specified, only prokaryotic genomes will be copied"],
-            ["blacklist=s", "the name of a file containing IDs of genomes that should not be copied"],
     );
 }
 
@@ -202,7 +209,8 @@ sub common_options {
             ["privilege=i", "privilege level of the annotations-- 0 (public), 1 (projected), or 2 (privileged)",
                     { default => Shrub::PUBLIC }],
             ["missing|m", "only copy missing subsystems and genomes"],
-            ["clear", "erase the target repository before copying"]
+            ["clear", "erase the target repository before copying"],
+            ["blacklist=s", "the name of a file containing IDs of genomes that should not be copied"],
         );
 }
 
@@ -237,13 +245,9 @@ sub new {
     # Store the FIGdisk pointer and command-line options.
     $retVal->{opt} = $opt;
     $retVal->{figDisk} = $figDisk;
-    # Validate the FIGdisk.
-    if (! $figDisk) {
-        die "A SEED FIGdisk location is required.";
-    } elsif (! -d $figDisk) {
-        die "SEED FIGdisk location $figDisk is invalid or not found.";
-    } elsif (! -d "$figDisk/FIG/Data/Organisms" || ! -d "$figDisk/FIG/Data/Subsystems") {
-        die "Directory $figDisk does not appear to be a FIGdisk directory.";
+    # Validate the FIGdisk, if one is specified.
+    if ($figDisk) {
+        CheckFigDisk($figDisk);
     }
     # Create the tracking hashes.
     $retVal->{genomesProcessed} = {};
@@ -278,8 +282,10 @@ sub new {
         # Here we need to create a hash of the genome IDs in the blacklist file.
         $retVal->{blacklist} = { map { $_ => 1 } $retVal->GetNamesFromFile('blacklist-genome' => $opt->blacklist) };
     }
-    # Save the missing-flag.
+    # Save the missing-flag and the privilege levels.
     $retVal->{missing} = $opt->missing;
+    $retVal->{privilege} = $opt->privilege;
+    $retVal->{subPriv} = $opt->{subpriv} // 0;
     # Return the created object.
     return $retVal;
 }
@@ -301,65 +307,108 @@ sub subsys_repo {
 
 =head3 ComputeSubsystems
 
-    my $subList = $loader->ComputeSubsystems();
+    my $subList = $loader->ComputeSubsystems(\@subList);
 
 Compute the list of subsystems to process. The subsystem names will be
 converted to directory format and directories that are not found will be
-eliminated. This method should only be called
+eliminated.
+
+=over 4
+
+=item subList
+
+Reference to a list of subsystem names. If undefined, all subsystems in the
+current SEED will be processed.
+
+=item RETURN
+
+Returns a list of low-level directory names for the subsystems that
+should be loaded.
 
 =cut
 
 sub ComputeSubsystems {
     # Get the parameters.
-    my ($self) = @_;
+    my ($self, $subList) = @_;
     # Declare the return variable.
     my @retVal;
-    # Only proceed if we're loading subsystems at all.
-    if ($self->{subsystemsOK}) {
-        # Get the statistics object.
-        my $stats = $self->stats;
-        # Get the command-line options.
-        my $opt = $self->{opt};
-        # Compute the base subsystem directory.
+    # Get the statistics object.
+    my $stats = $self->stats;
+    # Check the input list of subsystems.
+    my @subs;
+    if (! $subList) {
+        # Here we getting all subsystems. Read the directory.
         my $subBase = "$self->{figDisk}/FIG/Data/Subsystems";
-        # Get the input list of subsystems.
-        my $subFile = $opt->subsystems;
-        if ($subFile ne 'all') {
-            # Get the list of subsystem names from the file.
-            my $subList = $self->GetNamesFromFile(subsystem => $subFile);
-            print scalar(@$subList) . " subsystem names read from $subFile.\n";
-            # Insure all the subsystems exist.
-            for my $sub (@$subList) {
-                # Convert the subsystem name to a directory name.
-                my $dirName = $sub;
-                $dirName =~ tr/ /_/;
-                # Verify the directory.
-                if (! -d "$subBase/$dirName") {
-                    print "Subsystem $sub not found in SEED.\n";
-                    $stats->Add(subsystemNotFound => 1);
-                } elsif (! -f "$subBase/$dirName/EXCHANGABLE") {
-                    print "Subsystem $sub is private in SEED.\n";
-                    $stats->Add(subsystemPrivate => 1);
-                } elsif (-f "$subBase/$dirName/spreadsheet") {
-                    # This is a real subsystem. Save it.
-                    push @retVal, $dirName;
-                    $stats->Add(subsystemKept => 1);
-                } else {
-                    print "Subsystem $sub has no spreadsheet.\n";
-                    $stats->Add(subsystemNoSheet => 1);
-                }
-            }
-        } else {
-            # Here we getting all subsystems. Read the directory.
-            @retVal =
-                    grep { substr($_,0,1) ne '.' && -f "$subBase/$_/EXCHANGABLE" && -f "$subBase/$_/spreadsheet" } $self->OpenDir($subBase);
-            $stats->Add(subsystemKept => scalar(@retVal));
-            print scalar(@retVal) . " subsystems found in $subBase.\n";
+        @subs = grep { substr($_,0,1) ne '.' } $self->OpenDir($subBase);
+    } else {
+        # Here we are using the caller-specified list.
+        push @subs, @$subList;
+    }
+    # Check each subsystem.
+    for my $sub (@subs) {
+        my $dir = $self->CheckSubsystem($sub);
+        if ($dir) {
+            push @retVal, $sub;
         }
     }
+    print scalar(@retVal) . " subsystems selected for copying.\n";
     # Return the result.
     return \@retVal;
 }
+
+=head3 CheckSubsystem
+
+    my $dirName = $loader->CheckSubsystem($subName);
+
+Insure a subsystem name is valid. If it is, return its directory name in the SEED.
+
+=over 4
+
+=item subName
+
+The name of the subsystem to check.
+
+=item RETURN
+
+If the subsystem name is valid, returns the base name of its directory in the
+SEED. If the subsystem name is invalid or refers to a private or incomplete
+subsystem, returns an undefined value.
+
+=back
+
+=cut
+
+sub CheckSubsystem {
+    # Get the parameters.
+    my ($self, $subName) = @_;
+    # Get the statistics object.
+    my $stats = $self->stats;
+    # This will be the return value.
+    my $retVal;
+    # Compute the base subsystem directory.
+    my $subBase = "$self->{figDisk}/FIG/Data/Subsystems";
+    # Convert the subsystem name to a directory name.
+    my $dirName = $subName;
+    $dirName =~ tr/ /_/;
+    # Verify the directory.
+    if (! -d "$subBase/$dirName") {
+        print "Subsystem $subName not found in SEED.\n";
+        $stats->Add(subsystemNotFound => 1);
+    } elsif (! -f "$subBase/$dirName/EXCHANGABLE") {
+        print "Subsystem $subName is private in SEED.\n";
+        $stats->Add(subsystemPrivate => 1);
+    } elsif (-f "$subBase/$dirName/spreadsheet") {
+        # This is a real subsystem. Save it.
+        $retVal = $dirName;
+        $stats->Add(subsystemKept => 1);
+    } else {
+        print "Subsystem $subName has no spreadsheet.\n";
+        $stats->Add(subsystemNoSheet => 1);
+    }
+    # Return the directory name.
+    return $retVal;
+}
+
 
 =head3 CopySubsystem
 
@@ -400,7 +449,8 @@ sub CopySubsystem {
     # We'll put the output file handles in here.
     my ($rh, $gh, $ph);
     # Compute the output directory.
-    my $outDir = "$self->{subsysOutput}/$sub";
+    my $dsub = RepoLoader::DenormalizedName($sub);
+    my $outDir = "$self->{subsysOutput}/$dsub";
     # We'll set this to TRUE if we're skipping this subsystem.
     my $skip;
     # Insure the output directory exists.
@@ -420,8 +470,8 @@ sub CopySubsystem {
         open($gh, ">$outDir/GenomesInSubsys") || die "Cannot open GenomesInSubsys file: $!";
         open($ph, ">$outDir/PegsInSubsys") || die "Cannot open PegsInSubsys file: $!";
         # Now create the metafile. We start with the subsystem's privilege status.
-        my %metaHash = ( privileged => ($opt->subpriv ? 1 : 0),
-                'row-privilege' => $opt->privilege );
+        my %metaHash = ( privileged => $self->{subPriv},
+                'row-privilege' => $self->{privilege} );
         # Next read the version. If there is no version we default to 1.
         $metaHash{version} = ReadFlagFile("$subDisk/VERSION") // 1;
         # Now write the metafile.
@@ -597,7 +647,7 @@ sub CopyGenome {
                 $domain = 'unknown';
             }
             my $prokFlag = ($domain =~ /^(?:Archaea|Bacteria)/) || 0;
-            if ($opt->proks && ! $prokFlag) {
+            if ($opt->{proks} && ! $prokFlag) {
                 # Here we are only loading proks and this isn't one, so we
                 # skip it.
                 $stats->Add('non-prokaryotic-skipped' => 1);
@@ -650,7 +700,7 @@ sub CopyGenome {
                         $stats->Add(genomeDirCreated => 1);
                     }
                     # Get the privilege level.
-                    my $privilege = $opt->privilege;
+                    my $privilege = $self->{privilege};
                     # We have almost all of the metadata. Now we want to copy the
                     # contigs file and compute the MD5.
                     my $md5 = $self->ProcessContigFile($genomeDir, $outDir);
@@ -837,39 +887,21 @@ sub ReadFunctions {
 }
 
 
-=head3 ComputeGenomes
+=head3 AllGenomes
 
-    my $genomeList = $loader->ComputeGenomes();
+    my $genomeList = $loader->AllGenomes();
 
-Determine the list of genomes to copy. This could be all genomes in the
-specified SEED or a list provided in a file.
+Return the list of all genomes in the current SEED.
 
 =cut
 
-sub ComputeGenomes {
+sub AllGenomes {
     # Get the parameters.
     my ($self) = @_;
-    # Get the statistics object.
-    my $stats = $self->stats;
-    # Declare the return variable.
-    my $retVal = [];
-    # Only proceed if genomes were specified.
-    if ($self->{genomesOK}) {
-        # Get the command-line options.
-        my $opt = $self->{opt};
-        # Check for a genome ID input file.
-        if ($opt->genomes ne 'all') {
-            # We have one, so read the genomes from it.
-            $retVal = $self->GetNamesFromFile(genome => $opt->genomes);
-            print scalar(@$retVal) . " genome IDs read from input file.\n";
-        } else {
-            # No genome input file, so read all the genomes in the genome
-            # directory.
-            my $orgDir = "$self->{figDisk}/FIG/Data/Organisms";
-            $retVal = [ grep { $_ =~ /^\d+\.\d+$/ && -d "$orgDir/$_" } $self->OpenDir($orgDir) ];
-            print scalar(@$retVal) . " genome IDs read from directory.\n";
-        }
-    }
+    # Read all the genomes in the organism directory.
+    my $orgDir = "$self->{figDisk}/FIG/Data/Organisms";
+    my $retVal = [ grep { $_ =~ /^\d+\.\d+$/ && -d "$orgDir/$_" } $self->OpenDir($orgDir) ];
+    print scalar(@$retVal) . " genome IDs read from directory.\n";
     # Return the resulting genome list.
     return $retVal;
 }
@@ -1016,6 +1048,46 @@ sub IndexGenomes {
 
 =head2 Utility Methods
 
+=head3 SetSEED
+
+    $loader->SetSEED($figDisk, $privilege);
+
+Set the SEED FIGdisk and the associated privilege levels.
+
+=over 4
+
+=item figDisk
+
+Path to the SEED FIGdisk to be used as the source for subsequent loads.
+
+=item privilege
+
+The privilege level associated with the SEED's annotations and subsystems.
+
+=back
+
+=cut
+
+sub SetSEED {
+    # Get the parameters.
+    my ($self, $figDisk, $privilege) = @_;
+    # Get the statistics object.
+    my $stats = $self->stats;
+    # Verify the FIGdisk.
+    CheckFigDisk($figDisk);
+    # Store it in our data structures.
+    $self->{figDisk} = $figDisk;
+    $stats->Add(figDisks => 1);
+    # Store the privilege level.
+    $self->{privilege} = $privilege;
+    $self->{subPriv} = ($privilege == Shrub::PRIV ? 1 : 0);
+    $stats->Add(coreSeeds => $self->{subPriv});
+    # Clear the tracking hashes.
+    $self->{genomesProcessed} = {};
+    $self->{genomeNames} = {};
+}
+
+
 =head3 ReadFlagFile
 
     my $data = CopyFromSeed::ReadFlagFile($fileName);
@@ -1050,6 +1122,33 @@ sub ReadFlagFile {
     }
     # Return the data read (if any).
     return $retVal;
+}
+
+
+=head3 CheckFigDisk
+
+    CopyFromSeed::CheckFigDisk($figDisk);
+
+Verify that a SEED FIGdisk directory name is valid.
+
+=over 4
+
+=item figDisk
+
+Path of the proposed FIGdisk directory. This method will abort the program if it is not
+a directory or does not contain valid subdirectories.
+
+=back
+
+=cut
+
+sub CheckFigDisk {
+    my ($figDisk) = @_;
+    if (! -d $figDisk) {
+        die "SEED FIGdisk location $figDisk is invalid or not found.";
+    } elsif (! -d "$figDisk/FIG/Data/Organisms" || ! -d "$figDisk/FIG/Data/Subsystems") {
+        die "Directory $figDisk does not appear to be a FIGdisk directory.";
+    }
 }
 
 

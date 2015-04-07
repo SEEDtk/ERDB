@@ -440,7 +440,7 @@ sub LoadGenome {
      # Connect the contigs to it.
      for my $contigDatum (@$contigList) {
          # Fix the contig ID.
-         $contigDatum->{id} = "$genome:$contigDatum->{id}";
+         $contigDatum->{id} = RealContigID($genome, $contigDatum->{id});
          # Create the contig.
          $loader->InsertObject('Contig', %$contigDatum, Genome2Contig_link => $genome);
          $stats->Add(contigInserted => 1);
@@ -743,7 +743,7 @@ sub ReadFeatures {
         # Connect the feature to the contigs. This is where the location information figures in.
         my $ordinal = 0;
         for my $loc (@locs) {
-            $loader->InsertObject('Feature2Contig', 'from-link' => $fid, 'to-link' => ($genome . ":" . $loc->Contig),
+            $loader->InsertObject('Feature2Contig', 'from-link' => $fid, 'to-link' => RealContigID($genome , $loc->Contig),
                     begin => $loc->Left, dir => $loc->Dir, len => $loc->Length, ordinal => ++$ordinal);
             $stats->Add(featureSegment => 1);
         }
