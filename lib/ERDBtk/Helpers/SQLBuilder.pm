@@ -614,7 +614,7 @@ sub FormatFilter {
     my $sqlFilter = $self->FixFilter($filterClause);
     # Parse out the constraint part.
     my ($constraint, $modifier) = ($sqlFilter, '');
-    if ($sqlFilter =~ /^(.*?)\s*(\b(?:LIMIT\s|ORDER\sBY\s).+)$/i) {
+    if ($sqlFilter =~ /^(.*?)\s*(\b(?:LIMIT\s|ORDER\sBY\s).+)$/si) {
          ($constraint, $modifier) = ($1, $2);
     }
     # If there is a constraint, add it to the join clause list.

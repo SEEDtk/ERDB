@@ -423,6 +423,44 @@ sub Subsystem2Role {
 }
 
 
+sub get_funcs_and_trans {
+    my($shrub,$g,$security) = @_;
+
+    my $funcsL = &get_funcs_for_pegs_in_genome($shrub,$g,'peg',$security);
+    my %funcs  = map { ($_->[0] => $_->[1]) } @$funcsL;
+
+    my $transL = &get_trans_for_genome($shrub,$g);
+    my %trans  = map { ($_->[0] => $_->[1]) } @$transL;
+    return (\%funcs,\%trans);
+}
+
+sub get_funcs_for_pegs_in_genome {
+    my($shrub,$g,$type,$security) = @_;
+
+    my @tuples = $shrub->GetAll("Genome2Feature Feature Feature2Protein Protein AND
+                                 Feature Feature2Function Function",
+                                "(Genome2Feature(from-link) = ?)
+                                 AND (Feature(feature-type) = ?)
+                                 ORDER BY Feature2Function(from-link),Feature2Function(security)",
+                                [$g,$type],
+                                "Genome2Feature(to-link) Function(description) Function(id)");
+    my %distinct = map { ($_->[0] => $_) } @tuples;
+    @tuples = map { $distinct{$_} } keys(%distinct);  ## This strange code returns the highest securty level
+    return \@tuples;
+}
+
+sub get_trans_for_genome {
+    my($shrub,$g) = @_;
+
+    my @tuples = $shrub->GetAll("Genome2Feature Feature Protein",
+                                "(Genome2Feature(from-link) = ?) AND (Feature(feature-type) = ?)",
+                                [$g,'peg'],
+                                "Genome2Feature(to-link) Protein(sequence)");
+    return \@tuples;
+}
+
+
+
 =head2 Query Methods
 
 =head3 DNArepo
@@ -599,42 +637,6 @@ sub PreferredName {
     return 'shrub';
 }
 
-
-sub get_funcs_and_trans {
-    my($shrub,$g,$security) = @_;
-    
-    my $funcsL = &get_funcs_for_pegs_in_genome($shrub,$g,'peg',$security);
-    my %funcs  = map { ($_->[0] => $_->[1]) } @$funcsL;
-
-    my $transL = &get_trans_for_genome($shrub,$g);
-    my %trans  = map { ($_->[0] => $_->[1]) } @$transL;
-    return (\%funcs,\%trans);
-}
-
-sub get_funcs_for_pegs_in_genome {
-    my($shrub,$g,$type,$security) = @_;
-
-    my @tuples = $shrub->GetAll("Genome2Feature Feature Feature2Protein Protein AND 
-                                 Feature Feature2Function Function",
-				"(Genome2Feature(from-link) = ?) 
-                                 AND (Feature(feature-type) = ?) 
-                                 ORDER BY Feature2Function(from-link),Feature2Function(security)",
-				[$g,$type],
-				"Genome2Feature(to-link) Function(description) Function(id)");
-    my %distinct = map { ($_->[0] => $_) } @tuples;
-    @tuples = map { $distinct{$_} } keys(%distinct);  ## This strange code returns the highest securty level
-    return \@tuples;
-}
-
-sub get_trans_for_genome {
-    my($shrub,$g) = @_;
-
-    my @tuples = $shrub->GetAll("Genome2Feature Feature Protein",
-				"(Genome2Feature(from-link) = ?) AND (Feature(feature-type) = ?)",
-				[$g,'peg'],
-                                "Genome2Feature(to-link) Protein(sequence)");
-    return \@tuples;
-}
 
 1;
 
