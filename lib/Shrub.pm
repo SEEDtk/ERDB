@@ -423,6 +423,40 @@ sub Subsystem2Role {
 }
 
 
+=head3 FunctionName
+
+    my $fname = $shrub->FunctionName($fun);
+
+Return the description associated with a function ID.
+
+=over 4
+
+=item fun
+
+ID of the function whose description is desired.
+
+=item RETURN
+
+Returns the function description, or the incoming function ID if it is not found.
+
+=back
+
+=cut
+
+sub FunctionName {
+    # Get the parameters.
+    my ($self, $fun) = @_;
+    # Declare the return variable.
+    my ($retVal) = $self->GetFlat('Function', 'Function(id) = ?', [$fun], 'description');
+    # Default to the incoming ID.
+    $retVal //= $fun;
+    # Return the result.
+    return $retVal;
+}
+
+
+
+
 sub get_funcs_and_trans {
     my($shrub,$g,$security) = @_;
 
