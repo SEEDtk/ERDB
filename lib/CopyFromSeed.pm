@@ -625,6 +625,10 @@ sub CopyGenome {
             # If we couldn't find the name, we can't process the genome.
             print "Could not find name of $genome-- skipped.\n";
             $stats->Add('genome-name-not-found' => 1);
+        } elsif (! -f "$genomeDir/COMPLETE") {
+            # We don't want incomplete genomes.
+            print "$genome is incomplete-- skipped.\n";
+            $stats->Add('genome-incomplete' => 1);
         } elsif (! -d "$genomeDir/Features") {
             # If there are no features, we can't process the genome.
             print "$genome has no Features directory.\n";
