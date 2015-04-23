@@ -74,6 +74,9 @@ sub new {
         my $q = $shrub->Get('Feature2Contig', 'Feature2Contig(from-link) LIKE ?', [$fpattern], 'from-link to-link begin dir len');
         while (my $rec = $q->Fetch()) {
             my ($fid, $contig, $beg, $dir, $len) = $rec->Values('from-link to-link begin dir len');
+            if ($dir eq '-') {
+                $beg = $beg + $len - 1;
+            }
             push @{$fids{$fid}{-location}}, [$contig, $beg, $dir, $len];
         }
         # Compute the translations.
