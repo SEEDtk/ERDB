@@ -33,7 +33,8 @@ This is a subclass of a L<GenomeTypeObject> created from a genome in the Shrub d
 
     my $gto = Shrub::Genome->new($shrub, $genomeID);
 
-Create a new L<GenomeTypeObject> from a genome in the Shrub database.
+Create a new L<GenomeTypeObject> from a genome in the Shrub database. If the genome is not found, it will return
+an undefined value.
 
 =over 4
 
@@ -52,12 +53,15 @@ ID of the genome to load into the object.
 sub new {
     # Get the parameters.
     my ($class, $shrub, $genomeID) = @_;
-    # Create the GTO.
-    my $retVal = GenomeTypeObject::new($class);
+    # Declare the return variable.
+    my $retVal;
     # Get the genome data.
     my ($name, $domain, $gc) = $shrub->GetEntityValues(Genome => $genomeID, 'name domain genetic-code');
     # Only proceed if we found the genome.
     if ($name) {
+        # Create a blank GTO.
+        $retVal = GenomeTypeObject::new($class);
+        # Fill in the base data.
         $retVal->set_metadata({ id => $genomeID, scientific_name => $name, domain => $domain,
                 genetic_code => $gc, source => 'Shrub', source_id => $genomeID });
         # Get the contigs.
