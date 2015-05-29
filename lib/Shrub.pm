@@ -454,7 +454,85 @@ sub FunctionName {
     return $retVal;
 }
 
+=head3 fid_locs
 
+    my @locs = $shrub->fid_locs($fid);
+
+Return a list of L<BasicLocation> objects for the locations occupied by a specified feature.
+
+=over
+
+=item fid
+
+ID of the relevant feature.
+
+=item RETURN
+
+Returns a list of L<BasicLocation> objects, one for each segment of the feature.
+
+=back
+
+=cut
+
+sub fid_locs {
+    # Get the parameters.
+    my ($self, $fid) = @_;
+    # Get the location information.
+    my @locData = $self->GetAll('Feature2Contig', 'Feature2Contig(from-link) = ? ORDER BY Feature2Contig(from-link), Feature2Contig(ordinal)',
+            [$fid], 'Feature2Contig(to-link) Feature2Contig(begin) Feature2Contig(dir) Feature2Contig(len)');
+    # Convert to location objects.
+    my @retVal = map { BasicLocation->new(@$_) } @locData;
+    # Return the result.
+    return @retVal;
+}
+
+=head3 loc_of
+
+    my $loc = $shrub->loc_of($fid);
+
+Return the location of a feature. The feature is presumed to be on a single contig. If it has multiple locations,
+a location will be formed from the leftmost and rightmost points on the contig, and the direction will be set to
+the most common direction.
+
+=over 4
+
+=item fid
+
+ID of the relevant feature.
+
+=item RETURN
+
+Returns a L<BasicLocation> object giving the overall location of the feature.
+
+=back
+
+=cut
+
+sub loc_of {
+    # Get the parameters.
+    my ($self, $fid) = @_;
+    # Get the location information.
+    my @locs = $self->fid_locs($fid);
+    # If there is only one, simply return it.
+    my $retVal = pop @locs;
+    if (@locs) {
+        # This will track the directions.
+        my %dirs = ($retVal->Dir => 1);
+        for my $loc (@locs) {
+            if ($loc->Contig eq $retVal->Contig) {
+                $retVal->Merge($loc);
+                $dirs{$loc->Dir}++;
+            }
+        }
+        # If the other direction is more popular, flip the location.
+        my $otherDirCount = $dirs{($retVal->Dir eq '-') ? '+' : '-'} // 0;
+        if ($otherDirCount > $dirs{$retVal->Dir}) {
+            $retVal->Reverse;
+        }
+    }
+    # Return the result.
+    return $retVal;
+}
 
 
 sub get_funcs_and_trans {
