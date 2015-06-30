@@ -535,6 +535,35 @@ sub loc_of {
 }
 
 
+sub subsystem_to_roles {
+    my($self, $subsys) = @_;
+
+    my @tuples = $self->GetAll("Subsystem2Role Role",
+                                "Subsystem2Role(from-link) = ?", [$subsys],
+                                "Subsystem2Role(abbr) Role(id) Role(description)");
+    return \@tuples;
+}
+
+sub subsystem_to_rows {
+    my($self, $subsys) = @_;
+
+    my @tuples = $self->GetAll("Subsystem2Row SubsystemRow",
+                                "Subsystem2Row(from-link) = ?", [$subsys],
+                                "SubsystemRow(id) SubsystemRow(variant-code)");
+    return \@tuples;
+}
+
+sub row_to_pegs {
+    my($self, $row) = @_;
+
+    my @tuples = $self->GetAll("SubsystemRow Row2Cell SubsystemCell Cell2Feature AND SubsystemCell Cell2Role Role",
+                                "SubsystemRow(id) = ?",
+                                [$row],
+                                "Cell2Feature(to-link) Role(id)");
+    return \@tuples;
+}
+
+
 sub get_funcs_and_trans {
     my($shrub,$g,$security) = @_;
 
