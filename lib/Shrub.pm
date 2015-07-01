@@ -454,6 +454,51 @@ sub FunctionName {
     return $retVal;
 }
 
+=head3 all_genomes
+
+    my $genomeH = $shrub->all_genomes($core);
+
+or
+
+    my @genomes = $shrub->all_genomes($core);
+
+Return a hash mapping the ID of every genome in the database to its name or a list of genome IDs,
+optionally restricted to only core genomes.
+
+=over 4
+
+=item core (optional)
+
+If TRUE, then only core genomes are returned. The default is FALSE.
+
+=item RETURN
+
+Returns a reference to a hash mapping each genome's ID to its name.
+
+=back
+
+=cut
+
+sub all_genomes {
+    # Get the parameters.
+    my ($self, $core) = @_;
+    # Create the filter.
+    my ($filter, $parms) = ('', []);
+    if ($core) {
+        $filter = 'Genome(core) = ?';
+        $parms = [1];
+    }
+    # Get the genome data.
+    my @genomes = $self->GetAll('Genome', $filter, $parms, 'id name');
+    # Return it in the desired format.
+    if (wantarray()) {
+        return map { $_->[0] } @genomes;
+    } else {
+        my %retVal = map { $_->[0] => $_->[1] } @genomes;
+        return \%retVal;
+    }
+}
+
 =head3 fid_locs
 
     my @locs = $shrub->fid_locs($fid);
