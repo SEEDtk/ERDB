@@ -711,7 +711,7 @@ sub get_funcs_and_trans {
 
 =head3 get_funcs_for_pegs_in_genome
 
-    my \@tuples = $shrub->get_funcs_for_pegs_in_genome($g, $type, $security);
+    my \@tuples = $shrub->get_funcs_for_pegs_in_genome($g, $type);
 
 Return the highest-privilege functional assignments for all features of a given type in a specified genome.
 

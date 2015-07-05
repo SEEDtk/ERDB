@@ -123,6 +123,10 @@ possible. The default is FALSE.
 A L<Shrub::Roles> object for managing and inserting roles. If none is provided, this object will
 create one.
 
+=back
+
+=back
+
 =cut
 
 sub new {
@@ -155,7 +159,7 @@ or
     my ($statement, $sep, \@roles, $comment) = Shrub::Functions::Parse($function);
 
 Parse a functional assignment. This method breaks it into its constituent roles,
-pulls out the comment and the separator character, and computes the checksum.
+and pulls out the comment and the separator character.
 
 =over 4
 

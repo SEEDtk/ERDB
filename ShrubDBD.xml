@@ -151,6 +151,10 @@
                         ambiguous or incomplete.
                     </Notes>
                 </Field>
+                <Field name="checksum" type="short-string">
+                        <Notes>An MD5 checksum of the feature's original function when it was loaded.
+                        This is used to compare it to the original data.</Notes>
+                </Field>
             </Fields>
             <Indexes>
                 <Index>
