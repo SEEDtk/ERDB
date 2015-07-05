@@ -736,7 +736,7 @@ sub ReadFeatures {
         # Compute the protein.
         my $protID = $protHash->{$fid} // '';
         # Compute the function checksum.
-        my $md5 = Shrub::md5_base64($function);
+        my $md5 = Shrub::Checksum($function);
         # Connect the feature to the genome.
         $loader->InsertObject('Feature', id => $fid, 'feature-type' => $ftype,
                 checksum => $md5, 'sequence-length' => $seqLen,
