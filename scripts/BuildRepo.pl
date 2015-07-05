@@ -26,7 +26,7 @@ use File::Copy::Recursive;
 
 =head1 Copy Data From one or more SEED FIGdisks to Create an Input Repository
 
-    BuildRepo [ options ] fig_disk
+    BuildRepo [ options ]
 
 This script copies genomes and subsystems from one or more SEEDs into a format
 ready for loading into Shrub.

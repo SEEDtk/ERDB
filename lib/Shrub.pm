@@ -454,6 +454,51 @@ sub FunctionName {
     return $retVal;
 }
 
+=head3 all_genomes
+
+    my $genomeH = $shrub->all_genomes($core);
+
+or
+
+    my @genomes = $shrub->all_genomes($core);
+
+Return a hash mapping the ID of every genome in the database to its name or a list of genome IDs,
+optionally restricted to only core genomes.
+
+=over 4
+
+=item core (optional)
+
+If TRUE, then only core genomes are returned. The default is FALSE.
+
+=item RETURN
+
+Returns a reference to a hash mapping each genome's ID to its name.
+
+=back
+
+=cut
+
+sub all_genomes {
+    # Get the parameters.
+    my ($self, $core) = @_;
+    # Create the filter.
+    my ($filter, $parms) = ('', []);
+    if ($core) {
+        $filter = 'Genome(core) = ?';
+        $parms = [1];
+    }
+    # Get the genome data.
+    my @genomes = $self->GetAll('Genome', $filter, $parms, 'id name');
+    # Return it in the desired format.
+    if (wantarray()) {
+        return map { $_->[0] } @genomes;
+    } else {
+        my %retVal = map { $_->[0] => $_->[1] } @genomes;
+        return \%retVal;
+    }
+}
+
 =head3 fid_locs
 
     my @locs = $shrub->fid_locs($fid);
@@ -535,21 +580,164 @@ sub loc_of {
 }
 
 
-sub get_funcs_and_trans {
-    my($shrub,$g,$security) = @_;
+=head3 subsystem_to_role
 
-    my $funcsL = &get_funcs_for_pegs_in_genome($shrub,$g,'peg',$security);
+    my \@tuples = $shrub->subsystem_to_role($subsys);
+
+Return a list of the roles in a specified subsystem. For each role, we return the abbreviation
+(which is specific to the subsystem), the ID, and the description.
+
+=over 4
+
+=item subsys
+
+The ID of the subsystem in question.
+
+=item RETURN
+
+Returns a reference to a list of 3-tuples, one for each role in the subsystem, each tuple containing
+(0) the role abbreviation, (1) the role ID, and (2) the role description text.
+
+=back
+
+=cut
+
+sub subsystem_to_roles {
+    my($self, $subsys) = @_;
+
+    my @tuples = $self->GetAll("Subsystem2Role Role",
+                                "Subsystem2Role(from-link) = ?", [$subsys],
+                                "Subsystem2Role(abbr) Role(id) Role(description)");
+    return \@tuples;
+}
+
+=head3 subsystem_to_rows
+
+    my \@tuples = $shrub->subsystem_to_rows($subsys);
+
+Return a list of the rows in a specified subsystem. For each row, we return the ID and the variant code.
+
+=over 4
+
+=item subsys
+
+The ID of the subsystem whose rows are desired.
+
+=item RETURN
+
+Returns a reference to a list of 2-tuples, one per row, each tuple consisting of (0) the row ID, and (1) the
+variant code for the row.
+
+=back
+
+=cut
+
+sub subsystem_to_rows {
+    my($self, $subsys) = @_;
+
+    my @tuples = $self->GetAll("Subsystem2Row SubsystemRow",
+                                "Subsystem2Row(from-link) = ?", [$subsys],
+                                "SubsystemRow(id) SubsystemRow(variant-code)");
+    return \@tuples;
+}
+
+=head3 row_to_pegs
+
+    my \@tuples = $shrub->row_to_pegs($row);
+
+Given a subsystem row ID, return a list of the features in the row. For each feature, we include the feature ID and
+the feature's role in the subsystem.
+
+=over 4
+
+=item row
+
+The ID of the row whose features are desired.
+
+=item RETURN
+
+Returns a reference to a list of 2-tuples, one per feature, each tuple containing (0) the feature ID,
+and (1) the feature's role in the subsystem.
+
+=back
+
+=cut
+
+sub row_to_pegs {
+    my($self, $row) = @_;
+
+    my @tuples = $self->GetAll("SubsystemRow Row2Cell SubsystemCell Cell2Feature AND SubsystemCell Cell2Role Role",
+                                "SubsystemRow(id) = ?",
+                                [$row],
+                                "Cell2Feature(to-link) Role(id)");
+    return \@tuples;
+}
+
+=head3 get_funcs_and_trans
+
+    my (\%funcs, \%trans) = $shrub->get_funcs_and_trans($g, $security);
+
+Return the functional assignments and protein translations for all the protein-encoding features in a genome.
+This essentially calls both L</get_funcs_for_pegs_in_genome> and L</get_trans_for_genome> and returns
+the results. The functional assignments returned will be at the highest security level available for each
+feature.
+
+=over 4
+
+=item g
+
+ID of the genome whose protein-encoding features are of interest.
+
+=item RETURN
+
+Returns a two-element list. The first element is a reference to a hash mapping each feature ID to a function ID
+for its functional assignment. The second element is a reference to a hash mapping each feature ID to its protein
+translation. Only protein-encoding features are included in either hash.
+
+=back
+
+=cut
+
+sub get_funcs_and_trans {
+    my($self,$g) = @_;
+
+    my $funcsL = $self->get_funcs_for_pegs_in_genome($g,'peg');
     my %funcs  = map { ($_->[0] => $_->[1]) } @$funcsL;
 
-    my $transL = &get_trans_for_genome($shrub,$g);
+    my $transL = $self->get_trans_for_genome($g);
     my %trans  = map { ($_->[0] => $_->[1]) } @$transL;
     return (\%funcs,\%trans);
 }
 
-sub get_funcs_for_pegs_in_genome {
-    my($shrub,$g,$type,$security) = @_;
+=head3 get_funcs_for_pegs_in_genome
 
-    my @tuples = $shrub->GetAll("Genome2Feature Feature Feature2Protein Protein AND
+    my \@tuples = $shrub->get_funcs_for_pegs_in_genome($g, $type);
+
+Return the highest-privilege functional assignments for all features of a given type in a specified genome.
+
+=over 4
+
+=item g
+
+ID of the genome of interest.
+
+=item type
+
+The type of feature desired.
+
+=item RETURN
+
+Returns a reference to a  list of 3-tuples, each consisting of (0) a feature ID, (1) the text of the feature's
+functional assignment, and (2) the ID of the function assigned.
+
+=back
+
+=cut
+
+sub get_funcs_for_pegs_in_genome {
+    my($self,$g,$type) = @_;
+
+    my @tuples = $self->GetAll("Genome2Feature Feature Feature2Protein Protein AND
                                  Feature Feature2Function Function",
                                 "(Genome2Feature(from-link) = ?)
                                  AND (Feature(feature-type) = ?)
@@ -561,10 +749,31 @@ sub get_funcs_for_pegs_in_genome {
     return \@tuples;
 }
 
-sub get_trans_for_genome {
-    my($shrub,$g) = @_;
+=head3 get_trans_for_genome
 
-    my @tuples = $shrub->GetAll("Genome2Feature Feature Protein",
+    my \@tuples = $shrub->get_trans_for_genome($g);
+
+Get all of the protein translations for a genome.
+
+=over 4
+
+=item g
+
+ID of the genome of interest.
+
+=item RETURN
+
+Returns a reference to a list of 2-tuples, each tuple containing (0) a feature ID and (1) the feature's
+protein translation.
+
+=back
+
+=cut
+
+sub get_trans_for_genome {
+    my($self, $g) = @_;
+
+    my @tuples = $self->GetAll("Genome2Feature Feature Protein",
                                 "(Genome2Feature(from-link) = ?) AND (Feature(feature-type) = ?)",
                                 [$g,'peg'],
                                 "Genome2Feature(to-link) Protein(sequence)");

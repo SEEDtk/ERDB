@@ -735,9 +735,12 @@ sub ReadFeatures {
         }
         # Compute the protein.
         my $protID = $protHash->{$fid} // '';
+        # Compute the function checksum.
+        my $md5 = Shrub::md5_base64($function);
         # Connect the feature to the genome.
         $loader->InsertObject('Feature', id => $fid, 'feature-type' => $ftype,
-                'sequence-length' => $seqLen, Genome2Feature_link => $genome,
+                checksum => $md5, 'sequence-length' => $seqLen,
+                Genome2Feature_link => $genome,
                 Protein2Feature_link => $protID);
         $stats->Add(feature => 1);
         # Connect the feature to the contigs. This is where the location information figures in.
