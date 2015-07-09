@@ -18,8 +18,8 @@
 #
 
 use strict;
+use FIG_Config;
 use Stats;
-use SeedUtils;
 use RepoLoader;
 use MD5Computer;
 use ScriptUtils;
