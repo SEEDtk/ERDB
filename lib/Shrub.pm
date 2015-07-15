@@ -746,12 +746,14 @@ sub func_to_pegs {
     # Compute the filter clause.
     my $filter = 'Function2Feature(from-link) = ?';
     # Check for filtering on privilege.
+    my @parms = ($funcID);
     if (defined $priv) {
         $filter .= ' AND Function2Feature(security) = ?';
+        push @parms, $priv
     }
     # Note we have to filter out duplicates. A single peg may be assigned to a function multiple times
     # if we are not selecting on privilege.
-    my %fids = map { $_ => 1 } $self->GetFlat('Function2Feature', $filter, [$funcID], 'to-link');
+    my %fids = map { $_ => 1 } $self->GetFlat('Function2Feature', $filter, \@parms, 'to-link');
     # Declare the return variable.
     my @retVal = sort keys %fids;
     # Return the result.
