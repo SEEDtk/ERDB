@@ -338,7 +338,7 @@ sub Feature2Trans {
     my ($self, $features) = @_;
     # The return hash will be built in here.
     my %retVal;
-    # Loop through the features.
+    # Loop through all the features.
     for my $feature (@$features) {
         # We'll store the function data in here.
         my $Translation;
