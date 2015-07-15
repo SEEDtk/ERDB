@@ -673,6 +673,52 @@ sub row_to_pegs {
     return \@tuples;
 }
 
+=head3 func_to_pegs
+
+    my $fids = $shrub->func_to_pegs($funcID, $priv);
+
+Return the list of features associated with a specified function ID. The
+features returned will be those for which the function is assigned at any
+privilege level. Optionally, a specific privilege level can be specified.
+
+=over 4
+
+=item funcID
+
+ID of the function whose features are desired.
+
+=item priv (optional)
+
+If specified, the privilege level at which the function must be assigned.
+
+=item RETURN
+
+Returns a reference to a list of feature IDs for the features to which the function is
+assigned.
+
+=back
+
+=cut
+
+sub func_to_pegs {
+    # Get the parameters.
+    my ($self, $funcID, $priv) = @_;
+    # Compute the filter clause.
+    my $filter = 'Function2Feature(from-link) = ?';
+    # Check for filtering on privilege.
+    if (defined $priv) {
+        $filter .= ' AND Function2Feature(security) = ?';
+    }
+    # Note we have to filter out duplicates. A single peg may be assigned to a function multiple times
+    # if we are not selecting on privilege.
+    my %fids = map { $_ => 1 } $self->GetFlat('Function2Feature', $filter, [$funcID], 'to-link');
+    # Declare the return variable.
+    my @retVal = sort keys %fids;
+    # Return the result.
+    return \@retVal;
+}
+
+
 =head3 get_funcs_and_trans
 
     my (\%funcs, \%trans) = $shrub->get_funcs_and_trans($g, $security);
