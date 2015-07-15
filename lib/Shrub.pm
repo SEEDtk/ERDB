@@ -312,6 +312,46 @@ sub Feature2Function {
     return \%retVal;
 }
 
+
+=head3 Feature2Trans
+
+    my $featureMap = $shrub->Feature2Trans(\@features);
+
+Get the translation assigned to each of the specified features 
+
+=over 4
+
+=item features
+
+Reference to a list of feature IDs.
+
+=item RETURN
+
+Returns a reference to a hash mapping each feature to  the translation 
+
+=back
+
+=cut
+
+sub Feature2Trans {
+    # Get the parameters.
+    my ($self, $features) = @_;
+    # The return hash will be built in here.
+    my %retVal;
+    # Loop through the features.
+    for my $feature (@$features) {
+        # We'll store the function data in here.
+        my $Translation;
+        ($Translation) = $self->GetFlat('Feature Protein ',
+                '(Feature(id) = ?)', 
+                [$feature],
+                "Protein(sequence)");
+        # Store the translation in the return hash.
+        $retVal{$feature} = $Translation;
+    }
+    # Return the computed hash.
+    return \%retVal;
+}
 =head3 Subsystem2Feature
 
     my $fidList = $shrub->Subsystem2Feature($sub);
