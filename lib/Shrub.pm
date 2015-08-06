@@ -312,6 +312,46 @@ sub Feature2Function {
     return \%retVal;
 }
 
+
+=head3 Feature2Trans
+
+    my $featureMap = $shrub->Feature2Trans(\@features);
+
+Get the translation assigned to each of the specified features 
+
+=over 4
+
+=item features
+
+Reference to a list of feature IDs.
+
+=item RETURN
+
+Returns a reference to a hash mapping each feature to  the translation 
+
+=back
+
+=cut
+
+sub Feature2Trans {
+    # Get the parameters.
+    my ($self, $features) = @_;
+    # The return hash will be built in here.
+    my %retVal;
+    # Loop through all the features.
+    for my $feature (@$features) {
+        # We'll store the function data in here.
+        my $Translation;
+        ($Translation) = $self->GetFlat('Feature Protein ',
+                '(Feature(id) = ?)', 
+                [$feature],
+                "Protein(sequence)");
+        # Store the translation in the return hash.
+        $retVal{$feature} = $Translation;
+    }
+    # Return the computed hash.
+    return \%retVal;
+}
 =head3 Subsystem2Feature
 
     my $fidList = $shrub->Subsystem2Feature($sub);
@@ -672,6 +712,54 @@ sub row_to_pegs {
                                 "Cell2Feature(to-link) Role(id)");
     return \@tuples;
 }
+
+=head3 func_to_pegs
+
+    my $fids = $shrub->func_to_pegs($funcID, $priv);
+
+Return the list of features associated with a specified function ID. The
+features returned will be those for which the function is assigned at any
+privilege level. Optionally, a specific privilege level can be specified.
+
+=over 4
+
+=item funcID
+
+ID of the function whose features are desired.
+
+=item priv (optional)
+
+If specified, the privilege level at which the function must be assigned.
+
+=item RETURN
+
+Returns a reference to a list of feature IDs for the features to which the function is
+assigned.
+
+=back
+
+=cut
+
+sub func_to_pegs {
+    # Get the parameters.
+    my ($self, $funcID, $priv) = @_;
+    # Compute the filter clause.
+    my $filter = 'Function2Feature(from-link) = ?';
+    # Check for filtering on privilege.
+    my @parms = ($funcID);
+    if (defined $priv) {
+        $filter .= ' AND Function2Feature(security) = ?';
+        push @parms, $priv
+    }
+    # Note we have to filter out duplicates. A single peg may be assigned to a function multiple times
+    # if we are not selecting on privilege.
+    my %fids = map { $_ => 1 } $self->GetFlat('Function2Feature', $filter, \@parms, 'to-link');
+    # Declare the return variable.
+    my @retVal = sort keys %fids;
+    # Return the result.
+    return \@retVal;
+}
+
 
 =head3 get_funcs_and_trans
 

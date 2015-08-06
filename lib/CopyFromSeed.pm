@@ -873,7 +873,7 @@ sub ReadFunctions {
     # Declare the return variable.
     my %retVal;
     # Loop through the three function files, in order.
-    for my $file (qw(assigned_functions proposed_no_ff_functions proposed_functions)) {
+    for my $file (qw(proposed_no_ff_functions proposed_functions assigned_functions)) {
         # Only proceed if the current file type exists.
         my $fileName = "$genomeDir/$file";
         if (-f $fileName) {
