@@ -32,7 +32,7 @@
       </Fields>
     </Entity>
     <Entity name="ExpValues" keyType="short-string" default="id type">
-      <DisplayInfo theme="green" row="5" col="1" caption="ExpValues"/>
+      <DisplayInfo theme="green" row="1" col="3" caption="ExpValues"/>
       <Notes>An instance of this entity represents a sample or experiment,
       stored as gene expression values.  The values may reflect a microarray
       experiment from any microarray platform or RNA-seq data. It may be thought
@@ -73,7 +73,7 @@
       </Fields>
     </Entity>
     <Entity name="Response" keyType="short-string" default="id">
-      <DisplayInfo theme="blue" row="7" col="5" />
+      <DisplayInfo theme="blue" row="9" col="5" />
       <Notes>A category which describes an outcome for a treatment. The ID is
       a unique code string.</Notes>
       <Fields>
@@ -83,13 +83,13 @@
       </Fields>
     </Entity>
     <Entity name="Result" keyType="counter" default="id">
-      <DisplayInfo theme="blue" row="5" col="5" />
+      <DisplayInfo theme="blue" row="7" col="5" />
       <Notes>A [i]result[/i] is a specific response to a specific treatment performed
       on a specific source. In essence, it is a ternary relationship which yields
       the results of a treatment. The ID is an automatically assigned sequence number.</Notes>
     </Entity>
     <Entity name="CancerType" keyType="short-string" default="id name">
-      <DisplayInfo theme="red" row="3" col="5" caption="Cancer\nType"/>
+      <DisplayInfo theme="red" row="5" col="5" caption="Cancer\nType" />
       <Notes>A category of cancer, used to organize the data during queries. The ID is
       a string abbreviation for the cancer type.</Notes>
       <Fields>
@@ -99,12 +99,32 @@
       </Fields>
     </Entity>
     <Entity name="Study" keyType="string" default="id">
-      <DisplayInfo theme="blue" row="1" col="5" />
+      <DisplayInfo theme="navy" row="3" col="5" />
       <Notes>A study involves giving treatments to a set of sources and
       gathering expression-values to determine what happened.</Notes>
       <Fields>
         <Field name="description" type="text">
           <Notes>full description of the study</Notes>
+        </Field>
+      </Fields>
+    </Entity>
+    <Entity name="Spot" keyType="short-string" default="id function">
+      <DisplayInfo theme="green" row="3" col="1" />
+      <Notes>A spot on a microarray that is used to create normalized values.
+      It is often thought of as a gene, and is normally measured by multiple
+      probes. The ID is a unique code string.</Notes>
+      <Fields>
+        <Field name="function" type="string">
+          <Notes>the functional role associated with the spot, or an empty string if the role is not known</Notes>
+        </Field>
+      </Fields>
+    </Entity>
+    <Entity name="Probe" keyType="short-string" default="id">
+      <DisplayInfo theme="green" row="5" col="1" />
+      <Notes>A probe used to find DNA on a microarray. The ID is a unique code string.</Notes>
+      <Fields>
+        <Field name="sequence" type="long-string">
+          <Notes>the DNA sequence associated with the probe</Notes>
         </Field>
       </Fields>
     </Entity>
@@ -132,18 +152,18 @@
     </Relationship>
     <Relationship name="Study2ExpValues" arity="MM" from="Study" to="ExpValues"
         converse="ExpressionValues2Study">
-      <DisplayInfo theme="blue" caption="Study to\nExpValues" />
+      <DisplayInfo theme="navy" caption="ExpValues\nto Study" />
       <Notes>This relationship connects a study to the results of an experiment used by the
       study.</Notes>
      </Relationship>
      <Relationship name="Study2CancerType" arity="MM" from="Study" to="CancerType"
          converse="CancerType2Study">
-       <DisplayInfo theme="blue" caption="Study to\nCancer Type" />
+       <DisplayInfo theme="navy" caption="Study to\nCancer Type" />
        <Notes>This relationship connects a study to the types of cancer being studied.</Notes>
      </Relationship>
      <Relationship name="CancerType2Source" arity="MM" from="Source" to="CancerType"
          converse="Source2CancerType">
-       <DisplayInfo theme="red" caption="Cancer Type\nto Source" />
+       <DisplayInfo theme="red" caption="Source to\nCancer Type" />
        <Notes>This relationship connects a source to the types of cancer diagnosed in the source.</Notes>
      </Relationship>
      <Relationship name="Source2ExpValues" arity="1M" from="Source" to="ExpValues"
@@ -160,7 +180,7 @@
      </Relationship>
      <Relationship name="Treatment2Result" arity="1M" from="Treatment" to="Result"
          converse="Result2Treatment" embedded="1">
-       <DisplayInfo theme="blue" caption="Result to\nTreatment" />
+       <DisplayInfo theme="blue" caption="Treatment\nto Result" />
        <Notes>This relationship connects a treatment result to the treatment that produced it.</Notes>
      </Relationship>
      <Relationship name="Response2Result" arity="1M" from="Response" to="Result"
@@ -172,8 +192,24 @@
      <Relationship name="CancerType2Result" arity="MM" from="CancerType" to="Result"
          converse="Result2CancerType" embedded="1">
        <DisplayInfo theme="blue" caption="Cancer Type\nto Result" />
-       <Notes>This relationship connects a treatment result to the type of cancer that was being
+       <Notes>This relationship connects a treatment result to the types of cancer that were being
        treated.</Notes>
+     </Relationship>
+     <Relationship name="Study2Treatment" arity="MM" from="Study" to="Treatment"
+         converse="Treatment2Study">
+       <DisplayInfo theme="navy" caption="Study to\nTreatment" />
+       <Notes>This relationship connects a study to the types of treatments used in the study.</Notes>
+     </Relationship>
+     <Relationship name="Treatment2ExpValues" arity="MM" from="Treatment" to="ExpValues"
+         converse="ExpValues2Treatment">
+       <DisplayInfo theme="blue" caption="ExpValues to\nTreatment" fixed="1" col="7" row="1" />
+       <Notes>This relationship connects the results of an experiment (expression values) to the
+       treatments used in the source prior to the collection of the data.</Notes>
+     </Relationship>
+     <Relationship name="Spot2Probe" arity="1M" from="Spot" to="Probe"
+         converse="Probe2Spot" embedded="1">
+       <DisplayInfo theme="green" caption="Spot to\nProbe" />
+       <Notes>This relationship connects a microarray spot to the probes used to measure it.</Notes>
      </Relationship>
   </Relationships>
 </Database>
