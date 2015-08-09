@@ -6,7 +6,7 @@
   treatments and the responses they generated.</Notes>
   <Regions/>
   <Diagram height="800" width="800" ratio="0.7" size="90"
-      fontSize="12" editable="0" />
+      fontSize="11" editable="0" />
   <Entities>
     <Entity name="Drug" keyType="string" default="id">
       <DisplayInfo theme="blue" row="7" col="7" />
