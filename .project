@@ -14,4 +14,11 @@
 	<natures>
 		<nature>org.epic.perleditor.perlnature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>DBD</name>
+			<type>2</type>
+			<locationURI>WORKSPACE_LOC/Data/DBD</locationURI>
+		</link>
+	</linkedResources>
 </projectDescription>
