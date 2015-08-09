@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://pubseed.theseed.org/FIG/Html/ERDBtk_DBD.xsd">
+  <Title>Cancer Treatment Database</Title>
+  <Notes>This database contains information relating to treatments
+  for cancer and their effectiveness. The data is organized around particular
+  treatments and the responses they generated.</Notes>
+  <Regions/>
+  <Diagram height="800" width="800" ratio="0.7" size="90"
+      fontSize="12" editable="0" />
+  <Entities>
+    <Entity name="Drug" keyType="string" default="id">
+      <DisplayInfo theme="blue" row="7" col="7" />
+      <Notes>A drug is a compound used in treatments, for example [b]picoplatin[/i].
+      The ID is the name of the drug.</Notes>
+      <Fields>
+        <Field name="description" type="long-string">
+          <Notes>text describing the drug, often a URL to a web site</Notes>
+        </Field>
+      </Fields>
+    </Entity>
+    <Entity name="Treatment" keyType="string" default="id">
+      <DisplayInfo theme="blue" row="5" col="7" />
+      <Notes>A treatment is a therapeutic regimen, normally a set of drugs,
+      dosages, and dosage intervals. The ID is a unique but meaningful name.
+      For example, distinct FOLFOX treatments (varying dosages or intervals)
+      must be given precise names like [i]FOLFOX-1[/i] and [i]FOLFOX-2[/i].</Notes>
+      <Fields>
+        <Field name="description" type="text">
+          <Notes>text describing the treatment, often a URL to an appropriate
+          web site</Notes>
+        </Field>
+      </Fields>
+    </Entity>
+    <Entity name="ExpValues" keyType="short-string" default="id type">
+      <DisplayInfo theme="green" row="5" col="1" caption="ExpValues"/>
+      <Notes>An instance of this entity represents a sample or experiment,
+      stored as gene expression values.  The values may reflect a microarray
+      experiment from any microarray platform or RNA-seq data. It may be thought
+      of as an R dataframe capturing a set of expression values. The ID is a
+      unique code string.</Notes>
+      <Fields>
+        <Field name="normalized-values" type="text">
+          <Notes>an encoded R dataframe, including an [b]id[/b], which must
+          match the ID of this entity instance, an [b]outcome[/b] from
+          a controlled ontology, and a set of 2-tuples [b](spot-id, normalized
+          expression level)[/b]</Notes>
+        </Field>
+        <Field name="raw-values" type="text">
+          <Notes>a string encoding the raw values, including the probe IDs and
+          their associated values</Notes>
+        </Field>
+        <Field name="type" type="string">
+          <Notes>a code indicating the meaning of the gene presence/absence and
+          expression values, (e.g. [i]genomic[/i], [i]primary-tumor[/i], [i]tumor[/i],
+          [i]metastasized-tumor[/i])</Notes>
+        </Field>
+      </Fields>
+    </Entity>
+    <Entity name="Source" keyType="short-string" default="id type">
+      <DisplayInfo theme="red" row="5" col="3" />
+      <Notes>A source of DNA or RNA. It can be an actual patient or a cell line. The
+      ID is a unique code string.</Notes>
+      <Fields>
+        <Field name="type" type="short-string">
+          <Notes>the type of source-- [i]patient[/i] or [i]cell line[/i]</Notes>
+        </Field>
+        <Field name="gender" type="char">
+          <Notes>the gender of the source-- [b]M[/b] (male), [b]F[/b] (female) or space (not known or relevant)</Notes>
+        </Field>
+        <Field name="age" type="int">
+          <Notes>the age of the source in years, or 0 if it is not known or relevant</Notes>
+        </Field>
+      </Fields>
+    </Entity>
+    <Entity name="Response" keyType="short-string" default="id">
+      <DisplayInfo theme="blue" row="7" col="5" />
+      <Notes>A category which describes an outcome for a treatment. The ID is
+      a unique code string.</Notes>
+      <Fields>
+        <Field name="description" type="text">
+          <Notes>text description of the meaning of this particular response code</Notes>
+        </Field>
+      </Fields>
+    </Entity>
+    <Entity name="Result" keyType="counter" default="id">
+      <DisplayInfo theme="blue" row="5" col="5" />
+      <Notes>A [i]result[/i] is a specific response to a specific treatment performed
+      on a specific source. In essence, it is a ternary relationship which yields
+      the results of a treatment. The ID is an automatically assigned sequence number.</Notes>
+    </Entity>
+    <Entity name="CancerType" keyType="short-string" default="id name">
+      <DisplayInfo theme="red" row="3" col="5" caption="Cancer\nType"/>
+      <Notes>A category of cancer, used to organize the data during queries. The ID is
+      a string abbreviation for the cancer type.</Notes>
+      <Fields>
+        <Field name="name" type="string">
+          <Notes>full name of the specified cancer type</Notes>
+        </Field>
+      </Fields>
+    </Entity>
+    <Entity name="Study" keyType="string" default="id">
+      <DisplayInfo theme="blue" row="1" col="5" />
+      <Notes>A study involves giving treatments to a set of sources and
+      gathering expression-values to determine what happened.</Notes>
+      <Fields>
+        <Field name="description" type="text">
+          <Notes>full description of the study</Notes>
+        </Field>
+      </Fields>
+    </Entity>
+  </Entities>
+  <Relationships>
+    <Relationship name="Drug2Treatment" arity="MM" from="Drug" to="Treatment"
+        converse="Treatment2Drug">
+      <DisplayInfo theme="blue" caption="Treatment\nto Drug" />
+      <Notes>This relationship connects a drug to a treatment in which it participates,
+      and contains information about how the drug is used in the treatment. Provision
+      is made for the possibility that the drug is not given in constant dosages at
+      regular intervals.</Notes>
+      <Fields>
+        <Field name="dosage" type="float">
+          <Notes>the mean dosage, in milligrams</Notes>
+        </Field>
+        <Field name="frequency" type="float">
+          <Notes>the mean dosage frequency, in doses per day</Notes>
+        </Field>
+        <Field name="description" type="text">
+          <Notes>a detailed description of how the drug is given, in what amounts,
+          and how often</Notes>
+        </Field>
+      </Fields>
+    </Relationship>
+    <Relationship name="Study2ExpValues" arity="MM" from="Study" to="ExpValues"
+        converse="ExpressionValues2Study">
+      <DisplayInfo theme="blue" caption="Study to\nExpValues" />
+      <Notes>This relationship connects a study to the results of an experiment used by the
+      study.</Notes>
+     </Relationship>
+     <Relationship name="Study2CancerType" arity="MM" from="Study" to="CancerType"
+         converse="CancerType2Study">
+       <DisplayInfo theme="blue" caption="Study to\nCancer Type" />
+       <Notes>This relationship connects a study to the types of cancer being studied.</Notes>
+     </Relationship>
+     <Relationship name="CancerType2Source" arity="MM" from="Source" to="CancerType"
+         converse="Source2CancerType">
+       <DisplayInfo theme="red" caption="Cancer Type\nto Source" />
+       <Notes>This relationship connects a source to the types of cancer diagnosed in the source.</Notes>
+     </Relationship>
+     <Relationship name="Source2ExpValues" arity="1M" from="Source" to="ExpValues"
+         converse="ExpValues2Source" embedded="1">
+       <DisplayInfo theme="green" caption="ExpValues\nto Source" />
+       <Notes>This relationship connects an experimental result (expression values) to the source
+       on which the experiment was performed.</Notes>
+     </Relationship>
+     <Relationship name="Source2Result" arity="1M" from="Source" to="Result"
+         converse="Result2Source" embedded="1">
+       <DisplayInfo theme="blue" caption="Source to\nResult" />
+       <Notes>This relationship connects a treatment result to the source on which the treatment was
+       performed.</Notes>
+     </Relationship>
+     <Relationship name="Treatment2Result" arity="1M" from="Treatment" to="Result"
+         converse="Result2Treatment" embedded="1">
+       <DisplayInfo theme="blue" caption="Result to\nTreatment" />
+       <Notes>This relationship connects a treatment result to the treatment that produced it.</Notes>
+     </Relationship>
+     <Relationship name="Response2Result" arity="1M" from="Response" to="Result"
+         converse="Result2Response" embedded="1">
+       <DisplayInfo theme="blue" caption="Result to\nResponse" />
+       <Notes>This relationship connects a treatment result to the response code representing the
+       effect of the treatment.</Notes>
+     </Relationship>
+     <Relationship name="CancerType2Result" arity="MM" from="CancerType" to="Result"
+         converse="Result2CancerType" embedded="1">
+       <DisplayInfo theme="blue" caption="Cancer Type\nto Result" />
+       <Notes>This relationship connects a treatment result to the type of cancer that was being
+       treated.</Notes>
+     </Relationship>
+  </Relationships>
+</Database>
