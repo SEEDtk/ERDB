@@ -54,6 +54,9 @@
           expression values, (e.g. [i]genomic[/i], [i]primary-tumor[/i], [i]tumor[/i],
           [i]metastasized-tumor[/i])</Notes>
         </Field>
+        <Field name="geo-source" type="link">
+          <Notes>a hyperlink to the GEO entry containing the expression values</Notes>
+        </Field>
       </Fields>
     </Entity>
     <Entity name="Source" keyType="short-string" default="id type">
