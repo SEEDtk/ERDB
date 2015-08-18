@@ -2,8 +2,11 @@
 <Database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://pubseed.theseed.org/FIG/Html/ERDBtk_DBD.xsd">
   <Title>Cancer Treatment Database</Title>
   <Notes>This database contains information relating to treatments
-  for cancer and their effectiveness. The data is organized around particular
-  treatments and the responses they generated.</Notes>
+  for different medical conditions. The goal is to determine the conditions under
+  which certain treatments are effective. For each Source (which may be a cell line
+  or a human patient), we record treatment events and measurement events. The measurements
+  could be gene-expression data or observed symptoms. We wish eventually to correlate
+  treatment effectiveness with the measurements prior to treatment.</Notes>
   <Regions/>
   <Diagram height="800" width="800" ratio="0.7" size="90"
       fontSize="11" editable="0" />
@@ -31,34 +34,6 @@
         </Field>
       </Fields>
     </Entity>
-    <Entity name="ExpValues" keyType="short-string" default="id type">
-      <DisplayInfo theme="green" row="1" col="3" caption="ExpValues"/>
-      <Notes>An instance of this entity represents a sample or experiment,
-      stored as gene expression values.  The values may reflect a microarray
-      experiment from any microarray platform or RNA-seq data. It may be thought
-      of as an R dataframe capturing a set of expression values. The ID is a
-      unique code string.</Notes>
-      <Fields>
-        <Field name="normalized-values" type="text">
-          <Notes>an encoded R dataframe, including an [b]id[/b], which must
-          match the ID of this entity instance, an [b]outcome[/b] from
-          a controlled ontology, and a set of 2-tuples [b](spot-id, normalized
-          expression level)[/b]</Notes>
-        </Field>
-        <Field name="raw-values" type="text">
-          <Notes>a string encoding the raw values, including the probe IDs and
-          their associated values</Notes>
-        </Field>
-        <Field name="type" type="string">
-          <Notes>a code indicating the meaning of the gene presence/absence and
-          expression values, (e.g. [i]genomic[/i], [i]primary-tumor[/i], [i]tumor[/i],
-          [i]metastasized-tumor[/i])</Notes>
-        </Field>
-        <Field name="geo-source" type="link">
-          <Notes>a hyperlink to the GEO entry containing the expression values</Notes>
-        </Field>
-      </Fields>
-    </Entity>
     <Entity name="Source" keyType="short-string" default="id type">
       <DisplayInfo theme="red" row="5" col="3" />
       <Notes>A source of DNA or RNA. It can be an actual patient or a cell line. The
@@ -75,32 +50,6 @@
         </Field>
       </Fields>
     </Entity>
-    <Entity name="Response" keyType="short-string" default="id">
-      <DisplayInfo theme="blue" row="9" col="5" />
-      <Notes>A category which describes an outcome for a treatment. The ID is
-      a unique code string.</Notes>
-      <Fields>
-        <Field name="description" type="text">
-          <Notes>text description of the meaning of this particular response code</Notes>
-        </Field>
-      </Fields>
-    </Entity>
-    <Entity name="Result" keyType="counter" default="id">
-      <DisplayInfo theme="blue" row="7" col="5" />
-      <Notes>A [i]result[/i] is a specific response to a specific treatment performed
-      on a specific source. In essence, it is a ternary relationship which yields
-      the results of a treatment. The ID is an automatically assigned sequence number.</Notes>
-    </Entity>
-    <Entity name="CancerType" keyType="short-string" default="id name">
-      <DisplayInfo theme="red" row="5" col="5" caption="Cancer\nType" />
-      <Notes>A category of cancer, used to organize the data during queries. The ID is
-      a string abbreviation for the cancer type.</Notes>
-      <Fields>
-        <Field name="name" type="string">
-          <Notes>full name of the specified cancer type</Notes>
-        </Field>
-      </Fields>
-    </Entity>
     <Entity name="Study" keyType="string" default="id">
       <DisplayInfo theme="navy" row="3" col="5" />
       <Notes>A study involves giving treatments to a set of sources and
@@ -108,17 +57,6 @@
       <Fields>
         <Field name="description" type="text">
           <Notes>full description of the study</Notes>
-        </Field>
-      </Fields>
-    </Entity>
-    <Entity name="Spot" keyType="short-string" default="id function">
-      <DisplayInfo theme="green" row="3" col="1" />
-      <Notes>A spot on a microarray that is used to create normalized values.
-      It is often thought of as a gene, and is normally measured by multiple
-      probes. The ID is a unique code string.</Notes>
-      <Fields>
-        <Field name="function" type="string">
-          <Notes>the functional role associated with the spot, or an empty string if the role is not known</Notes>
         </Field>
       </Fields>
     </Entity>
@@ -131,8 +69,65 @@
         </Field>
       </Fields>
     </Entity>
+    <Entity name="Event" keyType="counter" default="id type-event">
+      <DisplayInfo theme="blue" row="5" col="5" />
+      <Notes>An event is a measurement or a treatment relevant to a single source. The
+      events are organized in chronological order so the effects of a treatment can be
+      seen in context. The ID is a sequence number assigned when the record is inserted.</Notes>
+      <Fields>
+        <Field name="type-event" type="char">
+          <Notes>the type of event-- [b]M[/b] for a measurement or [b]T[/b] for a treatment</Notes>
+        </Field>
+      </Fields>
+    </Entity>
+    <Entity name="Measurement" keyType="counter" default="id type-measurement">
+      <DisplayInfo theme="blue" row="7" col="3" />
+      <Notes>A measurement is information about the state of a source. It could be a textual
+      assertion by a physician or it could be microarray expression data. A measurement is always
+      associated with exactly one event, and the event contains the time of the measurement and relates
+      it to the source. The measurement ID is the same as the parent event ID.</Notes>
+      <Fields>
+        <Field name="type-measurement" type="char">
+          <Notes>the type of measurement-- [b]P[/b] for a physician assertion, [b]M[/b] for microarray
+          expression data</Notes>
+        </Field>
+        <Field name="measurement" type="text">
+          <Notes>text of the measurement; this could be string-encoded microarray data or the text of the physician
+          assertion</Notes>
+        </Field>
+      </Fields>
+    </Entity>
+    <Entity name="Classifier" keyType="short-string" default="id type-class">
+      <DisplayInfo theme="green" row="3" col="1" />
+      <Notes>A classifier is a procedure for determining the condition of a source, with an eye to
+      deciding whether the source will respond to specific treatments. The ID is a unique code assigned
+      by the creator.</Notes>
+      <Fields>
+        <Field name="type-class" type="short-string">
+          <Notes>a code string indicating the class which a source belongs to if the classifier is
+          satisfied</Notes>
+        </Field>
+        <Field name="description" type="text">
+          <Notes>a text description of what the classification means</Notes>
+        </Field>
+        <Field name="rule" type="long-string">
+          <Notes>a JSON string representing a list of lists, essentially the condition in conjunctive normal form</Notes>
+          <Asides>The classifier connects to a set of probes which are ordinally numbered. Each sub-list in the condition
+          is a list of 2-tuples, one per probe, that represents the allowable range for the probe's values. The sub-list is
+          satisfied if all the probe expression values are within the ranges. The classifier is satisfied if at least one
+          sub-list is satisfied.</Asides>
+        </Field>
+      </Fields>
+    </Entity>
   </Entities>
   <Relationships>
+    <Relationship name="Study2Source" arity="1M" from="Study" to="Source"
+        converse="Source2Study" embedded="1">
+        <DisplayInfo theme="navy" caption="Study to\nSource" />
+        <Notes>This relationship connects a study to the sources (patients and cell lines)
+        used in the study. A source is unique to a study. A single patient involved in two
+        studies will appear twice in the database.</Notes>
+    </Relationship>
     <Relationship name="Drug2Treatment" arity="MM" from="Drug" to="Treatment"
         converse="Treatment2Drug">
       <DisplayInfo theme="blue" caption="Treatment\nto Drug" />
@@ -153,66 +148,56 @@
         </Field>
       </Fields>
     </Relationship>
-    <Relationship name="Study2ExpValues" arity="MM" from="Study" to="ExpValues"
-        converse="ExpressionValues2Study">
-      <DisplayInfo theme="navy" caption="ExpValues\nto Study" />
-      <Notes>This relationship connects a study to the results of an experiment used by the
-      study.</Notes>
-     </Relationship>
-     <Relationship name="Study2CancerType" arity="MM" from="Study" to="CancerType"
-         converse="CancerType2Study">
-       <DisplayInfo theme="navy" caption="Study to\nCancer Type" />
-       <Notes>This relationship connects a study to the types of cancer being studied.</Notes>
-     </Relationship>
-     <Relationship name="CancerType2Source" arity="MM" from="Source" to="CancerType"
-         converse="Source2CancerType">
-       <DisplayInfo theme="red" caption="Source to\nCancer Type" />
-       <Notes>This relationship connects a source to the types of cancer diagnosed in the source.</Notes>
-     </Relationship>
-     <Relationship name="Source2ExpValues" arity="1M" from="Source" to="ExpValues"
-         converse="ExpValues2Source" embedded="1">
-       <DisplayInfo theme="green" caption="ExpValues\nto Source" />
-       <Notes>This relationship connects an experimental result (expression values) to the source
-       on which the experiment was performed.</Notes>
-     </Relationship>
-     <Relationship name="Source2Result" arity="1M" from="Source" to="Result"
-         converse="Result2Source" embedded="1">
-       <DisplayInfo theme="blue" caption="Source to\nResult" />
-       <Notes>This relationship connects a treatment result to the source on which the treatment was
-       performed.</Notes>
-     </Relationship>
-     <Relationship name="Treatment2Result" arity="1M" from="Treatment" to="Result"
-         converse="Result2Treatment" embedded="1">
-       <DisplayInfo theme="blue" caption="Treatment\nto Result" />
-       <Notes>This relationship connects a treatment result to the treatment that produced it.</Notes>
-     </Relationship>
-     <Relationship name="Response2Result" arity="1M" from="Response" to="Result"
-         converse="Result2Response" embedded="1">
-       <DisplayInfo theme="blue" caption="Result to\nResponse" />
-       <Notes>This relationship connects a treatment result to the response code representing the
-       effect of the treatment.</Notes>
-     </Relationship>
-     <Relationship name="CancerType2Result" arity="MM" from="CancerType" to="Result"
-         converse="Result2CancerType" embedded="1">
-       <DisplayInfo theme="blue" caption="Cancer Type\nto Result" />
-       <Notes>This relationship connects a treatment result to the types of cancer that were being
-       treated.</Notes>
-     </Relationship>
-     <Relationship name="Study2Treatment" arity="MM" from="Study" to="Treatment"
-         converse="Treatment2Study">
-       <DisplayInfo theme="navy" caption="Study to\nTreatment" />
-       <Notes>This relationship connects a study to the types of treatments used in the study.</Notes>
-     </Relationship>
-     <Relationship name="Treatment2ExpValues" arity="MM" from="Treatment" to="ExpValues"
-         converse="ExpValues2Treatment">
-       <DisplayInfo theme="blue" caption="ExpValues to\nTreatment" fixed="1" col="7" row="1" />
-       <Notes>This relationship connects the results of an experiment (expression values) to the
-       treatments used in the source prior to the collection of the data.</Notes>
-     </Relationship>
-     <Relationship name="Spot2Probe" arity="1M" from="Spot" to="Probe"
-         converse="Probe2Spot" embedded="1">
-       <DisplayInfo theme="green" caption="Spot to\nProbe" />
-       <Notes>This relationship connects a microarray spot to the probes used to measure it.</Notes>
-     </Relationship>
+    <Relationship name="Study2Treatment" arity="MM" from="Study" to="Treatment"
+        converse="Treatment2Study">
+      <DisplayInfo theme="navy" caption="Study to\nTreatment" />
+      <Notes>This relationship connects a study to the types of treatments used in the study.</Notes>
+    </Relationship>
+    <Relationship name="Source2Event" arity="1M" from="Source" to="Event"
+        converse="Event2Source" embedded="1">
+      <DisplayInfo theme="blue" caption="Source to\nEvent" />
+      <Notes>This relationship connects an event to the single source to which the event applies.</Notes>
+      <Fields>
+        <Field name="timestamp" type="date">
+          <Notes>the date and time of the event; for a treatment, this is the date and
+          time of the first dose.</Notes>
+        </Field>
+      </Fields>
+      <FromIndex>
+        <Notes>This index presents the events in the chronological order in which they occurred to the source.</Notes>
+        <IndexFields>
+          <IndexField name="timestamp" order="ascending" />
+        </IndexFields>
+      </FromIndex>
+    </Relationship>
+    <Relationship name="Event2Treatment" arity="MM" from="Event" to="Treatment"
+        converse="Treatment2Event">
+      <DisplayInfo theme="blue" caption="Event to\nTreatment" />
+      <Notes>This relationship connects a treatment event to the treatment applied.</Notes>
+    </Relationship>
+    <Relationship name="Event2Measurement" arity="1M" from="Event" to="Measurement"
+        converse="Measurement2Event" embedded="1">
+      <DisplayInfo theme="blue" caption="Event to\nMeasurement" />
+      <Notes>This relationship connects a measurement to the single event that contains the
+      time of measurement and links it to the measured source. Every measurement has one
+      associated event, but not all events may connect to measurements.</Notes>
+    </Relationship>
+    <Relationship name="Classifier2Probe" arity="MM" from="Classifier" to="Probe"
+        converse="Probe2Classifier">
+      <DisplayInfo theme="green" caption="Classifier\nto Probe" />
+      <Notes>This relationship connects a classifier to the probes interrogated by the classification
+      function.</Notes>
+      <Fields>
+        <Field name="ordinal" type="int">
+          <Notes>ordinal position of the probe in the classifier's function</Notes>
+        </Field>
+      </Fields>
+      <FromIndex>
+        <Notes>This index presents the probes for a classifier in ordinal sequence.</Notes>
+        <IndexFields>
+          <IndexField name="ordinal" order="ascending" />
+        </IndexFields>
+      </FromIndex>
+    </Relationship>
   </Relationships>
 </Database>
