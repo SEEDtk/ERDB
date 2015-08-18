@@ -882,6 +882,9 @@ sub ReadFunctions {
             # wins.
             while (! eof $ih) {
                 my $fidData = $self->GetLine($file => $ih);
+                if ($fidData->[0] eq 'fig|1120924.3.peg.1475') {
+                    print STDERR "Replacing $fidData->[0]\n";
+                }
                 $retVal{$fidData->[0]} = $fidData->[1];
             }
         }
