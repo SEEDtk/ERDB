@@ -119,8 +119,30 @@
         </Field>
       </Fields>
     </Entity>
+    <Entity name="MicroArray" keyType="string" default="id">
+      <DisplayInfo theme="green" row="7" col="1" />
+      <Notes>A microarray is a set of probes that can be used to produce an expression-value measurement. The ID
+      is a unique name.</Notes>
+    </Entity>
   </Entities>
   <Relationships>
+    <Relationship name="MicroArray2Probe" from="MicroArray" to="Probe" arity="MM"
+        converse="Probe2MicroArray">
+      <DisplayInfo theme="green" caption="Probe to\nMicroArray" />
+      <Notes>This relationship connects a microarray to the DNA probes it uses. It contains information about how the
+      probe is identified in the resultant expression data</Notes>
+      <Fields>
+        <Field name="identifier" type="short-string">
+          <Notes>identification key used to find the probe's expression value in the microarray result data</Notes>
+        </Field>
+      </Fields>
+    </Relationship>
+    <Relationship name="MicroArray2Measurement" from="MicroArray" to="Measurement" arity="1M"
+        converse="Measurement2MicroArray">
+      <DisplayInfo theme="green" caption="MicroArray\nMeasurement" />
+      <Notes>This relationship connects a measurement to the microarray from which the measurement was taken.
+      Not all measurements will have an associated microarray.</Notes>
+    </Relationship>
     <Relationship name="Study2Source" arity="1M" from="Study" to="Source"
         converse="Source2Study" embedded="1">
         <DisplayInfo theme="navy" caption="Study to\nSource" />
