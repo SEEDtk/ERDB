@@ -677,7 +677,7 @@ sub DocFields {
     # one field, so the heading will never be empty.
     push @retVal, $self->Heading(4, "$name Fields");
     # Generate the field table data.
-    my ($header, $rows) = ERDBtk::ComputeFieldTable($self, $name, $fields);
+    my ($header, $rows) = ERDBtk::ComputeFieldTable($self, $name, $fields, $metadata->{embedded});
     # Set up the header styles. They are all text.
     my @headerRow;
     for my $caption (@$header) {

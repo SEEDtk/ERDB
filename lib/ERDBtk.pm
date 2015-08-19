@@ -1594,6 +1594,10 @@ Name of the object whose field table is being generated.
 
 Field structure of the specified entity or relationship.
 
+=item embedded
+
+TRUE if this is an embedded relationship, else FALSE.
+
 =item RETURN
 
 Returns a reference to a list of the labels for the header row and
@@ -1605,7 +1609,7 @@ a reference to a list of lists representing the table cells.
 
 sub ComputeFieldTable {
     # Get the parameters.
-    my ($wiki, $name, $fieldData) = @_;
+    my ($wiki, $name, $fieldData, $embedded) = @_;
     # We need to sort the fields. First comes the ID, then the
     # primary fields and the secondary fields.
     my %sorter;
@@ -1616,7 +1620,7 @@ sub ComputeFieldTable {
         my $primary;
         if ($field eq 'id') {
             $primary = 'A';
-        } elsif ($fieldInfo->{relation} eq $name) {
+        } elsif ($embedded || $fieldInfo->{relation} eq $name) {
             $primary = 'B';
         } else {
             $primary = 'C';
@@ -1638,8 +1642,7 @@ sub ComputeFieldTable {
             $type .= " (nullable)";
         }
         # Secondary fields have "C" as the first letter in
-        # the sort value. If a field is secondary, we mark
-        # it as an array.
+        # the sort value.
         if ($sorter{$field} =~ /^C/) {
             $type .= " array";
         }
