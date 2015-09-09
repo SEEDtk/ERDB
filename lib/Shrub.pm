@@ -494,6 +494,17 @@ sub FunctionName {
     return $retVal;
 }
 
+sub role_id_to_desc {
+    # Get the parameters.
+    my ($self, $role) = @_;
+    # Declare the return variable.
+    my ($retVal) = $self->GetFlat('Role', 'Role(id) = ?', [$role], 'description');
+    # Default to the incoming ID.
+    $retVal //= $role;
+    # Return the result.
+    return $retVal;
+}
+
 =head3 all_genomes
 
     my $genomeH = $shrub->all_genomes($core);
