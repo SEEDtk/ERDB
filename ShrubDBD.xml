@@ -128,7 +128,7 @@
             </Indexes>
         </Entity>
         <Entity name="Feature" keyType="string" default="id">
-            <DisplayInfo theme="green" col="3" row="5" />
+            <DisplayInfo theme="green" col="3" row="7" />
             <Notes>A feature (sometimes also called a gene) is a part of a
                 genome that is of special interest. Features may be spread across
                 multiple DNA sequences (contigs) of a genome, but never across more
@@ -359,7 +359,7 @@
                 </Indexes>
         </Entity>
         <Entity name="SubsystemRow" keyType="string" default="id variant-code">
-            <DisplayInfo theme="blue" col="5" row="3" caption="Subsystem\nRow" />
+            <DisplayInfo theme="blue" col="7" row="3" caption="Subsystem\nRow" />
             <Notes>A subsystem row represents an implementation of a subsystem in a genome.
                 A genome could conceivably have more than one such implementation
                 The key is the subsystem ID followed by a colon and a unique identifying
@@ -391,7 +391,7 @@
             </Fields>
         </Entity>
         <Entity name="SubsystemCell" keyType="string" default="id">
-            <DisplayInfo theme="blue" col="5" row="5" caption="Subsystem\nCell" />
+            <DisplayInfo theme="blue" col="5" row="7" caption="Subsystem\nCell" />
             <Notes>A subsystem cell represents a single role in a subsystem row.
                 It contains one or more features from the row's genome. The key is
                 the row ID followed by a colon and the role abbreviation.
@@ -428,8 +428,41 @@
                 </Index>
             </Indexes>
         </Entity>
+        <Entity name="Cluster" keyType="counter" default="id" autocounter="1">
+            <DisplayInfo theme="blue" col="5" row="5" />
+            <Notes>A cluster is a set of features that belong to the same subsystem row and
+            are physically close together on the genome. Each cluster has an ID code.</Notes>
+        </Entity>
+        <Entity name="CddDomain" keyType="string" default="id description">
+            <DisplayInfo theme="green" col="1" row="10" caption="CDD Domain" />
+            <Notes>A domain is a protein domain from the Conserved Domain Database. The ID is the
+            CDD identifier.</Notes>
+        </Entity>
     </Entities>
     <Relationships>
+        <Relationship name="Cluster2Feature" from="Cluster" to="Feature" arity="MM"
+            converse="Feature2Cluster">
+            <DisplayInfo theme="blue" caption="Cluster to\nFeature" />
+            <Notes>This relationship connects a cluster to the features that comprise it.</Notes>
+        </Relationship>
+        <Relationship name="Row2Cluster" from="SubsystemRow" to="Cluster" arity="1M"
+            converse="Cluster2Row" embedded="1">
+            <DisplayInfo theme="blue" caption="Row to\nCluster" />
+            <Notes>This relationship connects a cluster to the single subsystem row its features
+            occupy.</Notes>
+        </Relationship>
+        <Relationship name="Domain2Protein" from="CddDomain" to="Protein" arity="MM"
+            converse="Protein2Domain">
+            <DisplayInfo theme="green" caption="Protein to\nDomain" />
+            <Notes>This relationship connects a protein sequence to the primary CDD domains
+            associated with it. This information is used to verify the protein's role.</Notes>
+        </Relationship>
+        <Relationship name="Domain2Role" from="CddDomain" to="Role" arity="MM"
+            converse="Role2Domain">
+            <DisplayInfo theme="blue" caption="Domain\nto Role" fixed="1" col="3" row="10" />
+            <Notes>This relationship connects a role to the primary CDD domains associated with it.
+            There will generally be at most two.</Notes>
+        </Relationship>
         <Relationship name="IsInTaxonomicGroup" from="TaxonomicGrouping"
             to="TaxonomicGrouping" arity="1M" converse="IsTaxonomicGroupOf"
             embedded="1">

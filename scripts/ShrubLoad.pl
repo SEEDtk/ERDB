@@ -84,6 +84,10 @@ If specified, it will be presumed the input repository is stored in the specifie
 file.  Currently, packaged repository files have a root directory named C<Inputs>. This must
 match the leaf directory name of the specified repository or nothing will work right.
 
+=item maxgap
+
+The maximum gap allowed between clustered features, in base pairs. The default is C<2000>.
+
 =back
 
 =cut
@@ -99,6 +103,7 @@ my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDBtk::Utils::init_opt
         ['genomes=s', "file listing IDs of genomes to load, \"all\", or \"none\"", { default => 'all' }],
         ['subsystems|subs=s', "file listing IDs of subsystems to load, \"all\", or \"none\"", { default => 'all' }],
         ['tar=s', "file containing compressed copy of the input repository"],
+        ['maxgap|g=i', "maximum gap allowed between clustered features", { default => 2000 }],
         [xmode => [["exclusive|X", "exclusive database access"], ["shared|S", "shared database access"]]],
         );
 # Find out what we are loading.
@@ -151,6 +156,8 @@ my $utils = ERDBtk::Utils->new($shrub);
 if ($opt->tar) {
     $loader->ExtractRepo($opt->tar, $repo);
 }
+# Create the post-loading helper object.
+my $postLoader = Shrub::PostLoader->new($loader, maxGap => $opt->maxgap, exclusive => $exclusive);
 # Compute the genome and subsystem repository locations.
 my ($genomeDir, $subsDir) = map { "$repo/$_" } qw(GenomeData SubSystemData);
 if ($genomesLoading && ! -d $genomeDir) {
@@ -181,13 +188,15 @@ if ($genomesLoading) {
     $funcMgr = Shrub::Functions->new($loader, slow => $slowFlag, roles => $roleMgr,
             exclusive => $exclusive);
 }
+# This will track the genomes we load.
+my $gHash;
 # Here we process the genomes.
 if ($genomesLoading) {
     print "Processing genomes.\n";
     my $gLoader = Shrub::GenomeLoader->new($loader, funcMgr => $funcMgr, slow => $slowFlag,
             exclusive => $exclusive);
     # Determine the list of genomes to load.
-    my $gHash = $gLoader->ComputeGenomeList($genomeDir, $genomeSpec);
+    $gHash = $gLoader->ComputeGenomeList($genomeDir, $genomeSpec);
     # Curate the genome list to eliminate redundant genomes. This returns a hash of genome IDs to
     # metadata for the genomes to load.
     my $metaHash = $gLoader->CurateNewGenomes($gHash, $missingFlag, $cleared);
@@ -264,6 +273,24 @@ if ($subsLoading) {
 # Close and upload the load files.
 print "Unspooling load files.\n";
 $loader->Close();
+# This next section creates derived data and relies on the fact the database is already loaded.
+if ($genomesLoading) {
+    # We have new genomes, so process the clusters.
+    print "Creating clusters.\n";
+    # Set up to load the cluster tables.
+    $loader->Open(qw(Cluster Cluster2Feature));
+    # Process the genomes.
+    for my $genome (keys %$gHash) {
+        print "Processing clusters for $genome: $gHash->{$genome}.\n";
+        $postLoader->LoadClusters($genome);
+    }
+    # Unspool the clusters.
+    print "Unspooling cluster tables.\n";
+    $loader->Close();
+}
+# Finally, the domains. These are currently loaded from a global file. At some point they will be computed
+# by code in PostLoader.
+print "Processing domains.\n";
 # Compute the total time.
 my $timer = time - $startTime;
 $stats->Add(totalTime => $timer);
