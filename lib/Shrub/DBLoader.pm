@@ -230,7 +230,7 @@ sub CheckCached {
 
 =head3 Clear
 
-    $loader->Close(@tables);
+    $loader->Clear(@tables);
 
 Clear the database relations for the specified objects.
 
