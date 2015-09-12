@@ -27,6 +27,7 @@ use Shrub::SubsystemLoader;
 use Shrub::Functions;
 use ScriptUtils;
 use File::Copy::Recursive;
+use Shrub::PostLoader;
 
 =head1 Shrub Database Loader
 
