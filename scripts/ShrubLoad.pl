@@ -292,8 +292,55 @@ if ($genomesLoading) {
 # Finally, the domains. These are currently loaded from a global file. At some point they will be computed
 # by code in PostLoader.
 print "Processing domains.\n";
+# Set up to load the domain tables.
+my @dtables = qw(CddDomain Domain2Protein Domain2Role);
+if (! $cleared) {
+    $loader->Clear(@dtables);
+}
+$loader->Open(@dtables);
+# This will track the domains loaded.
+my %domains;
+# There are used for input.
+my ($fields, $dh);
+# Process the role/domain file.
+print "Connecting domains to roles.\n";
+$dh = $loader->OpenFile(role_domains => "$FIG_Config::global/roles_cdd.tbl");
+while ($fields = $loader->GetLine(role_domains => $dh)) {
+    my ($roleID, $domains) = @$fields;
+    my @domains = split /,/, $domains;
+    for my $domain (@domains) {
+        DomainCheck($domain);
+        $loader->InsertObject('Domain2Role', 'from-link' => $domain, 'to-link' => $roleID);
+    }
+}
+close $dh;
+# Process the protein/domain file.
+print "Connecting domains to proteins.\n";
+$dh = $loader->OpenFile(prot_domains => "$FIG_Config::global/peg_md5_cdd.tbl");
+while ($fields = $loader->GetLine(prot_domains => $dh)) {
+    my (undef, $prot, $domains) = @$fields;
+    my @domains = split /;/, $domains;
+    for my $domain (@domains) {
+        DomainCheck($domain);
+        $loader->InsertObject('Domain2Protein', 'from-link' => $domain, 'to-link' => $prot);
+    }
+}
+# Unspooling domains.
+$loader->Close();
 # Compute the total time.
 my $timer = time - $startTime;
 $stats->Add(totalTime => $timer);
 # Tell the user we're done.
 print "Database loaded.\n" . $stats->Show();
+
+# Insure a CDD domain is in the database.
+sub DomainCheck {
+    my ($domain) = @_;
+    if (! $domains{$domain}) {
+        $loader->InsertObject('CddDomain', id => $domain);
+        $domains{$domain} = 1;
+        $stats->Add(domainNew => 1);
+    } else {
+        $stats->Add(domainAlreadyFound => 1);
+    }
+}

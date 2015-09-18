@@ -95,11 +95,7 @@ sub new {
     # Attach the Shrub database and denote no tables are being loaded
     # yet.
     $retVal->{shrub} = $shrub;
-    $retVal->{hashes} = {};
-    $retVal->{tables} = {};
-    $retVal->{replaces} = {};
-    $retVal->{tableList} = [];
-    $retVal->{closeQueue} = [];
+    $retVal->Reset();
     # Return the completed object.
     return $retVal;
 }
@@ -553,6 +549,26 @@ sub Close {
             $stats->Accumulate($newStats);
         }
     }
+    # Reset the loader to denote no tables are in progress.
+    $self->Reset();
 }
 
+=head2 Internal Methods
+
+=head3 Reset
+
+    $loader->Reset();
+
+Reset the loader object to denote that no tables are being loaded.
+
+=cut
+
+sub Reset {
+    my ($self) = @_;
+    $self->{hashes} = {};
+    $self->{tables} = {};
+    $self->{replaces} = {};
+    $self->{tableList} = [];
+    $self->{closeQueue} = [];
+}
 1;
