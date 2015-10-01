@@ -317,7 +317,7 @@ sub Feature2Function {
 
     my $featureMap = $shrub->Feature2Trans(\@features);
 
-Get the translation assigned to each of the specified features 
+Get the translation assigned to each of the specified features
 
 =over 4
 
@@ -327,7 +327,7 @@ Reference to a list of feature IDs.
 
 =item RETURN
 
-Returns a reference to a hash mapping each feature to  the translation 
+Returns a reference to a hash mapping each feature to  the translation
 
 =back
 
@@ -343,7 +343,7 @@ sub Feature2Trans {
         # We'll store the function data in here.
         my $Translation;
         ($Translation) = $self->GetFlat('Feature Protein ',
-                '(Feature(id) = ?)', 
+                '(Feature(id) = ?)',
                 [$feature],
                 "Protein(sequence)");
         # Store the translation in the return hash.
@@ -493,6 +493,26 @@ sub FunctionName {
     # Return the result.
     return $retVal;
 }
+
+=head3 role_id_to_desc
+
+    my $fname = $shrub->role_id_to_desc($role);
+
+Return the description associated with a role ID.
+
+=over 4
+
+=item role
+
+ID of the role whose description is desired.
+
+=item RETURN
+
+Returns the role description, or the incoming role ID if it is not found.
+
+=back
+
+=cut
 
 sub role_id_to_desc {
     # Get the parameters.
