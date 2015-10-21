@@ -268,6 +268,65 @@ sub script_options {
 
 =head2 Data Query Methods
 
+=head3 contig_seek
+
+    my $dna = $shrub->contig_seek($contigID);
+
+Return the DNA sequence for a contig. This method finds the relevant FASTA file and pulls the contig's DNA sequence
+from it.
+
+=over 4
+
+=item contigID
+
+ID of the contig whose DNA sequence is desired.
+
+=item RETURN
+
+Returns the DNA sequence for the contig, or C<undef> if the contig does not exist.
+
+=back
+
+=cut
+
+sub contig_seek {
+    my ($self, $contigID) = @_;
+    # This will be the return value.
+    my $retVal;
+    # Get the name of the FASTA file.
+    my $fastaDir = $self->DNArepo;
+    my ($fastaFile) = $self->GetFlat('Contig2Genome Genome', 'Contig2Genome(from-link) = ?', [$contigID], 'Genome(contig-file)');
+    if ($fastaFile) {
+        my $fileName = "$fastaDir/$fastaFile";
+        # Open the FASTA file for input.
+        open(my $fh, "<$fileName") || die "Could not open contig fasta file $fastaFile: $!";
+        # Find the contig.
+        my $found;
+        while (! eof $fh && ! $found) {
+            my $line = <$fh>;
+            if ($line =~ /^>(\S+)/) {
+                $found = ($1 eq $contigID);
+            }
+        }
+        # If we found the contig, assemble the DNA.
+        if ($found) {
+            my @dna;
+            while (! eof $fh && $found) {
+                my $line = <$fh>;
+                if (substr($line, 0, 1) eq '>') {
+                    $found = 0;
+                } else {
+                    chomp $line;
+                    push @dna, $line;
+                }
+            }
+            $retVal = join("", @dna);
+        }
+    }
+    # Return the DNA sequence.
+    return $retVal;
+}
+
 =head3 Feature2Function
 
     my $featureMap = $shrub->Feature2Function($priv, \@features);
