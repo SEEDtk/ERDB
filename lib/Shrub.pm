@@ -958,7 +958,33 @@ sub get_trans_for_genome {
     return \@tuples;
 }
 
+=head3 genome_fasta
 
+    my $fileName = $shrub->genome_fasta($genomeID);
+
+Return the name of the FASTA file for the specified genome.
+
+=over 4
+
+=item genomeID
+
+ID of the genome whose FASTA file is desired.
+
+=item RETURN
+
+Returns the name of the genome's FASTA file.
+
+=back
+
+=cut
+
+sub genome_fasta {
+    my ($self, $genomeID) = @_;
+    my $repo = $self->DNArepo;
+    my ($contigPath) = $self->GetEntityValues(Genome => $genomeID, 'contig-file');
+    my $contigFile = "$repo/$contigPath";
+
+}
 
 =head2 Query Methods
 
