@@ -972,7 +972,7 @@ ID of the genome whose FASTA file is desired.
 
 =item RETURN
 
-Returns the name of the genome's FASTA file.
+Returns the name of the genome's FASTA file, or C<undef> if the genome does not exist in the database.
 
 =back
 
@@ -980,10 +980,17 @@ Returns the name of the genome's FASTA file.
 
 sub genome_fasta {
     my ($self, $genomeID) = @_;
+    # This will be the return value.
+    my $retVal;
+    # Get the directory root.
     my $repo = $self->DNArepo;
+    # Get the file name.
     my ($contigPath) = $self->GetEntityValues(Genome => $genomeID, 'contig-file');
-    my $contigFile = "$repo/$contigPath";
-
+    if ($contigPath) {
+        $retVal = "$repo/$contigPath";
+    }
+    # Return the name.
+    return $retVal;
 }
 
 =head2 Query Methods
