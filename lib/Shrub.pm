@@ -993,6 +993,48 @@ sub genome_fasta {
     return $retVal;
 }
 
+=head3 write_prot_fasta
+
+    $shrub->write_prot_fasta($genome, $oh);
+
+Create a protein FASTA file for the specified genome in the specified output stream.
+
+=over 4
+
+=item genome
+
+ID of the genome whose proteins are desired.
+
+=item oh
+
+Open output file handle or name of the output file. The written output will be a FASTA with the feature ID as the sequence ID
+and the protein sequence as the data.
+
+=back
+
+=cut
+
+sub write_prot_fasta {
+    my ($self, $genome, $oh) = @_;
+    # Insure we have an open output stream.
+    my $ofh;
+    if (ref $oh eq 'GLOB') {
+        $ofh = $oh;
+    }
+    if (! ref $oh) {
+        open($ofh, '>', $oh) || die "Could not open FASTA output file $oh: $!";
+    }
+    # Loop through the features.
+    my $q = $self->Get('Feature2Protein Protein', 'Feature2Protein(from-link) LIKE ?', ["fig|$genome.peg.%"],
+            'Feature2Protein(from-link) Protein(sequence)');
+    while (my $record = $q->Fetch()) {
+        # Write this feature to the output.
+        my ($id, $seq) = $record->Values(['Feature2Protein(from-link)', 'Protein(sequence)']);
+        print $ofh ">$id\n$seq\n";
+    }
+}
+
+
 =head2 Query Methods
 
 =head3 DNArepo
