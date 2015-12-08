@@ -1081,7 +1081,7 @@ sub write_peg_fasta {
     # Loop through the feature location data.
     while (my $record = $q->Fetch()) {
         my ($fid, $contig, $begin, $dir, $len) = $record->Values(['from-link', 'to-link', 'begin', 'dir', 'len']);
-        push @{$fidLocs{$fid}}, BasicLocation->new($contig, $begin, $dir, $len);
+        push @{$fidLocs{$fid}}, [$contig, $begin, $dir, $len];
     }
     # Now write the feature DNA to the FASTA.
     for my $fid (sort keys %fidLocs) {
