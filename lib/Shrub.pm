@@ -1009,7 +1009,7 @@ ID of the genome whose proteins are desired.
 =item oh
 
 Open output file handle or name of the output file. The written output will be a FASTA with the feature ID as the sequence ID
-and the protein sequence as the data.
+and the protein sequence as the data. Alternatively, a reference to a list. The FASTA triples will be appended to the list.
 
 =back
 
@@ -1019,10 +1019,9 @@ sub write_prot_fasta {
     my ($self, $genome, $oh) = @_;
     # Insure we have an open output stream.
     my $ofh;
-    if (ref $oh eq 'GLOB') {
+    if (ref $oh) {
         $ofh = $oh;
-    }
-    if (! ref $oh) {
+    } else {
         open($ofh, '>', $oh) || die "Could not open FASTA output file $oh: $!";
     }
     # Loop through the features.
@@ -1031,7 +1030,11 @@ sub write_prot_fasta {
     while (my $record = $q->Fetch()) {
         # Write this feature to the output.
         my ($id, $seq) = $record->Values(['Feature2Protein(from-link)', 'Protein(sequence)']);
-        print $ofh ">$id\n$seq\n";
+        if (ref $ofh eq 'ARRAY') {
+            push @$ofh, [$id, '', $seq];
+        } else {
+            print $ofh ">$id\n$seq\n";
+        }
     }
 }
 
@@ -1051,7 +1054,7 @@ ID of the genome whose protein-encoding genes are desired.
 =item oh
 
 Open output file handle or name of the output file. The written output will be a FASTA with the feature ID as the sequence ID
-and the protein sequence as the data.
+and the protein sequence as the data. Alternatively, a reference to a list. The FASTA triples will be appended to the list.
 
 =back
 
@@ -1061,7 +1064,7 @@ sub write_peg_fasta {
     my ($self, $genome, $oh) = @_;
     # Insure we have an open output stream.
     my $ofh;
-    if (ref $oh eq 'GLOB') {
+    if (ref $oh) {
         $ofh = $oh;
     }
     if (! ref $oh) {
@@ -1084,7 +1087,11 @@ sub write_peg_fasta {
     for my $fid (sort keys %fidLocs) {
         my $locList = $fidLocs{$fid};
         my $dna = $contigs->dna(@$locList);
-        print $ofh ">$fid\n$dna\n";
+        if (ref $ofh eq 'ARRAY') {
+            push @$ofh, [$fid, '', $dna];
+        } else {
+            print $ofh ">$fid\n$dna\n";
+        }
     }
 }
 
