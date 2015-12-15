@@ -30,6 +30,7 @@ package Shrub;
     use Digest::MD5;
     use Shrub::Roles;
     use gjoseqlib;
+    use BasicLocation;
 
 
 =head1 Shrub Database Package
@@ -992,6 +993,108 @@ sub genome_fasta {
     # Return the name.
     return $retVal;
 }
+
+=head3 write_prot_fasta
+
+    $shrub->write_prot_fasta($genome, $oh);
+
+Create a protein FASTA file for the specified genome in the specified output stream.
+
+=over 4
+
+=item genome
+
+ID of the genome whose proteins are desired.
+
+=item oh
+
+Open output file handle or name of the output file. The written output will be a FASTA with the feature ID as the sequence ID
+and the protein sequence as the data. Alternatively, a reference to a list. The FASTA triples will be appended to the list.
+
+=back
+
+=cut
+
+sub write_prot_fasta {
+    my ($self, $genome, $oh) = @_;
+    # Insure we have an open output stream.
+    my $ofh;
+    if (ref $oh) {
+        $ofh = $oh;
+    } else {
+        open($ofh, '>', $oh) || die "Could not open FASTA output file $oh: $!";
+    }
+    # Loop through the features.
+    my $q = $self->Get('Feature2Protein Protein', 'Feature2Protein(from-link) LIKE ?', ["fig|$genome.peg.%"],
+            'Feature2Protein(from-link) Protein(sequence)');
+    while (my $record = $q->Fetch()) {
+        # Write this feature to the output.
+        my ($id, $seq) = $record->Values(['Feature2Protein(from-link)', 'Protein(sequence)']);
+        if (ref $ofh eq 'ARRAY') {
+            push @$ofh, [$id, '', $seq];
+        } else {
+            print $ofh ">$id\n$seq\n";
+        }
+    }
+}
+
+
+=head3 write_peg_fasta
+
+    $shrub->write_peg_fasta($genome, $oh);
+
+Create a DNA FASTA file for the specified genome's protein-encoding genes in the specified output stream.
+
+=over 4
+
+=item genome
+
+ID of the genome whose protein-encoding genes are desired.
+
+=item oh
+
+Open output file handle or name of the output file. The written output will be a FASTA with the feature ID as the sequence ID
+and the protein sequence as the data. Alternatively, a reference to a list. The FASTA triples will be appended to the list.
+
+=back
+
+=cut
+
+sub write_peg_fasta {
+    my ($self, $genome, $oh) = @_;
+    # Insure we have an open output stream.
+    my $ofh;
+    if (ref $oh) {
+        $ofh = $oh;
+    }
+    if (! ref $oh) {
+        open($ofh, '>', $oh) || die "Could not open FASTA output file $oh: $!";
+    }
+    # Get the genome's contigs.
+    require Shrub::Contigs;
+    my $contigs = Shrub::Contigs->new($self, $genome);
+    # This hash will contain a list of location objects for each feature.
+    my %fidLocs;
+    # This is the query to loop through the features.
+    my $q = $self->Get('Feature2Contig', 'Feature2Contig(from-link) LIKE ? ORDER BY Feature2Contig(from-link), Feature2Contig(ordinal)',
+            ["fig|$genome.peg.%"], 'from-link to-link begin dir len');
+    # Loop through the feature location data.
+    while (my $record = $q->Fetch()) {
+        my ($fid, $contig, $begin, $dir, $len) = $record->Values(['from-link', 'to-link', 'begin', 'dir', 'len']);
+        push @{$fidLocs{$fid}}, [$contig, $begin, $dir, $len];
+    }
+    # Now write the feature DNA to the FASTA.
+    for my $fid (sort keys %fidLocs) {
+        my $locList = $fidLocs{$fid};
+        my $dna = $contigs->dna(@$locList);
+        if (ref $ofh eq 'ARRAY') {
+            push @$ofh, [$fid, '', $dna];
+        } else {
+            print $ofh ">$fid\n$dna\n";
+        }
+    }
+}
+
 
 =head2 Query Methods
 
