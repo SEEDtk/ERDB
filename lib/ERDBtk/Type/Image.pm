@@ -23,7 +23,7 @@ package ERDBtk::Type::Image;
     use strict;
     use StringUtils;
     use ERDBtk;
-    use GD;
+    require GD;
     use MIME::Base64;
     use ERDBtkExtras;
     use base qw(ERDBtk::Type);
