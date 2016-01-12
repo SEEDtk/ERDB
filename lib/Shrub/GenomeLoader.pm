@@ -89,6 +89,10 @@ A hash of options, including one or more of the following.
 TRUE if we are to load using individual inserts, FALSE if we are to load by spooling
 inserts into files for mass loading. The default is FALSE.
 
+=item exclusive
+
+TRUE if we have exclusive access to the database, else FALSE. The default is FALSE.
+
 =item funcMgr
 
 A L<Shrub::Functions> object for computing function and role IDs. If none is
@@ -127,7 +131,7 @@ sub new {
 
 =head3 Clear
 
-    $subLoader->Clear();
+    $genomeLoader->Clear();
 
 Recreate the genome-related tables.
 
@@ -145,7 +149,7 @@ sub Clear {
 
 =head3 ComputeGenomeList
 
-    my $gHash = $loader->ComputeGenomeList($genomeDir, $genomeSpec);
+    my $gHash = $genomeLoader->ComputeGenomeList($genomeDir, $genomeSpec);
 
 Determine the genomes we want to load and return a hash mapping their IDs to their location
 in the repository.
@@ -374,7 +378,7 @@ sub CurateNewGenomes {
 
 =head3 LoadGenome
 
-    $loader->LoadGenome($genome, $genomeDir, $metaHash);
+    $genomeLoader->LoadGenome($genome, $genomeDir, $metaHash);
 
 Load a genome into the database.Any previous copy of the genome must already have been deleted.
 (This is done automatically by L</CurateNewGenomes>; otherwise, use the method L<ERDBtk/Dalete>).)
@@ -460,7 +464,7 @@ sub LoadGenome {
 
 =head3 ReadProteins
 
-    my $protHash = $loader->ReadProteins($genome, $genomeDir);
+    my $protHash = $genomeLoader->ReadProteins($genome, $genomeDir);
 
 Create a hash of the proteins in the specified FASTA file and insure they are in the
 database.
@@ -665,7 +669,7 @@ sub AnalyzeContigFasta {
 
 =head3 ReadFeatures
 
-    $funcMgr->ReadFeatures($genome, $fileName, $priv, \%protHash);
+    $genomeLoader->ReadFeatures($genome, $fileName, $priv, \%protHash);
 
 Read the feature information from a tab-delimited feature file. For each feature, the file contains
 the feature ID, its location string (Sapling format), and its functional assignment. This method
