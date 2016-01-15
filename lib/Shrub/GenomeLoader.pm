@@ -419,18 +419,25 @@ sub LoadGenome {
     }
      # Get the DNA repository directory.
      my $dnaRepo = $shrub->DNArepo;
-     # Form the repository directory for the DNA.
-     my $relPath = $loader->RepoPath($metaHash->{name});
-     my $absPath = "$dnaRepo/$relPath";
-     if (! -d $absPath) {
-         print "Creating directory $relPath for DNA file.\n";
-         File::Path::make_path($absPath);
+     my $relPath = '';
+     my $absPath;
+     # Only proceed if this installation supports DNA.
+     if ($dnaRepo) {
+         # Form the repository directory for the DNA.
+         my $relPath = $loader->RepoPath($metaHash->{name});
+         my $absPath = "$dnaRepo/$relPath";
+         if (! -d $absPath) {
+             print "Creating directory $relPath for DNA file.\n";
+             File::Path::make_path($absPath);
+         }
+         $relPath .= "$genome.fa";
+         $absPath .= "$genome.fa";
      }
      # Now we read the contig file and analyze the DNA for gc-content, number
      # of bases, and the list of contigs. We also copy it to the output
      # repository.
      print "Analyzing contigs.\n";
-     my ($contigList, $genomeHash) = $self->AnalyzeContigFasta($genome, "$genomeDir/contigs", "$absPath/$genome.fa");
+     my ($contigList, $genomeHash) = $self->AnalyzeContigFasta($genome, "$genomeDir/contigs", $absPath);
      # Get the annotation privilege level for this genome.
      my $priv = $metaHash->{privilege};
      # Compute the genetic code.
@@ -439,7 +446,7 @@ sub LoadGenome {
      print "Storing $genome in database.\n";
      $loader->InsertObject('Genome', id => $genome, %$genomeHash,
              core => $metaHash->{type}, name => $metaHash->{name}, prokaryotic => $metaHash->{prokaryotic},
-             'contig-file' => "$relPath/$genome.fa", 'genetic-code' => $code, domain => $metaHash->{domain});
+             'contig-file' => $relPath, 'genetic-code' => $code, domain => $metaHash->{domain});
      $stats->Add(genomeInserted => 1);
      # Connect the contigs to it.
      for my $contigDatum (@$contigList) {
@@ -537,7 +544,8 @@ Name of the file containing the contig sequences in FASTA format.
 
 =item fileName
 
-Output location in the DNA repository for the contig FASTA.
+Output location in the DNA repository for the contig FASTA, or C<undef> if this installation has no
+DNA repository.
 
 =item RETURN
 
@@ -597,7 +605,10 @@ sub AnalyzeContigFasta {
     # Open the contig file.
     my $ih = $loader->OpenFile(contig => $inFile);
     # Open the output file.
-    open(my $oh, ">$fileName") || die "Could not open contig output file $fileName: $!";
+    my $oh;
+    if ($fileName) {
+        open($oh, ">$fileName") || die "Could not open contig output file $fileName: $!";
+    }
     # Create the return variables.
     my (@contigList, %genomeHash);
     # Initialize the MD5 computer.
@@ -609,16 +620,18 @@ sub AnalyzeContigFasta {
     my $line = <$ih>;
     if (! defined $line) {
         # Here the contig file is empty. We are done, but we want to warn the user.
-        print "Contig file $fileName is empty.\n";
+        print "Contig file $inFile is empty.\n";
         $stats->Add(emptyContigFile => 1);
     } elsif ($line !~ /^>(\S+)/) {
         # Here we have an invalid header.
-        die "Invalid header in contig FASTA $fileName";
+        die "Invalid header in contig FASTA $inFile";
     } else {
         # Compute the contig ID.
         my $contigID = RealContigID($genome, $1);
         # Write the real contig ID to the output.
-        print $oh ">$contigID\n";
+        if ($oh) {
+            print $oh ">$contigID\n";
+        }
         # Initialize the contig hash with the ID.
         my $contigHash = $self->_InitializeContig($1);
         $stats->Add(contigHeaders => 1);
@@ -635,10 +648,14 @@ sub AnalyzeContigFasta {
                 $contigHash = $self->_InitializeContig($contigID);
                 $stats->Add(contigHeaders => 1);
                 # Write the new contig ID.
-                print $oh ">$contigID\n";
+                if ($oh) {
+                    print $oh ">$contigID\n";
+                }
             } else {
                 # No. Echo the output line.
-                print $oh $line;
+                if ($oh) {
+                    print $oh $line;
+                }
                 # Get the length and update the contig hash.
                 chomp $line;
                 my $len = length $line;
