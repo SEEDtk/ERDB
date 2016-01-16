@@ -172,9 +172,10 @@ my $cleared = $utils->Init($opt);
 # Merge the statistics.
 $stats->Accumulate($utils->stats);
 # If we're clearing, we need to erase the DNA repository.
-if ($cleared) {
+my $dnaRepo = $shrub->DNArepo('optional');
+if ($cleared && $dnaRepo) {
     print "Erasing DNA repository.\n";
-    File::Copy::Recursive::pathempty($shrub->DNArepo) ||
+    File::Copy::Recursive::pathempty($dnaRepo) ||
         die "Error clearing DNA repository: $!";
 }
 # This hash will contain a list of genome IDs known to be in the database. The subsystem

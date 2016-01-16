@@ -1100,14 +1100,27 @@ sub write_peg_fasta {
 
 =head3 DNArepo
 
-    my $dirName = $shrub->DNArepo
+    my $dirName = $shrub->DNArepo($optional);
 
 Returns the name of the directory containing the DNA repository.
+
+=over 4
+
+=item optional
+
+If TRUE, then a null value is returned if there is no DNA repository. If FALSE (the default), an error
+occurs in this case.
+
+=back
 
 =cut
 
 sub DNArepo {
-    my ($self) = @_;
+    my ($self, $optional) = @_;
+    my $retVal = $self->{dnaRepo};
+    if (! $retVal && ! $optional) {
+        die "DNA is not supported in this version of SEEDtk.";
+    }
     return $self->{dnaRepo};
 }
 

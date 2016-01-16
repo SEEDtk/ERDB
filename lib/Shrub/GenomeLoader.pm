@@ -418,21 +418,20 @@ sub LoadGenome {
                 required => [qw(name md5 privilege prokaryotic domain)]);
     }
      # Get the DNA repository directory.
-     my $dnaRepo = $shrub->DNArepo;
-     my $relPath = '';
+     my $dnaRepo = $shrub->DNArepo('optional');
+     my $relPath = $loader->RepoPath($metaHash->{name});
      my $absPath;
      # Only proceed if this installation supports DNA.
      if ($dnaRepo) {
          # Form the repository directory for the DNA.
-         my $relPath = $loader->RepoPath($metaHash->{name});
          my $absPath = "$dnaRepo/$relPath";
          if (! -d $absPath) {
              print "Creating directory $relPath for DNA file.\n";
              File::Path::make_path($absPath);
          }
-         $relPath .= "$genome.fa";
          $absPath .= "$genome.fa";
      }
+     $relPath .= "$genome.fa";
      # Now we read the contig file and analyze the DNA for gc-content, number
      # of bases, and the list of contigs. We also copy it to the output
      # repository.
