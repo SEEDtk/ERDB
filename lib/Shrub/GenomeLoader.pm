@@ -55,6 +55,11 @@ inserts into files for mass loading.
 
 TRUE if we have exclusive access to the database, else FALSE. The default is FALSE.
 
+=item dnaRepo
+
+Path to the DNA repository. If an empty string, then DNA storage in the repository is
+suppressed.
+
 =back
 
 =cut
@@ -98,6 +103,11 @@ TRUE if we have exclusive access to the database, else FALSE. The default is FAL
 A L<Shrub::Functions> object for computing function and role IDs. If none is
 provided, one will be created internally.
 
+=item dnaRepo
+
+Path to the DNA repository. If an empty string, then DNA storage in the repository is
+suppressed. The default is the DNA repository value in L<FIG_Config>.
+
 =back
 
 =back
@@ -111,6 +121,9 @@ sub new {
     my $slow = $options{slow} || 0;
     # Get the function-loader object.
     my $funcMgr = $options{funcMgr};
+    # Get the DNA repository.
+    my $shrub = $loader->db();
+    my $dnaRepo = $options{dnaRepo} // $shrub->DNArepo('optional');
     # If the function loader was not provided, create one.
     if (! $funcMgr) {
         $funcMgr = Shrub::Functions->new($loader, exclusive => $options{exclusive});
@@ -121,7 +134,7 @@ sub new {
     }
     # Create the object.
     my $retVal = { loader => $loader, md5 => undef,
-        funcMgr => $funcMgr, slow => $slow };
+        funcMgr => $funcMgr, slow => $slow, dnaRepo => $dnaRepo };
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;
@@ -418,7 +431,7 @@ sub LoadGenome {
                 required => [qw(name md5 privilege prokaryotic domain)]);
     }
      # Get the DNA repository directory.
-     my $dnaRepo = $shrub->DNArepo('optional');
+     my $dnaRepo = $self->{dnaRepo};
      my $relPath = $loader->RepoPath($metaHash->{name});
      my $absPath;
      # Only proceed if this installation supports DNA.
