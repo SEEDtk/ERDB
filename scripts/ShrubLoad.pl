@@ -282,7 +282,7 @@ if ($genomesLoading) {
     # Set up to load the cluster tables.
     $loader->Open(qw(Cluster Cluster2Feature));
     # Process the genomes.
-    for my $genome (keys %$gHash) {
+    for my $genome (sort keys %$gHash) {
         print "Processing clusters for $genome: $gHash->{$genome}.\n";
         $postLoader->LoadClusters($genome);
     }

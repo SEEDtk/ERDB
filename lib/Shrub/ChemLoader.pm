@@ -87,7 +87,12 @@ produces B<Compound>.
 =item reactions.master.tsv
 
 This file comes from L<https://github.com/ModelSEED/ModelSEEDDatabase/Biochemistry> and
-produces B<Reaction>, B<Complex2Reaction>, and B<Reaction2Compound>.
+produces B<Reaction> and B<Reaction2Compound>.
+
+=item Reactions.tsv
+
+This file comes from L<https://github.com/ModelSEED/ModelSEEDDatabase/Templates/Microbial> and
+produces B<Complex2Reaction>.
 
 =item plantdefault.pathways.tsv
 
@@ -176,7 +181,7 @@ sub new {
     # Get the function-loader object.
     my $roleMgr = $options{roleMgr};
     # Compute the name of the biochem repo directory.
-    my $repoDir = "$FIG_Config::data/ModelSEEDDatabase";
+    my $repoDir = "$FIG_Config::data/Inputs/ModelSEEDDatabase";
     # If the role loader was not provided, create one.
     if (! $roleMgr) {
         $roleMgr = Shrub::Roles->new($loader, exclusive => $options{exclusive});
@@ -194,26 +199,23 @@ sub new {
 }
 
 
-=head2 Public Methods
-
 =head3 RefreshFiles
 
-    $chemLoader->RefreshFiles();
+    Shrub::ChemLoader::RefreshFiles();
 
 Insure we have the latest copy of the biochemistry data files.
 
 =cut
 
 sub RefreshFiles {
-    my ($self) = @_;
     # Save the current directory.
     my $saveDir = cwd();
     # Insure the directory exists.
-    my $repoDir = $self->{repoDir};
+    my $repoDir = "$FIG_Config::data/Inputs/ModelSEEDDatabase";
     if (! -d "$repoDir") {
         # Directory not found, clone it.
         print "Creating ModelSEED repo.\n";
-        chdir $FIG_Config::data;
+        chdir "$FIG_Config::data/Inputs";
         my @output = `git clone https://github.com/ModelSEED/ModelSEEDDatabase`;
         if (grep { $_ =~ /fatal:\s+(.+)/ } @output) {
             die "Error retrieving ModelSEEDDatabase: $1";
@@ -232,6 +234,8 @@ sub RefreshFiles {
 }
 
 
+=head2 Public Methods
+
 =head3 Process
 
     $chemLoader->Process();
@@ -246,7 +250,10 @@ sub Process {
     $self->LoadRoleMap();
     # Load the complexes and connect them to the roles.
     $self->LoadComplexes();
-
+    # Load the compounds.
+    $self->LoadCompounds();
+    # Load the reactions and connect them to the compounds and complexes.
+    $self->LoadReactions();
 }
 
 =head2 Internal Methods
@@ -339,5 +346,162 @@ sub LoadComplexes {
         }
     }
 }
+
+=head3 LoadCompounds
+
+    $chemLoader->LoadCompounds();
+
+Load the compound table.
+
+=cut
+
+sub LoadCompounds {
+    my ($self) = @_;
+    # Get the loader and statistics objects.
+    print "Loading ModelSEED compounds.\n";
+    my $loader = $self->{loader};
+    my $stats = $loader->stats;
+    # Open the compounds file.
+    my $cpdFile = "$self->{repoDir}/Biochemistry/compounds.master.tsv";
+    open(my $ih, "<$cpdFile") || die "Could not open ModelSEED compounds file: $!";
+    # Discard the label line.
+    my $line = <$ih>;
+    # Loop through the data lines.
+    while (! eof $ih) {
+        $line = <$ih>;
+        $stats->Add(compoundsLineIn => 1);
+        chomp $line;
+        my ($id, undef, $name, $formula, undef, undef, undef, undef, undef, undef, undef, $cofactor) =
+                split /\t/, $line;
+        $loader->InsertObject('Compound', id => $id, label => $name, formula => $formula,
+                cofactor => $cofactor);
+    }
+}
+
+=head3 LoadReactions
+
+    $chemLoader->LoadReactions();
+
+Load the reactions table and connect it to the compounds, pathways, and complexes.
+
+=cut
+
+sub LoadReactions {
+    my ($self) = @_;
+    # Get the loader and statistics objects.
+    print "Loading ModelSEED reactions.\n";
+    my $loader = $self->{loader};
+    my $stats = $loader->stats;
+    # Open the reactions file.
+    my $reactFile = "$self->{repoDir}/Biochemistry/reactions.master.tsv";
+    open(my $ih, "<$reactFile") || die "Could not open ModelSEED reactions file: $!";
+    # Discard the label line.
+    my $line = <$ih>;
+    # We will track reaction IDs in here.
+    my %reactions;
+    # Loop through the data lines.
+    while (! eof $ih) {
+        $line = <$ih>;
+        $stats->Add(reactionLineIn => 1);
+        chomp $line;
+        my ($rid, undef, $name, undef, $stoich, undef, undef, undef, undef, $direction) = split /\t/, $line;
+        # Save the reaction ID.
+        $reactions{$rid} = 1;
+        # Create the reaction record.
+        $loader->InsertObject('Reaction', id => $rid, name => $name, direction => $direction);
+        # Loop through the stoichiometry.
+        my @stoichs = split /;/, $stoich;
+        for my $stoichData (@stoichs) {
+            $stats->Add(reactionStoichIn => 1);
+            # We have here a compound and a number. The number is the stoichiometry value,
+            # and it is negative for a substrate.
+            my ($number, $compound) = split /:/, $stoichData;
+            my $product = 1;
+            if ($number < 0) {
+                $number = -$number;
+                $product = 0;
+            }
+            $loader->InsertObject('Reaction2Compound', 'from-link' => $rid, 'to-link' => $compound,
+                    product => $product, stoichiometry => $number);
+        }
+
+    }
+    # Now we need to link these reactions to complexes.
+    close $ih; undef $ih;
+    print "Connecting reactions to complexes.\n";
+    open($ih, "<$self->{repoDir}/Templates/Microbial/Reactions.tsv") || die "Could not open Reactions.tsv: $!";
+    # Discard the label line.
+    $line = <$ih>;
+    # Loop through the reactions.
+    while (! eof $ih) {
+        my $line = <$ih>;
+        $stats->Add(reactionComplexLineIn => 1);
+        if ($line =~ /^(\S+)\t.+\t(cpx\S+)$/) {
+            # Here we have a reaction ID and a list of complexes.
+            my ($rid, $cpxList) = ($1, $2);
+            if (! $reactions{$rid}) {
+                $stats->Add(complexReactionNotFound => 1);
+            } else {
+                $stats->Add(reactionComplexGoodLine => 1);
+                my @cpxs = split /\|/, $cpxList;
+                for my $cpx (@cpxs) {
+                    $stats->Add(reactionComplexItem => 1);
+                    $loader->InsertObject('Complex2Reaction', 'from-link' => $cpx, 'to-link' => $rid);
+                }
+            }
+        } else {
+            $stats->Add(reactionComplexNullLine => 1);
+        }
+    }
+    # Finally, we connect reactions to pathways.
+    close $ih; undef $ih;
+    print "Connecting reactions to patheways.\n";
+    open($ih, "<$self->{repoDir}/Pathways/plantdefault.pathways.tsv") || die "Could not open ModelSEED pathways file: $!";
+    # This hash tracks the pathway names.
+    my %pathways;
+    # Get the types from the label line.
+    $line = <$ih>;
+    chomp $line;
+    my (undef, @types) = split /\t/, $line;
+    # Loop through the reactions.
+    while (! eof $ih) {
+        my $line = <$ih>;
+        $stats->Add(reactionPathwayLineIn => 1);
+        my ($rid, @pathLists) = split /\t/, $line;
+        if (! $reactions{$rid}) {
+            $stats->Add(pathwayReactionNotFound => 1);
+        } else {
+            # Loop through the type and pathway lists in parallel.
+            for (my $i = 0; $i < scalar(@types); $i++) {
+                # Get the type and the path list.
+                my $type = $types[$i];
+                my $pathList = $pathLists[$i];
+                # Only proceed for a real pathway list.
+                if (! $pathList || $pathList eq 'null') {
+                    $stats->Add(nullPathwayList => 1);
+                } else {
+                    # Get the pathway names.
+                    my @paths = split /\|/, $pathList;
+                    # Loop through the paths.
+                    for my $path (@paths) {
+                        # See if we need to create this pathway.
+                        if ($pathways{$path}) {
+                            # Already present.
+                            $stats->Add(oldPathwayFound => 1)
+                        } else {
+                            # Must create it.
+                            $stats->Add(newPathwayFound => 1);
+                            $loader->InsertObject('Pathway', id => $path, type => $type);
+                            $pathways{$path} = 1;
+                        }
+                        # Now connect it to the reaction.
+                        $loader->InsertObject('Pathway2Reaction', 'from-link' => $path, 'to-link' => $rid);
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 1;

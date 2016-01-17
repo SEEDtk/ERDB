@@ -23,6 +23,7 @@ use FIG_Config;
 use CopyFromSeed;
 use ScriptUtils;
 use File::Copy::Recursive;
+use Shrub::ChemLoader;
 
 =head1 Copy Data From one or more SEED FIGdisks to Create an Input Repository
 
@@ -175,6 +176,9 @@ while (! eof $ih) {
 }
 # If we have genome output, create the genome index.
 $loader->IndexGenomes();
+# Get the chemistry data.
+print "Refreshing chemistry data.\n";
+Shrub::ChemLoader::RefreshFiles();
 # Compute the total time.
 my $timer = time - $startTime;
 $stats->Add(totalTime => $timer);

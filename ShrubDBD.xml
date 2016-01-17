@@ -399,6 +399,15 @@
             generally a small number preceded by a letter. A reversible reaction
             is entered as two separate reactions so that each direction can be
             associated with the appropriate roles.</Notes>
+        <Fields>
+            <Field name="name" type="string">
+                <Notes>Common name of this reaction.</Notes>
+            </Field>
+            <Field name="direction" type="char">
+                <Notes>[b]&gt;[/b] for a normal reaction, [b]&lt;[/b] for a reverse reaction,
+                [b]=[/b] for a reversible reaction.</Notes>
+            </Field>
+        </Fields>
         </Entity>
         <Entity name="Pathway" keyType="string" default="id">
             <DisplayInfo theme="navy" col="3" row="9" />
@@ -419,7 +428,10 @@
                 <Field name="label" type="string">
                     <Notes>Primary name of the compound.</Notes>
                 </Field>
-                <Field name="ubiquitous" type="boolean">
+                <Field name="formula" type="string">
+                    <Notes>Formula used to write the compound in reactions.</Notes>
+                </Field>
+                <Field name="cofactor" type="boolean">
                     <Notes>TRUE if this compound is found in most reactions, else FALSE</Notes>
                 </Field>
             </Fields>
@@ -663,11 +675,6 @@
                         written on paper in chemical notation, the stoichiometry is
                         the number next to the chemical formula of the
                         compound.
-                    </Notes>
-                </Field>
-                <Field name="cofactor" type="boolean">
-                    <Notes>TRUE if the compound is a cofactor; FALSE if it is a major
-                        component of the reaction.
                     </Notes>
                 </Field>
             </Fields>
