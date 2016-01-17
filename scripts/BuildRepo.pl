@@ -99,6 +99,9 @@ my $opt = ScriptUtils::Opts('',
 # Get a helper object and the associated statistics object.
 my $loader = CopyFromSeed->new($opt);
 my $stats = $loader->stats;
+# Get the chemistry data.
+print "Refreshing chemistry data.\n";
+Shrub::ChemLoader::RefreshFiles();
 # Connect to the standard input.
 my $ih = ScriptUtils::IH($opt->input);
 # Are we clearing?
@@ -176,9 +179,6 @@ while (! eof $ih) {
 }
 # If we have genome output, create the genome index.
 $loader->IndexGenomes();
-# Get the chemistry data.
-print "Refreshing chemistry data.\n";
-Shrub::ChemLoader::RefreshFiles();
 # Compute the total time.
 my $timer = time - $startTime;
 $stats->Add(totalTime => $timer);
