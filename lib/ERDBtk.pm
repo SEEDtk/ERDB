@@ -1745,17 +1745,18 @@ sub ComputeTargetEntity {
     my ($self, $relationshipName) = @_;
     # Declare the return variable.
     my $retVal;
-    # Look for it in the alias table.
-    my $realName = $self->{_metaData}->{AliasTable}->{$relationshipName};
-    # Only proceed if it was found.
-    if (defined $realName) {
-        # Get the relationship's from and to entities.
-        my ($fromEntity, $toEntity) = $self->GetRelationshipEntities($realName);
-        # Return the appropriate one.
-        if ($realName eq $relationshipName) {
-            $retVal = $toEntity;
+    # Check for a converse.
+    my $converse = $self->{_metaData}{ConverseTable}{$relationshipName};
+    my $obverse = $converse // $relationshipName;
+    # Get the relationship descriptor.
+    my $relData = $self->_FindObject(Relationships => $obverse);
+    # Only proceed if it exists.
+    if ($relData) {
+        # Compute the appropriate entity name.
+        if ($converse) {
+            $retVal = $relData->{from};
         } else {
-            $retVal = $fromEntity;
+            $retVal = $relData->{to};
         }
     }
     # Return the entity name found.

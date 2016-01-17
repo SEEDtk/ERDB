@@ -23,7 +23,11 @@ package ERDBtk::Type::Image;
     use strict;
     use StringUtils;
     use ERDBtk;
-    require GD;
+    my $have_gd;
+    eval {
+        require GD;
+        $have_gd = 1;
+    };
     use MIME::Base64;
     use ERDBtkExtras;
     use base qw(ERDBtk::Type);
@@ -204,6 +208,9 @@ sub decode {
     my ($self, $string) = @_;
     # Decode the value.
     my $pngData = decode_base64($string);
+    if (! $have_gd) {
+        die "Image support (GD) not present on this machine.";
+    }
     my $retVal = GD::Image->newFromPngData($pngData);
     # Return the result.
     return $retVal;

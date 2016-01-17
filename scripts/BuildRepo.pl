@@ -23,6 +23,7 @@ use FIG_Config;
 use CopyFromSeed;
 use ScriptUtils;
 use File::Copy::Recursive;
+use Shrub::ChemLoader;
 
 =head1 Copy Data From one or more SEED FIGdisks to Create an Input Repository
 
@@ -98,6 +99,9 @@ my $opt = ScriptUtils::Opts('',
 # Get a helper object and the associated statistics object.
 my $loader = CopyFromSeed->new($opt);
 my $stats = $loader->stats;
+# Get the chemistry data.
+print "Refreshing chemistry data.\n";
+Shrub::ChemLoader::RefreshFiles();
 # Connect to the standard input.
 my $ih = ScriptUtils::IH($opt->input);
 # Are we clearing?

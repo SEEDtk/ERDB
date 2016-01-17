@@ -28,6 +28,7 @@ use Shrub::Functions;
 use ScriptUtils;
 use File::Copy::Recursive;
 use Shrub::PostLoader;
+use Shrub::ChemLoader;
 
 =head1 Shrub Database Loader
 
@@ -172,9 +173,10 @@ my $cleared = $utils->Init($opt);
 # Merge the statistics.
 $stats->Accumulate($utils->stats);
 # If we're clearing, we need to erase the DNA repository.
-if ($cleared) {
+my $dnaRepo = $shrub->DNArepo('optional');
+if ($cleared && $dnaRepo) {
     print "Erasing DNA repository.\n";
-    File::Copy::Recursive::pathempty($shrub->DNArepo) ||
+    File::Copy::Recursive::pathempty($dnaRepo) ||
         die "Error clearing DNA repository: $!";
 }
 # This hash will contain a list of genome IDs known to be in the database. The subsystem
@@ -271,6 +273,11 @@ if ($subsLoading) {
         }
     }
 }
+# Load the chemistry data.
+print "Processing chemistry data.\n";
+my $chemLoader = Shrub::ChemLoader->new($loader, exclusive => $exclusive, slow => $slowFlag,
+        roleMgr => $roleMgr);
+$chemLoader->Process();
 # Close and upload the load files.
 print "Unspooling load files.\n";
 $loader->Close();
@@ -281,7 +288,7 @@ if ($genomesLoading) {
     # Set up to load the cluster tables.
     $loader->Open(qw(Cluster Cluster2Feature));
     # Process the genomes.
-    for my $genome (keys %$gHash) {
+    for my $genome (sort keys %$gHash) {
         print "Processing clusters for $genome: $gHash->{$genome}.\n";
         $postLoader->LoadClusters($genome);
     }
