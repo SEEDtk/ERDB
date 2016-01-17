@@ -28,6 +28,7 @@ use Shrub::Functions;
 use ScriptUtils;
 use File::Copy::Recursive;
 use Shrub::PostLoader;
+use Shrub::ChemLoader;
 
 =head1 Shrub Database Loader
 
@@ -272,6 +273,11 @@ if ($subsLoading) {
         }
     }
 }
+# Load the chemistry data.
+print "Processing chemistry data.\n";
+my $chemLoader = Shrub::ChemLoader->new($loader, exclusive => $exclusive, slow => $slowFlag,
+        roleMgr => $roleMgr);
+$chemLoader->Process();
 # Close and upload the load files.
 print "Unspooling load files.\n";
 $loader->Close();
