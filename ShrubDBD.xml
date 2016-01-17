@@ -681,12 +681,10 @@
             <ToIndex>
                 <Notes>This index presents the compounds in the reaction in the
                     order they should be displayed when writing it in chemical
-                    notation. All the substrates appear before all the products, and
-                    within that ordering, the main compounds appear first.
+                    notation. All the substrates appear before all the products.
                 </Notes>
                 <IndexFields>
                     <IndexField name="product" order="ascending" />
-                    <IndexField name="cofactor" order="descending" />
                 </IndexFields>
             </ToIndex>
         </Relationship>
