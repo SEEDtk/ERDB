@@ -90,6 +90,10 @@ match the leaf directory name of the specified repository or nothing will work r
 
 The maximum gap allowed between clustered features, in base pairs. The default is C<2000>.
 
+=item noDNA
+
+If specified, DNA will not be stored in the DNA repository.
+
 =back
 
 =cut
@@ -106,6 +110,7 @@ my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDBtk::Utils::init_opt
         ['subsystems|subs=s', "file listing IDs of subsystems to load, \"all\", or \"none\"", { default => 'all' }],
         ['tar=s', "file containing compressed copy of the input repository"],
         ['maxgap|g=i', "maximum gap allowed between clustered features", { default => 2000 }],
+        ['noDNA', "supress use of the DNA repository"],
         [xmode => [["exclusive|X", "exclusive database access"], ["shared|S", "shared database access"]]],
         );
 # Find out what we are loading.
@@ -113,6 +118,7 @@ my $genomeSpec = $opt->genomes;
 my $subsSpec = $opt->subsystems;
 my $genomesLoading = ($genomeSpec ne 'none');
 my $subsLoading = ($subsSpec ne 'none');
+my $dnaFlag = ($opt->nodna ? 0 : 1);
 # Validate the load specifications.
 if ($genomesLoading && $genomeSpec ne 'all' && ! -f $genomeSpec) {
     die "Could not find genome list file $genomeSpec.";
@@ -173,7 +179,7 @@ my $cleared = $utils->Init($opt);
 # Merge the statistics.
 $stats->Accumulate($utils->stats);
 # If we're clearing, we need to erase the DNA repository.
-my $dnaRepo = $shrub->DNArepo('optional');
+my $dnaRepo = ($dnaFlag ? $shrub->DNArepo('optional') : '');
 if ($cleared && $dnaRepo) {
     print "Erasing DNA repository.\n";
     File::Copy::Recursive::pathempty($dnaRepo) ||
@@ -197,7 +203,7 @@ my $gHash;
 if ($genomesLoading) {
     print "Processing genomes.\n";
     my $gLoader = Shrub::GenomeLoader->new($loader, funcMgr => $funcMgr, slow => $slowFlag,
-            exclusive => $exclusive);
+            exclusive => $exclusive, dnaRepo => $dnaRepo);
     # Determine the list of genomes to load.
     $gHash = $gLoader->ComputeGenomeList($genomeDir, $genomeSpec);
     # Curate the genome list to eliminate redundant genomes. This returns a hash of genome IDs to
