@@ -285,7 +285,7 @@ sub LoadRoleMap {
         $line = <$ih>;
         my ($mid, $role) = split /\t/, $line;
         $stats->Add(modelSeedRoleIn => 1);
-        my ($rid) = $roleMgr->Processs($role);
+        my ($rid) = $roleMgr->Process($role);
         $roles{$mid} = $rid;
     }
     # Save the role map.
