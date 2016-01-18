@@ -337,9 +337,10 @@ sub ComputeSubsystems {
     # Check the input list of subsystems.
     my @subs;
     if (! $subList) {
-        # Here we getting all subsystems. Read the directory.
+        # Here we getting all subsystems. Read the directory. We exclude hidden names (starts with .) and
+        # names with control characters in them.
         my $subBase = "$self->{figDisk}/FIG/Data/Subsystems";
-        @subs = grep { substr($_,0,1) ne '.' } $self->OpenDir($subBase);
+        @subs = grep { substr($_,0,1) ne '.' && $_ !~ /[\x00-\x1F]/ } $self->OpenDir($subBase);
     } else {
         # Here we are using the caller-specified list.
         push @subs, @$subList;
