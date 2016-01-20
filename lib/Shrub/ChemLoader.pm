@@ -455,7 +455,7 @@ sub LoadReactions {
     }
     # Finally, we connect reactions to pathways.
     close $ih; undef $ih;
-    print "Connecting reactions to patheways.\n";
+    print "Connecting reactions to pathways.\n";
     open($ih, "<$self->{repoDir}/Pathways/plantdefault.pathways.tsv") || die "Could not open ModelSEED pathways file: $!";
     # This hash tracks the pathway names.
     my %pathways;
@@ -466,6 +466,7 @@ sub LoadReactions {
     # Loop through the reactions.
     while (! eof $ih) {
         my $line = <$ih>;
+        chomp $line;
         $stats->Add(reactionPathwayLineIn => 1);
         my ($rid, @pathLists) = split /\t/, $line;
         if (! $reactions{$rid}) {
