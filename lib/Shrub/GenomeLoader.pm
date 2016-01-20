@@ -437,14 +437,14 @@ sub LoadGenome {
      # Only proceed if this installation supports DNA.
      if ($dnaRepo) {
          # Form the repository directory for the DNA.
-         my $absPath = "$dnaRepo/$relPath";
+         $absPath = "$dnaRepo/$relPath";
          if (! -d $absPath) {
              print "Creating directory $relPath for DNA file.\n";
              File::Path::make_path($absPath);
          }
-         $absPath .= "$genome.fa";
+         $absPath .= "/$genome.fa";
      }
-     $relPath .= "$genome.fa";
+     $relPath .= "/$genome.fa";
      # Now we read the contig file and analyze the DNA for gc-content, number
      # of bases, and the list of contigs. We also copy it to the output
      # repository.
@@ -620,6 +620,7 @@ sub AnalyzeContigFasta {
     my $oh;
     if ($fileName) {
         open($oh, ">$fileName") || die "Could not open contig output file $fileName: $!";
+        print "Writing contigs to $fileName.\n";
     }
     # Create the return variables.
     my (@contigList, %genomeHash);
