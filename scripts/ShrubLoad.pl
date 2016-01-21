@@ -339,8 +339,6 @@ if ($genomesLoading) {
     # Unspool the tables.
     print "Unspooling cluster and protein family tables.\n";
     $loader->Close();
-    # Set up to load the protein family tables.
-    $loader->Open(qw(ProteinFamily Family2Protein));
 }
 # Now we do the protein families. These are loaded from a global file.
 # Finally, the domains. These are also loaded from a global file.
@@ -401,20 +399,33 @@ sub DomainCheck {
 # Insert a protein family into the database.
 sub ProcessProteinFamily {
     my ($currentFamily, $currentFunction, $md5s) = @_;
-    # Check to insure the proteins exist.
-    my $filter = 'Protein(id) IN (' . join(', ', map { '?' } keys %$md5s) . ')';
-    my $parms = [sort keys %$md5s];
-    my @prots = $shrub->GetFlat('Protein', $filter, $parms, 'id');
-    # Now @prots is a list of proteins actually in the database.
-    my $found = scalar(@prots);
-    $stats->Add(familyProteinsSkipped => (scalar(keys %$md5s) - $found));
-    if (! $found) {
-        $stats->Add(emptyProteinFamily => 1);
-    } else {
-        $stats->Add(familyProteinsFound => $found);
-        $loader->InsertObject('ProteinFamily', id => $currentFamily, Function2Family_link => $currentFunction);
-        for my $prot (@prots) {
-            $loader->InsertObject('Family2Protein', 'from-link' => $currentFamily, 'to-link' => $prot);
+    # Check to insure the proteins exist. We process the proteins in batches of 100.
+    my @protList = sort keys %$md5s;
+    my $protCount = scalar @protList;
+    my $empty = 1;
+    for (my $i = 0; $i < $protCount; $i += 100) {
+        my $i1 = $i + 99;
+        $i = $protCount - 1 if ($i1 >= $protCount);
+        my @segment = @protList[$i .. $i1];
+        my $filter = 'Protein(id) IN (' . join(', ', map { '?' } @segment) . ')';
+        my @prots = $shrub->GetFlat('Protein', $filter, \@segment, 'id');
+        # Now @prots is a list of proteins actually in the database.
+        my $found = scalar(@prots);
+        $stats->Add(familyProteinsSkipped => (scalar(@segment) - $found));
+        if (! $found) {
+            $stats->Add(emptyProteinFamilyChunk => 1);
+        } else {
+            $stats->Add(familyProteinsFound => $found);
+            $stats->Add(processedProteinFamilyChunk => 1);
+            $empty = 0;
+            for my $prot (@prots) {
+                $loader->InsertObject('Family2Protein', 'from-link' => $currentFamily, 'to-link' => $prot);
+            }
         }
+    }
+    if ($empty) {
+        $stats->Add(empyProteinFamily => 1);
+    } else {
+        $loader->InsertObject('ProteinFamily', id => $currentFamily, Function2Family_link => $currentFunction);
     }
 }
