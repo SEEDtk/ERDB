@@ -396,7 +396,7 @@ sub ExtractRepo {
         } else {
             # Here we have a file in the archive. Check its name.
             $stats->Add(archiveFile => 1);
-            if ($file->name =~ /((?:GenomeData|SubSystemData|ModelSEED).+)/) {
+            if ($file->name =~ /((?:GenomeData|SubSystemData|ModelSEED|Other).+)/) {
                 # Compute the new file name.
                 my $newName = join("/", $targetDir, DenormalizedName($1));
                 # Extract the file.

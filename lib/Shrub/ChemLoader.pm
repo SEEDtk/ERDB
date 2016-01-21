@@ -167,6 +167,10 @@ TRUE if we have exclusive access to the database, else FALSE. The default is FAL
 
 A L<Shrub::Roles> object for computing role IDs. If none is provided, one will be created internally.
 
+=item repo
+
+The location of the input repository. The default is I<$FIG_Config::data/Inputs>.
+
 =back
 
 =back
@@ -181,7 +185,8 @@ sub new {
     # Get the function-loader object.
     my $roleMgr = $options{roleMgr};
     # Compute the name of the biochem repo directory.
-    my $repoDir = "$FIG_Config::data/Inputs/ModelSEEDDatabase";
+    my $repoDir = $options{repo} // "$FIG_Config::data/Inputs";
+    $repoDir .= "/ModelSEEDDatabase";
     # If the role loader was not provided, create one.
     if (! $roleMgr) {
         $roleMgr = Shrub::Roles->new($loader, exclusive => $options{exclusive});
@@ -201,21 +206,30 @@ sub new {
 
 =head3 RefreshFiles
 
-    Shrub::ChemLoader::RefreshFiles();
+    Shrub::ChemLoader::RefreshFiles($dir);
 
 Insure we have the latest copy of the biochemistry data files.
+
+=over 4
+
+=item dir
+
+Parent directory to contain the biochemistry repo.
+
+=back
 
 =cut
 
 sub RefreshFiles {
+    my ($dir) = @_;
     # Save the current directory.
     my $saveDir = cwd();
     # Insure the directory exists.
-    my $repoDir = "$FIG_Config::data/Inputs/ModelSEEDDatabase";
+    my $repoDir = "$dir/ModelSEEDDatabase";
     if (! -d "$repoDir") {
         # Directory not found, clone it.
         print "Creating ModelSEED repo.\n";
-        chdir "$FIG_Config::data/Inputs";
+        chdir $dir;
         my @output = `git clone https://github.com/ModelSEED/ModelSEEDDatabase`;
         if (grep { $_ =~ /fatal:\s+(.+)/ } @output) {
             die "Error retrieving ModelSEEDDatabase: $1";

@@ -101,7 +101,7 @@ my $loader = CopyFromSeed->new($opt);
 my $stats = $loader->stats;
 # Get the chemistry data.
 print "Refreshing chemistry data.\n";
-Shrub::ChemLoader::RefreshFiles();
+Shrub::ChemLoader::RefreshFiles($opt->repo);
 # Connect to the standard input.
 my $ih = ScriptUtils::IH($opt->input);
 # Are we clearing?
