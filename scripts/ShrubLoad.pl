@@ -282,28 +282,66 @@ if ($subsLoading) {
 # Load the chemistry data.
 print "Processing chemistry data.\n";
 my $chemLoader = Shrub::ChemLoader->new($loader, exclusive => $exclusive, slow => $slowFlag,
-        roleMgr => $roleMgr);
+        roleMgr => $roleMgr, repo => $repo);
 $chemLoader->Process();
 # Close and upload the load files.
 print "Unspooling load files.\n";
 $loader->Close();
 # This next section creates derived data and relies on the fact the database is already loaded.
 if ($genomesLoading) {
-    # We have new genomes, so process the clusters.
+    # We have new genomes, so process the clusters and protein families.
+    my @ptables = qw(ProteinFamily Family2Protein);
+    $loader->Open(qw(Cluster Cluster2Feature), @ptables);
     print "Creating clusters.\n";
-    # Set up to load the cluster tables.
-    $loader->Open(qw(Cluster Cluster2Feature));
     # Process the genomes.
     for my $genome (sort keys %$gHash) {
         print "Processing clusters for $genome: $gHash->{$genome}.\n";
         $postLoader->LoadClusters($genome);
     }
-    # Unspool the clusters.
-    print "Unspooling cluster tables.\n";
+    # Now the protein families.
+    print "Processing protein families.\n";
+    if (! $cleared) {
+        $loader->Clear(@ptables);
+    }
+    # Get the protein family file.
+    open(my $ih, "<$repo/Other/merged.1.1.nr.only.with.md5") || die "Could not open protein family file: $!";
+    # The file is sorted by family ID. We process one family at a time.
+    my $currentFamily = "";
+    my $currentFunction = "";
+    # This holds all the family's protein IDs.
+    my $md5s = {};
+    # Loop through all the proteins.
+    while (! eof $ih) {
+        my $line = <$ih>;
+        chomp $line;
+        my ($family, undef, undef, undef, undef, $func, undef, undef, undef, $md5) = split /\t/, $line;
+        $stats->Add(protFamLineIn => 1);
+        if ($family ne $currentFamily) {
+            $stats->Add(newProtFamily => 1);
+            if ($currentFamily) {
+                ProcessProteinFamily($currentFamily, $currentFunction, $md5s);
+            }
+            # Start the new family.
+            $currentFamily = $family;
+            # We need to compute the function ID.
+            my ($statement, $sep, $roles) = $funcMgr->Parse($func);
+            $currentFunction = $funcMgr->Process($statement, $sep, $roles);
+            # Clear the MD5 hash.
+            $md5s = {};
+        }
+        # Store the incoming protein.
+        $md5s->{$md5} = 1;
+    }
+    # Process the residual family.
+    if ($currentFamily) {
+        ProcessProteinFamily($currentFamily, $currentFunction, $md5s);
+    }
+    # Unspool the tables.
+    print "Unspooling cluster and protein family tables.\n";
     $loader->Close();
 }
-# Finally, the domains. These are currently loaded from a global file. At some point they will be computed
-# by code in PostLoader.
+# Now we do the protein families. These are loaded from a global file.
+# Finally, the domains. These are also loaded from a global file.
 print "Processing domains.\n";
 # Set up to load the domain tables.
 my @dtables = qw(CddDomain Domain2Protein Domain2Role);
@@ -317,7 +355,7 @@ my %domains;
 my ($fields, $dh);
 # Process the role/domain file.
 print "Connecting domains to roles.\n";
-$dh = $loader->OpenFile(role_domains => "$FIG_Config::global/roles_cdd.tbl");
+$dh = $loader->OpenFile(role_domains => "$repo/Other/roles_cdd.tbl");
 while ($fields = $loader->GetLine(role_domains => $dh)) {
     my ($roleID, $domains) = @$fields;
     my @domains = split /,/, $domains;
@@ -329,7 +367,7 @@ while ($fields = $loader->GetLine(role_domains => $dh)) {
 close $dh;
 # Process the protein/domain file.
 print "Connecting domains to proteins.\n";
-$dh = $loader->OpenFile(prot_domains => "$FIG_Config::global/peg_md5_cdd.tbl");
+$dh = $loader->OpenFile(prot_domains => "$repo/Other/peg_md5_cdd.tbl");
 while ($fields = $loader->GetLine(prot_domains => $dh)) {
     my (undef, $prot, $domains) = @$fields;
     my @domains = split /;/, $domains;
@@ -355,5 +393,39 @@ sub DomainCheck {
         $stats->Add(domainNew => 1);
     } else {
         $stats->Add(domainAlreadyFound => 1);
+    }
+}
+
+# Insert a protein family into the database.
+sub ProcessProteinFamily {
+    my ($currentFamily, $currentFunction, $md5s) = @_;
+    # Check to insure the proteins exist. We process the proteins in batches of 100.
+    my @protList = sort keys %$md5s;
+    my $protCount = scalar @protList;
+    my $empty = 1;
+    for (my $i = 0; $i < $protCount; $i += 100) {
+        my $i1 = $i + 99;
+        $i = $protCount - 1 if ($i1 >= $protCount);
+        my @segment = @protList[$i .. $i1];
+        my $filter = 'Protein(id) IN (' . join(', ', map { '?' } @segment) . ')';
+        my @prots = $shrub->GetFlat('Protein', $filter, \@segment, 'id');
+        # Now @prots is a list of proteins actually in the database.
+        my $found = scalar(@prots);
+        $stats->Add(familyProteinsSkipped => (scalar(@segment) - $found));
+        if (! $found) {
+            $stats->Add(emptyProteinFamilyChunk => 1);
+        } else {
+            $stats->Add(familyProteinsFound => $found);
+            $stats->Add(processedProteinFamilyChunk => 1);
+            $empty = 0;
+            for my $prot (@prots) {
+                $loader->InsertObject('Family2Protein', 'from-link' => $currentFamily, 'to-link' => $prot);
+            }
+        }
+    }
+    if ($empty) {
+        $stats->Add(empyProteinFamily => 1);
+    } else {
+        $loader->InsertObject('ProteinFamily', id => $currentFamily, Function2Family_link => $currentFunction);
     }
 }
