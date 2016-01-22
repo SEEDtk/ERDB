@@ -303,38 +303,42 @@ if ($genomesLoading) {
     if (! $cleared) {
         $loader->Clear(@ptables);
     }
-    # Get the protein family file.
-    open(my $ih, "<$repo/Other/merged.1.1.nr.only.with.md5") || die "Could not open protein family file: $!";
-    # The file is sorted by family ID. We process one family at a time.
-    my $currentFamily = "";
-    my $currentFunction = "";
-    # This holds all the family's protein IDs.
-    my $md5s = {};
-    # Loop through all the proteins.
-    while (! eof $ih) {
-        my $line = <$ih>;
-        chomp $line;
-        my ($family, undef, undef, undef, undef, $func, undef, undef, undef, $md5) = split /\t/, $line;
-        $stats->Add(protFamLineIn => 1);
-        if ($family ne $currentFamily) {
-            $stats->Add(newProtFamily => 1);
-            if ($currentFamily) {
-                ProcessProteinFamily($currentFamily, $currentFunction, $md5s);
+    # Loop through the protein family files.
+    my $fileIndex = 1;
+    while (-f "$repo/Other/ProteinFamily/protFamily.$fileIndex.tbl") {
+        open(my $ih, "<$repo/Other/ProteinFamily/protFamily.$fileIndex.tbl") ||
+            die "Could not open protein family file $fileIndex: $!";
+        # The file is sorted by family ID. We process one family at a time.
+        my $currentFamily = "";
+        my $currentFunction = "";
+        # This holds all the family's protein IDs.
+        my $md5s = {};
+        # Loop through all the proteins.
+        while (! eof $ih) {
+            my $line = <$ih>;
+            chomp $line;
+            my ($family, $func, $md5) = split /\t/, $line;
+            $stats->Add(protFamLineIn => 1);
+            if ($family ne $currentFamily) {
+                $stats->Add(newProtFamily => 1);
+                if ($currentFamily) {
+                    ProcessProteinFamily($currentFamily, $currentFunction, $md5s);
+                }
+                # Start the new family.
+                $currentFamily = $family;
+                # We need to compute the function ID.
+                my ($statement, $sep, $roles) = $funcMgr->Parse($func);
+                $currentFunction = $funcMgr->Process($statement, $sep, $roles);
+                # Clear the MD5 hash.
+                $md5s = {};
             }
-            # Start the new family.
-            $currentFamily = $family;
-            # We need to compute the function ID.
-            my ($statement, $sep, $roles) = $funcMgr->Parse($func);
-            $currentFunction = $funcMgr->Process($statement, $sep, $roles);
-            # Clear the MD5 hash.
-            $md5s = {};
+            # Store the incoming protein.
+            $md5s->{$md5} = 1;
         }
-        # Store the incoming protein.
-        $md5s->{$md5} = 1;
-    }
-    # Process the residual family.
-    if ($currentFamily) {
-        ProcessProteinFamily($currentFamily, $currentFunction, $md5s);
+        # Process the residual family.
+        if ($currentFamily) {
+            ProcessProteinFamily($currentFamily, $currentFunction, $md5s);
+        }
     }
     # Unspool the tables.
     print "Unspooling cluster and protein family tables.\n";
