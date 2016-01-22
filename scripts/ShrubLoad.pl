@@ -306,6 +306,7 @@ if ($genomesLoading) {
     # Loop through the protein family files.
     my $fileIndex = 1;
     while (-f "$repo/Other/ProteinFamily/protFamily.$fileIndex.tbl") {
+        print "Processing family file $fileIndex.\n";
         open(my $ih, "<$repo/Other/ProteinFamily/protFamily.$fileIndex.tbl") ||
             die "Could not open protein family file $fileIndex: $!";
         # The file is sorted by family ID. We process one family at a time.
@@ -339,6 +340,8 @@ if ($genomesLoading) {
         if ($currentFamily) {
             ProcessProteinFamily($currentFamily, $currentFunction, $md5s);
         }
+        # Get the next file.
+        $fileIndex++;
     }
     # Unspool the tables.
     print "Unspooling cluster and protein family tables.\n";
