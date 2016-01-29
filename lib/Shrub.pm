@@ -657,7 +657,7 @@ sub fid_locs {
     my @locData = $self->GetAll('Feature2Contig', 'Feature2Contig(from-link) = ? ORDER BY Feature2Contig(from-link), Feature2Contig(ordinal)',
             [$fid], 'Feature2Contig(to-link) Feature2Contig(begin) Feature2Contig(dir) Feature2Contig(len)');
     # Convert to location objects.
-    my @retVal = map { BasicLocation->new(@$_) } @locData;
+    my @retVal = map { BasicLocation->new(\@$_) } @locData;
     # Return the result.
     return @retVal;
 }
