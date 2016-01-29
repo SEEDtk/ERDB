@@ -454,11 +454,25 @@ sub LoadGenome {
      my $priv = $metaHash->{privilege};
      # Compute the genetic code.
      my $code = $metaHash->{code} // 11;
+     # Now we need to process the features. This hash holds the useful feature statistics, currently
+     # only "longest-feature".
+     my %fidStats = ('longest-feature' => 0);
+     # Process the non-protein features.
+     my $npFile = "$genomeDir/non-peg-info";
+     if (-f $npFile) {
+         # Read the feature data.
+         print "Processing non-protein features.\n";
+         $self->ReadFeatures($genome, $npFile, $priv, \%fidStats);
+     }
+     # Process the protein features.
+     my $protHash = $self->ReadProteins($genome, $genomeDir);
+     print "Processing protein features.\n";
+     $self->ReadFeatures($genome, "$genomeDir/peg-info", $priv, \%fidStats, $protHash);
      # Now we can create the genome record.
      print "Storing $genome in database.\n";
      $loader->InsertObject('Genome', id => $genome, %$genomeHash,
              core => $metaHash->{type}, name => $metaHash->{name}, prokaryotic => $metaHash->{prokaryotic},
-             'contig-file' => $relPath, 'genetic-code' => $code, domain => $metaHash->{domain});
+             'contig-file' => $relPath, 'genetic-code' => $code, domain => $metaHash->{domain}, %fidStats);
      $stats->Add(genomeInserted => 1);
      # Connect the contigs to it.
      for my $contigDatum (@$contigList) {
@@ -468,17 +482,6 @@ sub LoadGenome {
          $loader->InsertObject('Contig', %$contigDatum, Genome2Contig_link => $genome);
          $stats->Add(contigInserted => 1);
      }
-     # Process the non-protein features.
-     my $npFile = "$genomeDir/non-peg-info";
-     if (-f $npFile) {
-         # Read the feature data.
-         print "Processing non-protein features.\n";
-         $self->ReadFeatures($genome, $npFile, $priv);
-     }
-     # Process the protein features.
-     my $protHash = $self->ReadProteins($genome, $genomeDir);
-     print "Processing protein features.\n";
-     $self->ReadFeatures($genome, "$genomeDir/peg-info", $priv, $protHash);
 }
 
 =head3 ReadProteins
@@ -699,7 +702,7 @@ sub AnalyzeContigFasta {
 
 =head3 ReadFeatures
 
-    $genomeLoader->ReadFeatures($genome, $fileName, $priv, \%protHash);
+    $genomeLoader->ReadFeatures($genome, $fileName, $priv, \%fidStats, \%protHash);
 
 Read the feature information from a tab-delimited feature file. For each feature, the file contains
 the feature ID, its location string (Sapling format), and its functional assignment. This method
@@ -720,6 +723,10 @@ Name of the file containing the feature data to process.
 
 Privilege level for the functional assignments.
 
+=item fidStats
+
+A hash containing feature statistics stored in the Genome record, keyed by field name.
+
 =item protHash (optional)
 
 A hash mapping feature IDs to protein IDs.
@@ -730,7 +737,7 @@ A hash mapping feature IDs to protein IDs.
 
 sub ReadFeatures {
     # Get the parameters.
-    my ($self, $genome, $fileName, $priv, $protHash) = @_;
+    my ($self, $genome, $fileName, $priv, $fidStats, $protHash) = @_;
     # Get the loader object.
     my $loader = $self->{loader};
     # Get the function processor.
@@ -766,6 +773,10 @@ sub ReadFeatures {
         my $seqLen = 0;
         for my $loc (@locs) {
             $seqLen += $loc->Length;
+        }
+        # Merge the length into the feature statistics.
+        if ($seqLen > $fidStats->{'longest-feature'}) {
+            $fidStats->{'longest-feature'} = $seqLen;
         }
         # Compute the protein.
         my $protID = $protHash->{$fid} // '';

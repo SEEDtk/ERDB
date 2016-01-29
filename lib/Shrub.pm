@@ -468,9 +468,9 @@ Index of the location in the contig where the region of interest ends.
 
 =item RETURN
 
-Returns a list of 4-tuples, each consisting of (0) a feature ID, (1) the index of the leftmost
+Returns a list of 5-tuples, each consisting of (0) a feature ID, (1) the index of the leftmost
 location in the segment that overlaps the region, and (2) the direction of the segment that
-overlaps the region, and (3) its length.
+overlaps the region, (3) the segment length, and (4) the total feature length.
 
 =back
 
@@ -480,11 +480,11 @@ sub FeaturesInRegion {
     # Get the parameters.
     my ($self, $contigID, $start, $end) = @_;
     # Request the desired tuples.
-    my @retVal = $self->GetAll("Feature2Contig",
-                          'Feature2Contig(to-link) = ? AND (Feature2Contig(begin) >= ? AND Feature2Contig(begin) <= ? OR Feature2Contig(begin) < ? AND Feature2Contig(begin) + Feature2Contig(len) >= ?)',
+    ## TODO Use longest-feature to optimize.
+    my @retVal = $self->GetAll("Contig2Feature Feature",
+                          'Contig2Feature(from-link) = ? AND (Contig2Feature(begin) >= ? AND Contig2Feature(begin) <= ? OR Contig2Feature(begin) < ? AND Contig2Feature(begin) + Contig2Feature(len) >= ?)',
                           [$contigID, $start, $end, $start, $start],
-                          [qw(Feature2Contig(from-link) Feature2Contig(begin)
-                          Feature2Contig(dir) Feature2Contig(len))]);
+                          [qw(Feature(id) Contig2Feature(begin) Contig2Feature(dir) Contig2Feature(len) Feature(sequence-length))]);
     # Return them.
     return @retVal;
 }
