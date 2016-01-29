@@ -74,6 +74,10 @@
                     <Notes>Genetic code for translating this genome's coding features to
                     proteins.</Notes>
                 </Field>
+                <Field name="longest-feature" type="int">
+                    <Notes>Length of the longest feature in this genome, used to optimize
+                    the genes-in-region function.</Notes>
+                </Field>
             </Fields>
             <Indexes>
                 <Index>

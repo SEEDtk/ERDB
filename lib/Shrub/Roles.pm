@@ -161,10 +161,10 @@ sub Parse {
     my ($ecNum, $tcNum) = ("", "");
     my $roleText = $role;
     if ($role =~ /(.+?)\s*$EC_PATTERN\s*(.*)/) {
-        $roleText = $1 . $3;
+        $roleText = "$1 $3";
         $ecNum = $2;
     } elsif ($role =~ /(.+?)\s*$TC_PATTERN\s*(.*)/) {
-        $roleText = $1 . $3;
+        $roleText = "$1 $3";
         $tcNum = $2;
     }
     # Fix spelling problems.
