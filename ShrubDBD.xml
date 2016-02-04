@@ -636,6 +636,13 @@
                     <IndexField name="security" order="descending" />
                 </IndexFields>
             </FromIndex>
+            <ToIndex>
+                <Notes>This index speeds queries that restrict to specific genomes.</Notes>
+                <IndexFields>
+                     <IndexField name="security" order="descending" />
+                     <IndexField name="from-link" order="ascending" />
+                </IndexFields>
+            </ToIndex>
         </Relationship>
         <Relationship name="Role2Complex" from="Role" to="Complex"
             arity="MM" converse="Complex2Role">
