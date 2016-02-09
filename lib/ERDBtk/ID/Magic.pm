@@ -142,7 +142,8 @@ sub Name {
         # Insert the translation.
         $name = "$first $uni $last";
     }
-    # Clean what's left and split it into words.
+    # Clean what's left and split it into words. Note we remove parenthetical sections.
+    $name =~ s/\(.+?\)/ /g;
     $name =~ s/\W+/ /g;
     my @words = split /\s+/, $name;
     # Build a string of the words. We stop building at
