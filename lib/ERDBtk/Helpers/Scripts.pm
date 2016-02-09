@@ -120,6 +120,46 @@ sub validate_fields {
 }
 
 
+=head3 clean_results
+
+    my $cleanedList = ERDBtk::Helpers::Scripts::clean_results(\@resultList);
+
+This script looks at a single set of results from a query and removes duplicate lines.
+
+=over 4
+
+=item resultList
+
+Reference to a list of sub-lists, each sub-list representing a line of output.
+
+=item RETURN
+
+Returns a reference to a list of sub-lists, each sub-list representing a unique line of
+output.
+
+=back
+
+=cut
+
+sub clean_results {
+    my ($resultList) = @_;
+    # This hash is used to remove duplicates.
+    my %dupFilter;
+    # This will be the return list.
+    my @retVal;
+    for my $result (@$resultList) {
+        my $rKey = join("\t", @$result);
+        if (! $dupFilter{$rKey}) {
+            push @retVal, $result;
+            $dupFilter{$rKey} = 1;
+        }
+    }
+    # Return the result list.
+    return \@retVal;
+}
+
+
+
 =head3 compute_field_list
 
     my @fieldList = ERDBtk::Helpers::Scripts::compute_field_list($all, $fields, $objectData, \@allFields);

@@ -166,7 +166,7 @@ sub FixFunctionTable {
     # Get the parameters.
     my ($shrub, $stats) = @_;
     print "Reading role table.\n";
-    my %roles = map { $_->[0] => Shrub::FormatRole($_->[1], $_->[2], $_->[3]) } $shrub->GetAll('Role', '', [], 'id ec-number tc-number description');
+    my %roles = map { $_->[0] => $_->[1] } $shrub->GetAll('Role', '', [], 'id description');
     my $roleCount = scalar keys %roles;
     print "$roleCount roles found.\n";
     $stats->Add(roleTable => $roleCount);
