@@ -327,8 +327,10 @@ sub Process {
         my $roleNorm = Normalize($roleText);
         $checkSum = Shrub::Checksum($roleNorm);
     }
+    # Format the description with the numbers.
+    my $roleDesc = Shrub::FormatRole($ecNum, $tcNum, $roleText);
     # Insert the role.
-    my $retVal = $self->InsertRole($checkSum, $ecNum, $tcNum, $hypo, $roleText);
+    my $retVal = $self->InsertRole($checkSum, $ecNum, $tcNum, $hypo, $roleDesc);
     # Return the role information.
     return ($retVal, $checkSum);
 }

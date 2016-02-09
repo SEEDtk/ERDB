@@ -1165,7 +1165,7 @@ sub ProteinID {
 
 =head3 FormatRole
 
-    my $roleText = Shrub::FormatRole($ecNum, $tcNum, $description)'
+    my $roleText = Shrub::FormatRole($ecNum, $tcNum, $description);
 
 Format the text of a role given its EC, TC, and description information.
 
