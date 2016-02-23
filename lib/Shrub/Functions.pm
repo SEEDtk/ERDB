@@ -184,7 +184,8 @@ functions, it could also be C</> or C<;>.
 
 =item roles
 
-Reference to a list of the constituent roles.
+Reference to a list of the constituent roles. If the function is malformed, this will be
+an empty list.
 
 =item comment
 
@@ -227,7 +228,7 @@ sub Parse {
         # Parse out the roles.
         my @roleParts = split(/\s*(\s\@|\s\/|;)\s+/, $statement);
         # Check for a role that is too long.
-        if (grep { length($_) > 250 } @roles) {
+        if (grep { length($_) > 250 } @roleParts) {
             $malformed = 1;
         } elsif (scalar(@roleParts) == 1) {
             # Here we have the normal case, a single-role function.
