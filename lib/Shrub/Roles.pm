@@ -222,6 +222,35 @@ sub Normalize {
     return $retVal;
 }
 
+=head3 Checksum
+
+    my $checksum = Shrub::Roles::Checksum($role);
+
+Return the checksum for the incoming role text. The role is normalized and fixed up, then the checksum
+is computed. This value can be checked against the database to find the role ID.
+
+=over 4
+
+=item role
+
+Text (description) of the role to check.
+
+=item RETURN
+
+Returns the MD5 checksum of the role.
+
+=back
+
+=cut
+
+sub Checksum {
+    my ($role) = @_;
+    my ($roleText) = Shrub::Roles::Parse($role);
+    my $normalized = Shrub::Roles::Normalize($roleText);
+    my $retVal = Shrub::Checksum($normalized);
+    return $retVal;
+}
+
 
 =head3 FixupRole
 

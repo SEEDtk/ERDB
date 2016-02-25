@@ -479,11 +479,14 @@ overlaps the region, (3) the segment length, and (4) the total feature length.
 sub FeaturesInRegion {
     # Get the parameters.
     my ($self, $contigID, $start, $end) = @_;
+    my ($limit) = $self->GetFlat('Contig2Genome Genome', 'Contig2Genome(from-link) = ?', [$contigID],
+            'Genome(longest-feature)');
+    # Every feature that overlaps MUST start to the left of this point.
+    my $leftLimit = $start - $limit;
     # Request the desired tuples.
-    ## TODO Use longest-feature to optimize.
     my @retVal = $self->GetAll("Contig2Feature Feature",
-                          'Contig2Feature(from-link) = ? AND (Contig2Feature(begin) >= ? AND Contig2Feature(begin) <= ? OR Contig2Feature(begin) < ? AND Contig2Feature(begin) + Contig2Feature(len) >= ?)',
-                          [$contigID, $start, $end, $start, $start],
+                          'Contig2Feature(from-link) = ? AND (Contig2Feature(begin) >= ? AND Contig2Feature(begin) <= ? OR Contig2Feature(begin) >= ? AND Contig2Feature(begin) < ? AND Contig2Feature(begin) + Contig2Feature(len) >= ?)',
+                          [$contigID, $start, $end, $leftLimit, $start, $start],
                           [qw(Feature(id) Contig2Feature(begin) Contig2Feature(dir) Contig2Feature(len) Feature(sequence-length))]);
     # Return them.
     return @retVal;
