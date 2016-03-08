@@ -281,15 +281,18 @@ sub compute_filtering {
     my (@filter, @parms);
     # This list will accumulate field names for later validation.
     my @fieldNames;
-    # Loop through the 2-tuple specifiers.
-    for my $thing (['=',$is], ['LIKE',$like]) {
-        my ($o, $list) = @$thing;
-        for my $spec (@$list) {
-            my ($field, $value) = split /,/, $spec;
-            push @fieldNames, $field;
-            push @filter, "$objectName($field) $o ?";
-            push @parms, $value;
-        }
+    # Loop through the 2-tuple specifiers. We do IS and then LIKE.
+    for my $spec (@$is) {
+        my ($field, $value) = split /,/, $spec;
+        push @fieldNames, $field;
+        push @filter, "$objectName($field) = ?";
+        push @parms, $value;
+    }
+    for my $spec (@$like) {
+        my ($field, $value) = split /,/, $spec;
+        push @fieldNames, $field;
+        push @filter, "($objectName($field) LIKE ? COLLATE latin1_general_ci)";
+        push @parms, $value;
     }
     # Loop through the op specifiers.
     for my $spec (@$op) {
