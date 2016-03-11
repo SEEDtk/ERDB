@@ -871,7 +871,7 @@ sub BuildDiagram {
     my $erdb = $self->{erdb};
     my $dbdFileName = $erdb->GetMetaFileName();
    # Compute the URL of the DBD.
-    my $dbdURL = "../ErdbDbdPrint.cgi?xmlFileName=$dbdFileName";
+    my $dbdURL = "ErdbDbdPrint.cgi?xmlFileName=$dbdFileName";
     # Compute the height and width for the diagram.
     my $height = $diagramData->{height} || 800;
     my $width = $diagramData->{width} || 750;
