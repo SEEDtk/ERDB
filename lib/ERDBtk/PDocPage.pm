@@ -86,11 +86,21 @@ use constant ARITY_TO   => { '1M' => 'many-to-one', 'MM' => 'many-to-many' };
 
 =head3 new
 
-    my $html = ERDBtk::PDocPage->new(%options);
+    my $html = ERDBtk::PDocPage->new($cgi, %options);
 
-Construct a new ERDBtk::PDocPage object. The following options are supported.
+Construct a new ERDBtk::PDocPage object. 
 
 =over 4
+
+=item cgi
+
+The L<CGI> object currently in effect for the running script.
+
+=item options
+
+A hash containing zero or more of the following options.
+
+=over 8
 
 =item name
 
@@ -110,11 +120,13 @@ and underscores, because it's used in javascript variable names.
 
 =back
 
+=back
+
 =cut
 
 sub new {
     # Get the parameters.
-    my ($class, %options) = @_;
+    my ($class, $cgi, %options) = @_;
     # We'll store the ERDBtk object we want in here.
     my $erdb;
     # Get the options.
@@ -131,6 +143,7 @@ sub new {
     }
     # Create the ERDBtk::PDocPage object.
     my $retVal = {
+                    cgi => $cgi,
                     erdb => $erdb,
                     idString => $idString,
                     javaThing => "status_erdb_$idString",
@@ -870,8 +883,11 @@ sub BuildDiagram {
     # can read it.
     my $erdb = $self->{erdb};
     my $dbdFileName = $erdb->GetMetaFileName();
-   # Compute the URL of the DBD.
-    my $dbdURL = "/SEEDtk/ErdbDbdPrint.cgi?xmlFileName=$dbdFileName";
+    # Compute the base URL.
+    my $base = $self->{cgi}->url(-absolute => 1);
+    # Compute the URL of the DBD.
+    $base =~ /^(.+)\/[^\/]+/;
+    my $dbdURL = "$1/ErdbDbdPrint.cgi?xmlFileName=$dbdFileName";
     # Compute the height and width for the diagram.
     my $height = $diagramData->{height} || 800;
     my $width = $diagramData->{width} || 750;
@@ -885,8 +901,6 @@ sub BuildDiagram {
     }
     push @options, 'links="javascript"';
     my $options = join(" ", @options);
-    # Compute the base URL.
-    my $base = "/SEEDtk/ShrubQuery.cgi";
     # Compute the output string to be written by the script.
     my $dwriter = qq(<object classid="clsid:d27cdb6e-ae6d-11cf-96b8-444553540000" ) .
                   qq(codebase="http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=9,0,0,0" ) .
