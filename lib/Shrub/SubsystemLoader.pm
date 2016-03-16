@@ -327,12 +327,13 @@ sub LoadSubsystem {
         # Compute this variant map.
         my $mapHash = $variantMap{$row};
         my $mapString = join(" ", sort keys %$mapHash);
+        my $mapSize = scalar keys %$mapHash;
         # Is it new?
         if (! $mapsUsed{$mapString}) {
             $mapsUsed{$mapString} = 1;
             # Yes, insert it.
             $loader->InsertObject('VariantMap', id => "$retVal:$row", Subsystem2Map_link => $retVal, 
-                    'variant-code' => $variantCode{$row}, map => $mapString);
+                    'variant-code' => $variantCode{$row}, 'map' => $mapString, size => $mapSize);
         }
     }
     # Now we link the pegs to the subsystem cells.

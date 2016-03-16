@@ -368,6 +368,9 @@
                     role IDs. A genome with all these roles is a candidate for the
                     identified variant.</Notes>
                 </Field>
+                <Field name="size" type="int">
+                    <Notes>Number of roles in this map.</Notes>
+                </Field>
             </Fields>
         </Entity>
         <Entity name="SubsystemRow" keyType="string" default="id variant-code">
