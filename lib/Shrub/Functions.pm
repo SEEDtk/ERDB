@@ -21,7 +21,6 @@ package Shrub::Functions;
     use strict;
     use warnings;
     use Digest::MD5;
-    use Shrub;
 
 =head1 Shrub Function Manager
 
@@ -250,6 +249,7 @@ sub Parse {
     # Return the parsed function data.
     return ($statement, $sep, \@roles, $comment);
 }
+
 
 
 

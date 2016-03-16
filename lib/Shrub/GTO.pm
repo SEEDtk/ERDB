@@ -31,7 +31,7 @@ This is a subclass of a L<GenomeTypeObject> created from a genome in the Shrub d
 
 =head3 new
 
-    my $gto = Shrub::Genome->new($shrub, $genomeID);
+    my $gto = Shrub::GTO->new($shrub, $genomeID);
 
 Create a new L<GenomeTypeObject> from a genome in the Shrub database. If the genome is not found, it will return
 an undefined value.
