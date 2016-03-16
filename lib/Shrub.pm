@@ -29,6 +29,7 @@ package Shrub;
     use SeedUtils;
     use Digest::MD5;
     use Shrub::Roles;
+    use Shrub::Functions;
     use gjoseqlib;
     use BasicLocation;
 
@@ -805,6 +806,60 @@ sub row_to_pegs {
                                 [$row],
                                 "Cell2Feature(to-link) Role(id)");
     return \@tuples;
+}
+
+=head3 desc_to_function
+
+    my $funcID = Shrub::Functions::desc_to_function($function);
+
+Return the function ID associated with a function description, or C<undef> if the function is ill-formed
+or contains roles not in the database.
+
+=over 4
+
+=item function
+
+A function description string.
+
+=item RETURN
+
+Returns a function ID or C<undef>.
+
+=back
+
+=cut
+
+sub desc_to_function {
+    my ($self, $function) = @_;
+    # This will be the return value.
+    my $retVal;
+    # Split the function into roles.
+    my (undef, $sep, $roles) = Shrub::Functions::Parse($function);
+    # Only proceed if roles were found.
+    if (scalar @$roles) {
+        # Get the role checksums.
+        my @checksums = map { Shrub::Roles::Checksum($_) } @$roles;
+        # Extract the role IDs.
+        my $filter = 'Role(checksum) IN (' . join(', ', map { '?' } @checksums) . ')';
+        my %roleIDs = map { $_->[0] => $_->[1] } $self->GetAll('Role', $filter, \@checksums, 'checksum id');
+        # Here is the tricky part. If an ID was not found, we need to flag the function as malformed.
+        my $malformed;
+        my @roleIDs;
+        for my $checksum (@checksums) {
+            my $roleID = $roleIDs{$checksum};
+            if ($roleID) {
+                push @roleIDs, $roleID;
+            } else {
+                $malformed = 1;
+            }
+        }
+        # Form the result.
+        if (! $malformed) {
+            $retVal = join($sep, @roleIDs);
+        }
+    }
+    # Return the result.
+    return $retVal;
 }
 
 =head3 func_to_pegs

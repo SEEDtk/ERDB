@@ -312,7 +312,6 @@ sub LoadSubsystem {
                 $loader->InsertObject('SubsystemCell', id => $cellID, Row2Cell_link => $rowID, Row2Cell_ordinal => $ord, Role2Cell_link => $roleID);
                 # Put it in the maps.
                 $cellMap{$abbr} = $cellID;
-                $variantMap{$row}{$roleID} = 1;
             }
             # Remember the row's cells.
             $rowMap{$row} = \%cellMap;
@@ -320,22 +319,6 @@ sub LoadSubsystem {
     }
     # Close the genome file.
     close $ih;
-    # Here we produce the variant map. The hash below is used to prevent duplicates.
-    my %mapsUsed;
-    # Loop through the roles.
-    for my $row (keys %variantMap) {
-        # Compute this variant map.
-        my $mapHash = $variantMap{$row};
-        my $mapString = join(" ", sort keys %$mapHash);
-        my $mapSize = scalar keys %$mapHash;
-        # Is it new?
-        if (! $mapsUsed{$mapString}) {
-            $mapsUsed{$mapString} = 1;
-            # Yes, insert it.
-            $loader->InsertObject('VariantMap', id => "$retVal:$row", Subsystem2Map_link => $retVal, 
-                    'variant-code' => $variantCode{$row}, 'map' => $mapString, size => $mapSize);
-        }
-    }
     # Now we link the pegs to the subsystem cells.
     print "Processing subsystem PEGs.\n";
     # Open the PEG data file.
@@ -358,7 +341,26 @@ sub LoadSubsystem {
                 # We want this peg. Put it in the cell.
                 my $cellID = $cellMap->{$abbr};
                 $loader->InsertObject('Feature2Cell', 'from-link' => $peg, 'to-link' => $cellID);
+                # Update the variant map.
+                my $roleID = $roleMap{$abbr}[0];
+                $variantMap{$row}{$roleID} = 1;
             }
+        }
+    }
+    # Here we produce the variant map. The hash below is used to prevent duplicates.
+    my %mapsUsed;
+    # Loop through the roles.
+    for my $row (keys %variantMap) {
+        # Compute this variant map.
+        my $mapHash = $variantMap{$row};
+        my $mapString = join(" ", sort keys %$mapHash);
+        my $mapSize = scalar keys %$mapHash;
+        # Is it new?
+        if (! $mapsUsed{$mapString}) {
+            $mapsUsed{$mapString} = 1;
+            # Yes, insert it.
+            $loader->InsertObject('VariantMap', id => "$retVal:$row", Subsystem2Map_link => $retVal, 
+                    'variant-code' => $variantCode{$row}, 'map' => $mapString, size => $mapSize);
         }
     }
     # Return the new subsystem's ID.
