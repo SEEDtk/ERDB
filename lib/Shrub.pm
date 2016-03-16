@@ -1273,6 +1273,32 @@ sub Checksum {
 }
 
 
+=head3 roles_of_func
+
+    my @roles = Shrub::roles_of_func($funcID);
+
+Return the role IDs represented in a function ID.
+
+=over 4
+
+=item funcID
+
+The function ID to parse.
+
+=item RETURN
+
+Returns a list of the roles in the function (usually a single role).
+
+=back
+
+=cut
+
+sub roles_of_func {
+    my ($funcID) = @_;
+    my @retVal = split /[;\/@]/, $funcID;
+    return @retVal;
+}
+
 
 =head2 Virtual Methods
 

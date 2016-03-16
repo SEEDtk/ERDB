@@ -49,7 +49,7 @@ An L<ERDBtk::ID> object for inserting subsystem records.
 =cut
 
     # This is a list of the tables we are loading.
-    use constant LOAD_TABLES => qw(Subsystem Role SubsystemRow SubsystemCell Subsystem2Role Feature2Cell);
+    use constant LOAD_TABLES => qw(Subsystem Role SubsystemRow SubsystemCell Subsystem2Role Feature2Cell VariantMap);
 
 =head2 Special Methods
 
@@ -271,6 +271,11 @@ sub LoadSubsystem {
     my $rowPrivilege = $metaHash->{'row-privilege'};
     # This hash will map row numbers to lists of cell IDs.
     my %rowMap;
+    # This hash will contain the variant maps. The hash is keyed on row number, and maps each row to
+    # a sub-hash of role IDs.
+    my %variantMap;
+    # This hash is also used for the variant maps. It maps each row number to a variant code.
+    my %variantCode;
     # Open the genome connection file.
     my $ih = $loader->OpenFile(genome => "$subDir/GenomesInSubsys");
     # Loop through the genomes.
@@ -282,6 +287,7 @@ sub LoadSubsystem {
             $needsCuration = 1;
             $varCode = $1;
         }
+        $variantCode{$row} = $varCode;
         # Is this genome in the database?
         if (! $loader->CheckCached(Genome => $genome, $genomeHash)) {
             # No, skip it.
@@ -304,8 +310,9 @@ sub LoadSubsystem {
                 my $cellID = "$rowID:$abbr";
                 # Create the subsystem cell.
                 $loader->InsertObject('SubsystemCell', id => $cellID, Row2Cell_link => $rowID, Row2Cell_ordinal => $ord, Role2Cell_link => $roleID);
-                # Put it in the map.
+                # Put it in the maps.
                 $cellMap{$abbr} = $cellID;
+                $variantMap{$row}{$roleID} = 1;
             }
             # Remember the row's cells.
             $rowMap{$row} = \%cellMap;
@@ -313,6 +320,22 @@ sub LoadSubsystem {
     }
     # Close the genome file.
     close $ih;
+    # Here we produce the variant map. The hash below is used to prevent duplicates.
+    my %mapsUsed;
+    # Loop through the roles.
+    for my $row (keys %variantMap) {
+        # Compute this variant map.
+        my $mapHash = $variantMap{$row};
+        my $mapString = join(" ", sort keys %$mapHash);
+        my $mapSize = scalar keys %$mapHash;
+        # Is it new?
+        if (! $mapsUsed{$mapString}) {
+            $mapsUsed{$mapString} = 1;
+            # Yes, insert it.
+            $loader->InsertObject('VariantMap', id => "$retVal:$row", Subsystem2Map_link => $retVal, 
+                    'variant-code' => $variantCode{$row}, 'map' => $mapString, size => $mapSize);
+        }
+    }
     # Now we link the pegs to the subsystem cells.
     print "Processing subsystem PEGs.\n";
     # Open the PEG data file.

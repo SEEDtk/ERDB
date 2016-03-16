@@ -304,7 +304,7 @@
             </Indexes>
         </Entity>
         <Entity name="Subsystem" keyType="short-string" default="id name">
-            <DisplayInfo theme="blue" col="7" row="5" />
+            <DisplayInfo theme="blue" col="7" row="3" />
             <Notes>A subsystem is a collection of roles that work together in a
                 cell. Identification of subsystems is an important tool for
                 recognizing parallel genetic features in different organisms. The
@@ -349,6 +349,29 @@
                     </IndexFields>
                 </Index>
                 </Indexes>
+        </Entity>
+        <Entity name="VariantMap" keyType="string" default="variant-code map">
+            <DisplayInfo theme="blue" col="7" row="5" caption="Variant\nMap" />
+            <Notes>A variant map contains a string defining a set of roles that
+            represents an instance of a variant. Any genome that has all roles in
+            the set is considered a candidate for the subsystem variant. The
+            key is the subsystem ID followed by a colon and a unique identifying
+            number.</Notes>
+            <Fields>
+                <Field name="variant-code" type="string">
+                    <Notes>the variant code indicating which form of the subsystem
+                        is represented by this set of roles.
+                    </Notes>
+                </Field>
+                <Field name="map" type="text">
+                    <Notes>A space-delimited string consisting of a sorted list of
+                    role IDs. A genome with all these roles is a candidate for the
+                    identified variant.</Notes>
+                </Field>
+                <Field name="size" type="int">
+                    <Notes>Number of roles in this map.</Notes>
+                </Field>
+            </Fields>
         </Entity>
         <Entity name="SubsystemRow" keyType="string" default="id variant-code">
             <DisplayInfo theme="blue" col="7" row="1" caption="Subsystem\nRow" />
@@ -731,6 +754,14 @@
                 of a subsystem in a genome by particular features. Thus,
                 this relationship connects a subsystem to its implementations
                 of interest.
+            </Notes>
+        </Relationship>
+        <Relationship name="Subsystem2Map" from="Subsystem" to="VariantMap"
+            arity="1M" converse="Map2Subsystem" embedded="1">
+            <DisplayInfo theme="blue" caption="Subsystem\nto Map" />
+            <Notes>This relationship connects a subsystem to its variant maps.
+            The full set of variant maps can be used to easily project a subsystem
+            into a set of roles.
             </Notes>
         </Relationship>
         <Relationship name="Row2Cell" from="SubsystemRow" to="SubsystemCell"
