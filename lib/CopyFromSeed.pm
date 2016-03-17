@@ -475,6 +475,11 @@ sub CopySubsystem {
                 'row-privilege' => $self->{privilege} );
         # Next read the version. If there is no version we default to 1.
         $metaHash{version} = ReadFlagFile("$subDisk/VERSION") // 1;
+        # Finally the classification.
+        my $classes = ReadFlagFile("$subDisk/CLASSIFICATION");
+        if ($classes) {
+            $metaHash{class} = $classes;
+        }
         # Now write the metafile.
         $self->WriteMetaData("$outDir/Info", \%metaHash);
         $stats->Add('subsystem-info' => 1);
@@ -482,6 +487,8 @@ sub CopySubsystem {
         my @roleAbbrs;
         # This will map abbreviations to roles.
         my %abbrMap;
+        # This tracks the auxiliary roles.
+        my %auxMap;
         # Loop through the roles.
         my $done = 0;
         while (! eof $ih && ! $done) {
@@ -490,23 +497,38 @@ sub CopySubsystem {
                 # Here we've reached the end-of-section marker.
                 $done = 1;
             } else {
-                # Here we have a real role. Write it to the roles file.
-                $self->PutLine('role', $rh, @$roleData);
-                # Save the abbreviation.
+                # Here we have a real role. Save the abbreviation.
                 push @roleAbbrs, $roleData->[0];
                 $abbrMap{$roleData->[0]} = $roleData->[1];
             }
         }
-        # Skip over the next section of the input file.
+        # Now we have the subsets. We want the aux-roles subset.
         my $marksLeft = 1;
         while (! eof $ih && $marksLeft) {
-            my $line = <$ih>;
-            $stats->Add('spreadsheet-skip-line' => 1);
-            if (substr($line,0,2) eq '//') {
+            my $row = $self->GetLine('spreadsheet-subset' => $ih);
+            my ($sub, @idxes) = @$row;
+            if ($sub eq '//') {
                 $marksLeft--;
+            } elsif ($sub eq 'aux') {
+                # Here we have the auxiliary-role subset.
+                for my $idx (@idxes) {
+                    # Compute the role for this index.
+                    my $abbr = $roleAbbrs[$idx - 1];
+                    # Mark it as auxiliary.
+                    $auxMap{$abbr} = 1;
+                    $stats->Add('aux-role' => 1);
+                }
             }
         }
-        # Now we're at the beginning of the genome section-- the true spreadsheet.
+        # Output the role lines.
+        for my $abbr (@roleAbbrs) {
+            my @roleData = ($abbr, $abbrMap{$abbr});
+            if ($auxMap{$abbr}) {
+                push @roleData, 'aux';
+            }
+            $self->PutLine('role', $rh, @roleData);
+        }
+        # At this point, we're at the beginning of the genome section-- the true spreadsheet.
         my $rows = 0;
         while (! eof $ih) {
             my $row = $self->GetLine('spreadsheet-row' => $ih);

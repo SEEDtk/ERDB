@@ -49,12 +49,17 @@ only be edited by privileged users).
 
 The privilege level of the annotations from which the subsystem was constructed.
 
+=item class
+
+A tab-delimited string of the subsystem classifications, from biggest to smallest.
+
 =back
 
 =item Roles
 
 This is a tab-delimited file containing the roles of the subsystem in order. The first column (0) is
-the role abbreviation and the second (1) is the role description (that is, the statement of the role).
+the role abbreviation, the second (1) is the role description (that is, the statement of the role),
+and the third (2) is C<aux> for an auxiliary role and blank otherwise.
 
 =item GenomesInSubsys
 
