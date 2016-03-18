@@ -44,12 +44,17 @@ A L<Shrub::Roles> object for computing role IDs.
 
 An L<ERDBtk::ID> object for inserting subsystem records.
 
+=item classMap
+
+A reference to a hash of subsystem classes, used to weed out duplicates.
+
 =back
 
 =cut
 
     # This is a list of the tables we are loading.
-    use constant LOAD_TABLES => qw(Subsystem Role SubsystemRow SubsystemCell Subsystem2Role Feature2Cell VariantMap);
+    use constant LOAD_TABLES => qw(Subsystem Role SubsystemRow SubsystemCell Subsystem2Role Feature2Cell VariantMap
+            SubsystemClass Class2SubClass Class2Subsystem);
 
 =head2 Special Methods
 
@@ -113,7 +118,8 @@ sub new {
     my $retVal = {
         loader => $loader,
         roleMgr => $roleMgr,
-        inserter => $inserter
+        inserter => $inserter,
+        classMap => {}
     };
     # Bless and return it.
     bless $retVal, $class;
@@ -238,12 +244,39 @@ sub LoadSubsystem {
     my $metaHash = $loader->ReadMetaData("$subDir/Info", required => [qw(privileged row-privilege)]);
     # Default the version to 1.
     my $version = $metaHash->{version} // 1;
+    # Parse the classifications.
+    my @classes;
+    if ($metaHash->{class}) {
+        @classes = split /\t/, $metaHash->{class};
+    }
     # Compute the checksum.
     my $checksum = Digest::MD5::md5_base64($sub);
     # Insert the subsystem record. If we already have an ID, it will be reused. Otherwise a magic name will
     # be created.
     my $retVal = $self->{inserter}->Insert(id => $subID, name => $sub, privileged => $metaHash->{privileged},
             version => $version, checksum => $checksum);
+    # Fill in the class data.
+    if (@classes) {
+        # Get the class map.
+        my $classMap = $self->{classMap};
+        # Get the low-level class and connect it to the subsystem.
+        my $class = pop @classes;
+        $loader->InsertObject('Class2Subsystem', 'from-link' => $class, 'to-link' => $retVal);
+        # Loop through the classes.
+        while ($class) {
+            if (! $classMap->{$class}) {
+                # This class is new. Insert it.
+                $loader->InsertObject('SubsystemClass', id => $class);
+                # Check for a super-class.
+                my $subclass = $class;
+                $class = pop @classes;
+                if ($class) {
+                    # Connect it to this class.
+                    $loader->InsertObject('Class2SubClass', 'from-link' => $class, 'to-link' => $subclass);
+                }
+            }
+        }
+    }
     # Next come the roles. This will map role abbreviations to a 2-tuple consisting of (0) the role ID
     # and (1) the column number.
     my %roleMap;
@@ -253,12 +286,14 @@ sub LoadSubsystem {
     my $ord = 0;
     while (my $roleData = $loader->GetLine(role => $rh)) {
         # Get this role's data.
-        my ($abbr, $role) = @$roleData;
+        my ($abbr, $role, $aux) = @$roleData;
+        # Convert the auxiliary flag to boolean.
+        $aux = ($aux ? 1 : 0);
         # Compute the role ID. If the role is new, this inserts it in the database.
         my ($roleID) = $roleMgr->Process($role);
         # Link the subsystem to the role.
         $loader->InsertObject('Subsystem2Role', 'from-link' => $retVal, 'to-link' => $roleID,
-                ordinal => $ord, abbr => $abbr);
+                ordinal => $ord, abbr => $abbr, aux => $aux);
         $stats->Add(roleForSubsystem => 1);
         # Save the role's abbreviation and ID.
         $roleMap{$abbr} = [$roleID, $ord];

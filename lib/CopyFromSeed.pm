@@ -507,9 +507,11 @@ sub CopySubsystem {
         while (! eof $ih && $marksLeft) {
             my $row = $self->GetLine('spreadsheet-subset' => $ih);
             my ($sub, @idxes) = @$row;
-            if ($sub eq '//') {
+            if (! $sub) {
+                $stats->Add('blank-ss-line' => 1);
+            } elsif ($sub eq '//') {
                 $marksLeft--;
-            } elsif ($sub eq 'aux') {
+            } elsif ($sub =~ /^aux/) {
                 # Here we have the auxiliary-role subset.
                 for my $idx (@idxes) {
                     # Compute the role for this index.
