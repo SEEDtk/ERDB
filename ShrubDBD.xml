@@ -374,7 +374,7 @@
             </Fields>
         </Entity>
         <Entity name="SubsystemRow" keyType="string" default="id variant-code">
-            <DisplayInfo theme="blue" col="7" row="1" caption="Subsystem\nRow" />
+            <DisplayInfo theme="blue" col="5" row="1" caption="Subsystem\nRow" />
             <Notes>A subsystem row represents an implementation of a subsystem in a genome.
                 A genome could conceivably have more than one such implementation
                 The key is the subsystem ID followed by a colon and a unique identifying
@@ -483,8 +483,22 @@
             <DisplayInfo theme="green" col="2" row="5" caption="Protein\nFamily" />
             <Notes>A protein family contains a set of proteins that perform the same function.</Notes>
         </Entity>
+        <Entity name="SubsystemClass" keyType="string" default="id">
+            <DisplayInfo theme="blue" col="7" row="1" caption="Subsystem\nClass" />
+            <Notes>A subsystem class defines a general category of subsystem.</Notes>
+        </Entity>
     </Entities>
     <Relationships>
+        <Relationship name="Class2SubClass" from="SubsystemClass" to="SubsystemClass" arity="1M"
+            converse="Class2SupClass">
+            <DisplayInfo theme="blue" fixed="1" col="6" row="1" caption="Class to\nSubClass" />
+            <Notes>This relationship connects a subsystem class to the smaller classes that subdivide it.</Notes>
+        </Relationship>
+        <Relationship name="Class2Subsystem" from="SubsystemClass" to="Subsystem" arity="1M"
+            converse="Subsystem2Class">
+            <DisplayInfo theme="blue" caption="Class to\nSubsystem" />
+            <Notes>This relationship connects a bottom-level subsystem class to its subsystems.</Notes>
+        </Relationship>
         <Relationship name="Family2Protein" from="ProteinFamily" to="Protein" arity="MM"
             converse="Protein2Family">
             <DisplayInfo theme="green" col="2" row="4" fixed="1" caption="Protein\nto Family" />
@@ -618,6 +632,9 @@
                 </Field>
                 <Field name="abbr" type="string">
                     <Notes>Abbreviation for the subsystem role name.</Notes>
+                </Field>
+                <Field name="aux" type="boolean">
+                    <Notes>TRUE if this is an auxiliary role</Notes>
                 </Field>
             </Fields>
             <FromIndex>
@@ -766,7 +783,7 @@
         </Relationship>
         <Relationship name="Row2Cell" from="SubsystemRow" to="SubsystemCell"
             arity="1M" converse="Cell2Row" embedded="1">
-            <DisplayInfo theme="blue" caption="Row to\nCell" />
+            <DisplayInfo theme="blue" caption="Row to\nCell" fixed="1" row="3" col="6" />
             <Notes>This relationship yields all the cells (one per role) in
                 a subsystem spreadsheet row.
             </Notes>
