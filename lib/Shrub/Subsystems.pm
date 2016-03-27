@@ -156,7 +156,7 @@ sub Project {
 
 =head3 ProjectForGto
 
-    my $subsystemHash = Shrub::Subsystems::ProjectForGto($shrub, $gto);
+    my $subsystemHash = Shrub::Subsystems::ProjectForGto($shrub, $gto, %options);
 
 Compute the subsystems that occur in a genome defined by a L<GenomeTypeObject>. This method essentially
 computes the feature assignment hash and then calls L</Project>.
@@ -171,6 +171,16 @@ L<Shrub> object for accessing the database.
 
 L<GenomeTypeObject> for the genome on which the subsystems should be projected.
 
+=item options
+
+A hash of options, including zero or more of the following.
+
+=over 8
+
+=item store
+
+If TRUE, the subsystems will be stored directory into the GenomeTypeObject. The default is FALSE.
+
 =item RETURN
 
 Returns a reference to a hash mapping each subsystem ID to a 2-tuple containing (0) a variant code, and (1) a
@@ -181,7 +191,7 @@ reference to a list of [role, fid] tuples.
 =cut
 
 sub ProjectForGto {
-    my ($shrub, $gto) = @_;
+    my ($shrub, $gto, %options) = @_;
     # Get the feature list.
     my $featureList = ServicesUtils::json_field($gto, 'features');
     # Loop through the features, creating the assignment hash.
@@ -195,6 +205,21 @@ sub ProjectForGto {
     }
     # Project the subsystems.
     my $retVal = Project($shrub, \%assigns);
+    # Store the results if needed.
+    if ($options{store}) {
+        my %subs;
+        for my $sub (keys %$retVal) {
+            my $projectionData = $retVal->{$sub};
+            my ($variant, $subRow) = @$projectionData;
+            my %cells;
+            for my $subCell (@$subRow) {
+                my ($role, $fid) = @$subCell;
+                push @{$cells{$role}}, $fid; 
+            }
+            $subs{$sub} = [$variant, \%cells];
+        }
+        $gto->{subsystems} = \%subs;
+    }
     return $retVal;
 }
 
