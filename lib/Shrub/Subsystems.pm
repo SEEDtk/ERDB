@@ -181,6 +181,8 @@ A hash of options, including zero or more of the following.
 
 If TRUE, the subsystems will be stored directory into the GenomeTypeObject. The default is FALSE.
 
+=back
+
 =item RETURN
 
 Returns a reference to a hash mapping each subsystem ID to a 2-tuple containing (0) a variant code, and (1) a
