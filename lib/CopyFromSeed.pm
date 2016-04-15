@@ -97,6 +97,10 @@ Privilege level of the incoming annotations.
 
 TRUE if the subsystems are core subsystems, else FALSE.
 
+=item otherOutput
+
+Name of the repo directory to contain global files unrelated to genomes or subsystems.
+
 =back
 
 =head2 Command-Line Option Groups
@@ -282,6 +286,8 @@ sub new {
         # Here we need to create a hash of the genome IDs in the blacklist file.
         $retVal->{blacklist} = { map { $_ => 1 } $retVal->GetNamesFromFile('blacklist-genome' => $opt->blacklist) };
     }
+    # Get the global output directory.
+    $retVal->{otherDir} = "$repo/Other";
     # Save the missing-flag and the privilege levels.
     $retVal->{missing} = $opt->missing;
     $retVal->{privilege} = $opt->privilege;
@@ -324,6 +330,8 @@ current SEED will be processed.
 
 Returns a list of low-level directory names for the subsystems that
 should be loaded.
+
+=back
 
 =cut
 
@@ -1080,6 +1088,36 @@ sub IndexGenomes {
 
 =head2 Utility Methods
 
+
+=head3 CopyTaxonomy
+
+    $loader->CopyTaxonomy();
+
+Copy the taxonomy files from the current SEED.
+
+=cut
+
+sub CopyTaxonomy {
+    my ($self) = @_;
+    # Insure we have the global output directory.
+    my $outDir = $self->{otherDir};
+    if (! -d $outDir) {
+        File::Copy::Recursive::pathmk($outDir);
+    }
+    # Compute the taxonomy file directory.
+    my $taxInDir = $self->{figDisk} . "/Global/Taxonomy";
+    # Get all the taxonomy data files.
+    opendir(my $dh, $taxInDir) || die "Could not open taxonomy directory $taxInDir: $!";
+    my @taxFiles = grep { $_ =~ /\.dmp$/ } readdir $dh;
+    # Copy them to the output directory.
+    for my $taxFile (@taxFiles) {
+        print "Copying $taxFile.\n";
+        File::Copy::Recursive("$taxInDir/$taxFile", $outDir);
+    }
+}
+
+
+
 =head3 SetSEED
 
     $loader->SetSEED($figDisk, $privilege);
@@ -1182,6 +1220,5 @@ sub CheckFigDisk {
         die "Directory $figDisk does not appear to be a FIGdisk directory.";
     }
 }
-
 
 1;
