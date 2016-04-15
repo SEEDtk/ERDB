@@ -1112,7 +1112,7 @@ sub CopyTaxonomy {
     # Copy them to the output directory.
     for my $taxFile (@taxFiles) {
         print "Copying $taxFile.\n";
-        File::Copy::Recursive("$taxInDir/$taxFile", $outDir);
+        File::Copy::Recursive::fcopy("$taxInDir/$taxFile", $outDir);
     }
 }
 

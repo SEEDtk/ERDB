@@ -29,6 +29,12 @@ the C<Other> directory of the input repository.
 
 ## TODO more description
 
+=cut
+
+    # This is a list of the tables we are loading.
+    use constant LOAD_TABLES => qw(TaxonomicGrouping IsInTaxonomicGroup Taxonomy2Genome);
+
+
 =head2 Special Methods
 
 =cut
