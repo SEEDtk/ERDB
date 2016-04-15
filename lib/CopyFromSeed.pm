@@ -1105,7 +1105,7 @@ sub CopyTaxonomy {
         File::Copy::Recursive::pathmk($outDir);
     }
     # Compute the taxonomy file directory.
-    my $taxInDir = $self->{figDisk} . "/Global/Taxonomy";
+    my $taxInDir = $self->{figDisk} . "/FIG/Data/Global/Taxonomy";
     # Get all the taxonomy data files.
     opendir(my $dh, $taxInDir) || die "Could not open taxonomy directory $taxInDir: $!";
     my @taxFiles = grep { $_ =~ /\.dmp$/ } readdir $dh;
