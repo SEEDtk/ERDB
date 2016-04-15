@@ -168,6 +168,9 @@ while (! eof $ih) {
         # Here the user wants to load a single genome.
         print "Loading single genome $command.\n";
         $loader->CopyGenome($command);
+    } elsif ($command eq '*Taxonomy') {
+        # Here the user wants the NCBI taxonomy data. Get its directory.
+        $loader->CopyTaxonomy();
     } else {
         # Here we have a subsystem name.
         print "Loading single subsystem $command.\n";

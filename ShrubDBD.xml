@@ -243,6 +243,9 @@
                     For a single-function role, a space is used. For a malformed
                     or hypothetical function (which has no roles) a hyphen is used.</Notes>
                 </Field>
+                <Field name="universal" type="boolean">
+                    <Notes>TRUE if this function represents a universal protein, else FALSE</Notes>
+                </Field>
             </Fields>
         </Entity>
         <Entity name="Role" keyType="short-string" default="id description ec-number">
