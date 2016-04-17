@@ -41,6 +41,10 @@ The maximum permissible distance between two features for them to be considered 
 
 TRUE if we have exclusive database access, else FALSE.
 
+=item uniPercent
+
+Percentage of genomes in which a function must occur singly in order to be considered a universal protein.
+
 =back
 
 =head2 Special Methods
@@ -74,6 +78,11 @@ If TRUE, then it is assumed we have exclusive access to the database and signifi
 is possible. If FALSE, then the operations will be designed to allow concurrent update. The default
 is FALSE.
 
+=item uniPercent
+
+Percentage of genomes in which a function must occur singly in order to be considered a universal protein.
+The default is C<90>.
+
 =back
 
 =back
@@ -87,6 +96,7 @@ sub new {
         loader => $loader,
         maxGap => ($options{maxGap} // 2000),
         exclusive => ($options{exclusive} // 0),
+        uniPercent => ($options{uniPercent} // 90),
     };
     # Bless and return it.
     bless $retVal, $class;
@@ -201,6 +211,64 @@ sub LoadClusters {
             $self->CloseCluster($row, $ssRowClusterId{$row}, $ssRowClusterPeg{$row});
         }
     }
+}
+
+=head3 SetUniRoles
+
+    $loader->SetUniRoles();
+
+Update the universal role flags for all the functions.
+
+=cut
+
+sub SetUniRoles {
+    my ($self) = @_;
+    # Get the database object and the statistics object.
+    my $shrub = $self->{loader}->db;
+    my $stats = $self->{loader}->stats;
+    # This will count the finds for each function.
+    my %funFinds;
+    # Loop through the genomes. Notice we count them along the way.
+    my @genomes = $shrub->GetAll('Genome', '', [], 'id name');
+    my $gCount = 0;
+    for my $genome (@genomes) {
+        my ($genomeID, $name) = @$genome;
+        print "Searching for universal roles in $genomeID: $name.\n";
+        # Find all the singletons.
+        my %funCount;
+        my @funs = $shrub->GetFlat('Feature2Function', 'Feature2Function(from-link) LIKE ? AND Feature2Function(security) = ?',
+            ["fig|$genomeID.peg.%", 0], 'Feature2Function(to-link)');
+        for my $fun (@funs) {
+            $funCount{$fun}++;
+            $stats->Add(uniProteinCheck => 1);
+        }
+        # Count them.
+        for my $fun (keys %funCount) {
+            if ($funCount{$fun} == 1) {
+                $funFinds{$fun}++;
+                $stats->Add(uniProteinCandidate => 1);
+            } else {
+                $stats->Add(uniProteinRejected => 1);
+            }
+        }
+        $gCount++;
+    }
+    # Compute the threshhold.
+    print "$gCount genomes found.\n";
+    my $min = $gCount * $self->{uniPercent} / 100;
+    print "Universal role threshhold is $min.\n";
+    # Now all the genomes have been processed. Update the functions.
+    my @funs = $shrub->GetFlat('Function', '', [], 'id');
+    for my $fun (@funs) {
+        my $count = $funFinds{$fun} // 0;
+        my $universal = 0;
+        if ($count >= $min) {
+            $stats->Add(uniProteinFound => 1);
+            $universal = 1;
+        }
+        $shrub->UpdateEntity(Function => $fun, universal => $universal);
+    }
+    print "Universal role flags updated.\n";
 }
 
 =head2 Internal Methods

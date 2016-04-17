@@ -545,7 +545,7 @@
             </Notes>
         </Relationship>
         <Relationship name="Taxonomy2Genome" from="TaxonomicGrouping"
-            to="Genome" arity="1M" converse="Genome2Taxonomy">
+            to="Genome" arity="1M" converse="Genome2Taxonomy" embedded="1">
             <Notes>This relationship connects a genome to the taxonomic group to
                 which it belongs. The taxonomic group is computed from the genome
                 ID where possible, and the genome name otherwise. It can also be

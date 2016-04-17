@@ -456,8 +456,9 @@ sub InsertObject {
                     die "ID missing in output attempt of $table.";
                 }
                 # Get the secondary value and its type.
-                my $values = $fields{$map->[1]{name}};
-                my $type = $fields{$map->[1]{type}};
+                my $name = $map->[1]{name};
+                my $values = $fields{$name};
+                my $type = $map->[1]{type};
                 # Insure it is a list.
                 if (! defined $values) {
                     $values = [];

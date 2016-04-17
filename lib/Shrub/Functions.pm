@@ -421,7 +421,7 @@ sub Insert {
         $stats->Add(functionFound => 1);
     } else {
         # No. Try to insert it.
-        $loader->InsertObject('Function', id => $funcID, sep => $sep, description => $statement);
+        $loader->InsertObject('Function', id => $funcID, sep => $sep, description => $statement, universal => 0);
         $retVal = 1;
         $stats->Add(functionNotFound => 1);
         # Insure we know we have this function.
