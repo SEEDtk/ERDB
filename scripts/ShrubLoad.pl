@@ -29,6 +29,7 @@ use ScriptUtils;
 use File::Copy::Recursive;
 use Shrub::PostLoader;
 use Shrub::ChemLoader;
+use Shrub::TaxonomyLoader;
 
 =head1 Shrub Database Loader
 
@@ -110,7 +111,8 @@ my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDBtk::Utils::init_opt
         ['subsystems|subs=s', "file listing IDs of subsystems to load, \"all\", or \"none\"", { default => 'all' }],
         ['tar=s', "file containing compressed copy of the input repository"],
         ['maxgap|g=i', "maximum gap allowed between clustered features", { default => 2000 }],
-        ['noDNA', "supress use of the DNA repository"],
+        ['noDNA', "suppress use of the DNA repository"],
+        ['notaxon', "suppress loading the taxonomy data"],
         [xmode => [["exclusive|X", "exclusive database access"], ["shared|S", "shared database access"]]],
         );
 # Find out what we are loading.
@@ -149,6 +151,9 @@ if ($opt->clear && $missingFlag) {
 }
 if ($opt->clear && ! $exclusive) {
     die "Cannot clear the database in shared mode.";
+}
+if (! $opt->notaxon && ! $exclusive) {
+    die "\"notaxon\" is required in shared mode.";
 }
 # Now we are pretty sure we have good input, so we can start.
 # Connect to the database. Note that we use the external DBD if "store" was specified.
@@ -199,11 +204,19 @@ if ($genomesLoading) {
 }
 # This will track the genomes we load.
 my $gHash;
+# Here we process the taxonomies.
+my $taxLoader;
+if (! $opt->notaxon) {
+    print "Initializing taxonomy loader.\n";
+    $taxLoader = Shrub::TaxonomyLoader->new($loader);
+    print "Loading taxonomy data.\n";
+    $taxLoader->LoadTaxonomies($repo, slow => $slowFlag);
+}
 # Here we process the genomes.
 if ($genomesLoading) {
     print "Processing genomes.\n";
     my $gLoader = Shrub::GenomeLoader->new($loader, funcMgr => $funcMgr, slow => $slowFlag,
-            exclusive => $exclusive, dnaRepo => $dnaRepo);
+            exclusive => $exclusive, dnaRepo => $dnaRepo, taxon => $taxLoader);
     # Determine the list of genomes to load.
     $gHash = $gLoader->ComputeGenomeList($genomeDir, $genomeSpec);
     # Curate the genome list to eliminate redundant genomes. This returns a hash of genome IDs to
@@ -295,9 +308,12 @@ if ($genomesLoading) {
     print "Creating clusters.\n";
     # Process the genomes.
     for my $genome (sort keys %$gHash) {
-        print "Processing clusters for $genome: $gHash->{$genome}.\n";
+        my $name = $gHash->{$genome};
+        print "Processing clusters for $genome: $name.\n";
         $postLoader->LoadClusters($genome);
     }
+    # Update the function table for the universal roles.
+    $postLoader->SetUniRoles();
     # Now the protein families.
     print "Processing protein families.\n";
     if (! $cleared) {

@@ -60,6 +60,11 @@ TRUE if we have exclusive access to the database, else FALSE. The default is FAL
 Path to the DNA repository. If an empty string, then DNA storage in the repository is
 suppressed.
 
+=item taxLoader
+
+A L<Shrub::TaxonomyLoader> object specifying taxonomic data. This is used to compute the genome's
+taxon ID.
+
 =back
 
 =cut
@@ -108,6 +113,11 @@ provided, one will be created internally.
 Path to the DNA repository. If an empty string, then DNA storage in the repository is
 suppressed. The default is the DNA repository value in L<FIG_Config>.
 
+=item taxon
+
+A L<Shrub::TaxonomyLoader> object containing taxonomic data. If omitted, taxonomic IDs are
+not computed.
+
 =back
 
 =back
@@ -124,6 +134,8 @@ sub new {
     # Get the DNA repository.
     my $shrub = $loader->db();
     my $dnaRepo = $options{dnaRepo} // $shrub->DNArepo('optional');
+    # Get the taxonomy loader (if any).
+    my $taxLoader = $options{taxon};
     # If the function loader was not provided, create one.
     if (! $funcMgr) {
         $funcMgr = Shrub::Functions->new($loader, exclusive => $options{exclusive});
@@ -134,7 +146,8 @@ sub new {
     }
     # Create the object.
     my $retVal = { loader => $loader, md5 => undef,
-        funcMgr => $funcMgr, slow => $slow, dnaRepo => $dnaRepo };
+        funcMgr => $funcMgr, slow => $slow, dnaRepo => $dnaRepo,
+        taxLoader => $taxLoader };
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;
@@ -423,6 +436,8 @@ sub LoadGenome {
     my $loader = $self->{loader};
     my $shrub = $loader->db;
     my $stats = $loader->stats;
+    # Get the taxon loader (if any).
+    my $taxLoader = $self->{taxLoader};
     # Get the function loader.
     my $funcMgr = $self->{funcMgr};
     # If we do not already have the metadata hash, read it in.
@@ -468,11 +483,18 @@ sub LoadGenome {
      my $protHash = $self->ReadProteins($genome, $genomeDir);
      print "Processing protein features.\n";
      $self->ReadFeatures($genome, "$genomeDir/peg-info", $priv, \%fidStats, $protHash);
+     # Compute the taxonomy ID for the genome.
+     my ($taxID) = split /\./, $genome;
+     my $conf = 0;
+     if ($taxLoader) {
+         ($conf, $taxID) = $taxLoader->ComputeTaxID($genome, $metaHash->{taxid}, $metaHash->{name});
+     }
      # Now we can create the genome record.
      print "Storing $genome in database.\n";
      $loader->InsertObject('Genome', id => $genome, %$genomeHash,
              core => $metaHash->{type}, name => $metaHash->{name}, prokaryotic => $metaHash->{prokaryotic},
-             'contig-file' => $relPath, 'genetic-code' => $code, domain => $metaHash->{domain}, %fidStats);
+             'contig-file' => $relPath, 'genetic-code' => $code, domain => $metaHash->{domain}, %fidStats,
+             Taxonomy2Genome_confidence => $conf, Taxonomy2Genome_link => $taxID);
      $stats->Add(genomeInserted => 1);
      # Connect the contigs to it.
      for my $contigDatum (@$contigList) {
