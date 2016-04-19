@@ -103,6 +103,43 @@ sub new {
     return $retVal;
 }
 
+=head3 TextJoin
+
+    my $string = Shrub::Roles::TextJoin(@phrases);
+
+Concatenate phrases to produce text. If the second phrase begins with a separator, it will be
+joined directly. Otherwise, it will be joined with a space.
+
+=over 4
+
+=item phrases
+
+A list of phrases to join.
+
+=item RETURN
+
+Returns a string containing all the phrases joined together.
+
+=back
+
+=cut
+
+sub TextJoin {
+    my (@phrases) = @_;
+    # Start with the first phrase.
+    my $retVal = shift @phrases;
+    # Loop through the rest.
+    for my $phrase (@phrases) {
+        if ($phrase =~ /^[,\.;:]/) {
+            $retVal .= $phrase;
+        } else {
+            $retVal .= " $phrase";
+        }
+    }
+    # Return the result.
+    return $retVal;
+}
+
 =head2 Role Text Analysis Methods
 
 =head3 EC_PATTERN
@@ -161,10 +198,10 @@ sub Parse {
     my ($ecNum, $tcNum) = ("", "");
     my $roleText = $role;
     if ($role =~ /(.+?)\s*$EC_PATTERN\s*(.*)/) {
-        $roleText = "$1 $3";
+        $roleText = TextJoin($1, $3);
         $ecNum = $2;
     } elsif ($role =~ /(.+?)\s*$TC_PATTERN\s*(.*)/) {
-        $roleText = "$1 $3";
+        $roleText = TextJoin($1, $3);
         $tcNum = $2;
     }
     # Fix spelling problems.
