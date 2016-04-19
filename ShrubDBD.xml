@@ -535,8 +535,8 @@
             <Notes>This relationship connects a role to the primary CDD domains associated with it.
             There will generally be at most two.</Notes>
         </Relationship>
-        <Relationship name="IsInTaxonomicGroup" from="TaxonomicGrouping"
-            to="TaxonomicGrouping" arity="1M" converse="IsTaxonomicGroupOf"
+        <Relationship name="IsTaxonomicGroupOf" from="TaxonomicGrouping"
+            to="TaxonomicGrouping" arity="1M" converse="IsInTaxonomicGroup"
             embedded="1">
             <Notes>This relationship imposes a hierarchy on taxonomic groupings.
                 Each group can contain one or more subgroups. A group with no

@@ -1153,6 +1153,74 @@ sub write_peg_fasta {
     }
 }
 
+=head3 taxonomy_of
+
+    my @taxa = $shrub->taxonomy_of($genomeID, %options);
+
+Return the full taxonomy of a genome. By default, this is a list of names, from most inclusive to least.
+The options can be used to get a list of taxonomy IDs instead.
+
+=over 4
+
+=item genomeID
+
+ID of the genome whose taxonomy is desired.
+
+=item options
+
+A hash containing zero or more of the following options.
+
+=over 8
+
+=item ids
+
+If TRUE, then taxonomy IDs will be returned instead of taxonomy names. The default is FALSE.
+
+=back
+
+=item RETURN
+
+Returns a list containing the taxonomy names (or IDs) in order from most inclusive to least. An empty
+list indicates a nonexistent genome ID or a genome that is not yet classified.
+
+=back
+
+=cut
+
+sub taxonomy_of {
+    my ($self, $genomeID, %options) = @_;
+    # This will be the return list.
+    my @retVal;
+    # Compute the field list. The first field is the ID, the second is the field being returned,
+    # the third is the domain flag (TRUE when we want to stop) and the hidden-level flag (TRUE if
+    # we want to hide the level).
+    my $fields = 'TaxonomicGrouping(id) TaxonomicGrouping(' . ($options{ids} ? 'id' : 'scientific-name') . 
+            ') TaxonomicGrouping(domain) TaxonomicGrouping(hidden)';
+    # Get the taxonomy ID for this genome.
+    my ($taxData) = $self->GetAll('Genome2Taxonomy TaxonomicGrouping', 'Genome2Taxonomy(from-link) = ?', [$genomeID], $fields);
+    # Only proceed if we have one.
+    if ($taxData && $taxData->[0]) {
+        # Loop through the groups, pushing the visible levels onto the return list.
+        my $done;
+        while (! $done) {
+            # Get the pieces of taxonomy data. Note that the name is the field we are keeping. It could be a name or it
+            # could be an ID.
+            my ($id, $name, $domain, $hidden) = @$taxData;
+            if (! $hidden) {
+                unshift @retVal, $name;
+            }
+            if ($domain) {
+                $done = 1;
+            } else {
+                ($taxData) = $self->GetAll('IsInTaxonomicGroup TaxonomicGrouping', 'IsInTaxonomicGroup(from-link) = ?',
+                        [$id], $fields);
+            }
+        }
+    }
+    # Return the taxonomy list.
+    return @retVal;
+} 
+
 
 =head2 Query Methods
 
