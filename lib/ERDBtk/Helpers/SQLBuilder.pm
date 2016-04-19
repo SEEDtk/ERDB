@@ -187,7 +187,8 @@ sub new {
             if (! $aliasData) {
                 # Check to see if we are sharing a table with the previous object.
                 if ($embedFlag) {
-                    if ($tableName eq $prevTable) {
+                    my $relData = $erdb->FindRelationship($baseName);
+                    if ($relData->{converse} eq $baseName && $tableName eq $prevTable) {
                         # We are embedded in the previous object. Use its alias.
                         $aliasData = [$baseName, $aliasMap{$prevName}[1]];
                     } else {
@@ -197,14 +198,24 @@ sub new {
                         # Add the alias to the FROM list.
                         $retVal->UpdateFrom($tableName, $aliasName);
                     }
-                } elsif ($prevObject->[1] && $tableName eq $prevObject->[2]) {
-                    # The previous object is embedded in us. Use its alias.
-                    $aliasData = [$baseName, $aliasMap{$prevName}[1]];
                 } else {
-                    # There is no embedding. Use the object name as the alias.
-                    $aliasData = [$baseName, $objectName];
-                    # Add it to the FROM list.
-                    $retVal->UpdateFrom($tableName, $objectName);
+                    # Check to see if the previous object is embedded in us.
+                    my $embedded;
+                    if ($prevEmbed) {
+                        my $relData = $erdb->FindRelationship($prevBase);
+                        if ($relData->{obverse} eq $prevBase && $tableName eq $prevTable) {
+                            $embedded = 1;
+                        }
+                    }
+                    if ($embedded) {
+                        # The previous object is embedded in us. Use its alias.
+                        $aliasData = [$baseName, $aliasMap{$prevName}[1]];
+                    } else {
+                        # There is no embedding. Use the object name as the alias.
+                        $aliasData = [$baseName, $objectName];
+                        # Add it to the FROM list.
+                        $retVal->UpdateFrom($tableName, $objectName);
+                    }
                 }
                 # Save the alias data in the alias map.
                 $aliasMap{$objectName} = $aliasData;
