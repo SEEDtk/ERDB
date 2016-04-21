@@ -477,7 +477,7 @@
             <Notes>A cluster is a set of features that belong to the same subsystem row and
             are physically close together on the genome. Each cluster has an ID code.</Notes>
         </Entity>
-        <Entity name="CddDomain" keyType="string" default="id description">
+        <Entity name="CddDomain" keyType="string" default="id">
             <DisplayInfo theme="green" col="1" row="7" caption="CDD Domain" />
             <Notes>A domain is a protein domain from the Conserved Domain Database. The ID is the
             CDD identifier.</Notes>
