@@ -1379,7 +1379,7 @@ sub GetCount {
     # Declare the return variable.
     my $retVal;
     # Create an SQL helper for this query path.
-    my $sqlHelper = ERDBtk::Hekpers::SQLHelper->new($self, $objectNames);
+    my $sqlHelper = ERDBtk::Helpers::SQLBuilder->new($self, $objectNames);
     # Get the suffix from the filter clause.
     my $suffix = $sqlHelper->SetFilterClause($filter);
     # Compute the field we want to count.
