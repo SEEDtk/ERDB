@@ -305,7 +305,7 @@ sub LoadTaxonomies {
         my $aliases = $idAliasH{$taxID} // [];
         # Create the taxonomy group record.
         $loader->InsertObject('TaxonomicGrouping', id => $taxID, domain => $domain, hidden => $hidden,
-               'scientific-name' => $name, IsInTaxonomicGroup_link => $parent,
+               'scientific-name' => $name, IsTaxonomicGroupOf_link => $parent,
                alias => $aliases);
     }
 }
@@ -361,7 +361,7 @@ sub ComputeTaxID {
     my ($newTaxID) = $nameMap->{$name};
     if ($newTaxID) {
         # Get the information about this match.
-        my $foundName = $idNameMap->{$newTaxID}; 
+        my $foundName = $idNameMap->{$newTaxID};
         # Determine our confidence in the match.
         if ($foundName eq $name) {
             $assignedTaxID = $newTaxID;
@@ -392,7 +392,7 @@ sub ComputeTaxID {
             my ($newTaxID) = split /\./, $genomeID;
             # Check for a mapping.
             if ($idMap->{$newTaxID}) {
-                $newTaxID = $idMap->{$newTaxID}; 
+                $newTaxID = $idMap->{$newTaxID};
             }
             # Verify this ID is real.
             if ($idNameMap->{$newTaxID}) {
