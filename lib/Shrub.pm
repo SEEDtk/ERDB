@@ -1052,6 +1052,22 @@ sub genome_fasta {
     return $retVal;
 }
 
+=head3 GetUniRoles
+
+    my $uniRoleH = $shrub->GetUniRoles();
+
+Return a reference to a hash mapping the ID of each universal role (which is actually a 
+function) to its description.
+
+=cut
+
+sub GetUniRoles {
+    my ($self) = @_;
+    my %retVal = map { $_->[0] => $_->[1] } $self->GetAll('Function', 'Function(universal) = ?', [1], 'id description');
+    return \%retVal;
+}
+
+
 =head3 write_prot_fasta
 
     $shrub->write_prot_fasta($genome, $oh);
