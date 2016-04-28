@@ -247,6 +247,15 @@
                     <Notes>TRUE if this function represents a universal protein, else FALSE</Notes>
                 </Field>
             </Fields>
+            <Indexes>
+                <Index>
+                    <Notes>This index is used to find the universal proteins.</Notes>
+                    <IndexFields>
+                        <IndexField name="universal" />
+                        <IndexField name="id" />
+                    </IndexFields>
+                </Index>
+            </Indexes>
         </Entity>
         <Entity name="Role" keyType="short-string" default="id description ec-number">
             <DisplayInfo theme="blue" row="7" col="5" />
