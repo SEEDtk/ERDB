@@ -206,7 +206,7 @@ sub Parse {
     # to an empty string.
     my $statement = $function // "";
     my $comment = "";
-    if ($function && $function =~ /(.+?)\s*[#!]\s*(.+)/) {
+    if ($function && $function =~ /(.+?)\s*[#!]+\s*(.+)/) {
         ($statement, $comment) = ($1, $2);
     }
     # The roles and the separator will go in here. We default to the separator
