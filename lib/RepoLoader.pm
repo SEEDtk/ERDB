@@ -459,6 +459,8 @@ sub CopyTaxonomy {
             $stats->Add(taxFileAcquired => 1);
         }
     }
+    # Remove the TAR file to save space in the repo.
+    unlink "$outDir/taxdump.tar.gz";
 }
 
 =head3 CopySamples
@@ -579,6 +581,8 @@ sub CopySamples {
                 undef $oh;
                 open($oh, ">$sampleODir/stats.tbl") || die "Could not open stats.tbl for $sample: $!";
                 print $oh "$contigs\t$dnaLetters\t$n50\n";
+                close $oh;
+                print "stats.tbl created.\n";
             }
         }
     }
