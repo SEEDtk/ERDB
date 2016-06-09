@@ -222,6 +222,59 @@ sub CheckCached {
 }
 
 
+=head3 Insure
+
+    my $inserted = $loader->Insure($entity => $id, $cache, %fields);
+
+Insure an entity instance is in the database. If it is not found in the specified cache, it will be inserted with
+the C<replace> option and then stored in the cache to prevent future inserts during the current load.
+
+=over 4
+
+=item entity
+
+Name of the entity type to be inserted.
+
+=item id
+
+ID of the entity instance to be inserted.
+
+=item cache
+
+Reference to a hash containing the IDs of instances already inserted during this run.
+
+=item fields
+
+Hash of the fields (other than ID) to be stored in the record.
+
+=item RETURN
+
+Returns TRUE if an insert was attempted, FALSE if we have already seen the genome.
+
+=back
+
+=cut
+
+sub Insure {
+    my ($self, $entity, $id, $cache, %fields) = @_;
+    my $retVal;
+    # Get the statistics and Shrub objects.
+    my $stats = $self->stats;
+    my $shrub = $self->db;
+    # Check the cache.
+    if ($cache->{$id}) {
+        $stats->Add("$entity-found" => 1);
+    } else {
+        # We need to insert.
+        $shrub->InsertObject($entity, { id => $id, %fields }, dup => 'replace');
+        $stats->Add("$entity-inserted" => 1);
+        $retVal = 1;
+    }
+    # Return the insertion indicator.
+    return $retVal;
+}
+
+
 =head2 Table-Loading Utility Methods
 
 =head3 Clear

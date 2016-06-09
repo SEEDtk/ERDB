@@ -194,6 +194,12 @@ the contigs themselves and all the protein functions found in the bin.
 A tab-delimited file containing the reference genomes for the bins. Each line of the file contains (0) the
 SEED-style genome ID, (1) the genome name, and (2) the genome's taxonomic ID.
 
+=item stats.tbl
+
+A single-line tab-delimited file. The fields are (0) the number of contigs in the sample, (1) the
+number of base pairs in the sample, (2) the N50 number for the contig lengths (that is, the length of the
+contig that along with all shorter contigs makes up 50% of the base pairs).
+
 =back
 
 =cut

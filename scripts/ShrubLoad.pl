@@ -363,8 +363,15 @@ if ($genomesLoading) {
     print "Unspooling cluster and protein family tables.\n";
     $loader->Close();
 }
-# Now we do the protein families. These are loaded from a global file.
-# Finally, the domains. These are also loaded from a global file.
+# Next we must load the samples. There are few of these, and they are always loaded in slow mode, with
+# direct inserts. Genome and taxonomy data must already exist. If we have a samples directory, we
+# ask the post-loader to load it.
+# in the repository.
+if (-d "$repo/Samples") {
+    $postLoader->LoadSamples("$repo/Samples");
+} 
+
+# Finally, the domains. These are loaded from a global file.
 print "Processing domains.\n";
 # Set up to load the domain tables.
 my @dtables = qw(CddDomain Domain2Protein Domain2Role);
@@ -399,7 +406,7 @@ while ($fields = $loader->GetLine(prot_domains => $dh)) {
         $loader->InsertObject('Domain2Protein', 'from-link' => $domain, 'to-link' => $prot);
     }
 }
-# Unspooling domains.
+# Unspool domains.
 $loader->Close();
 # Compute the total time.
 my $timer = time - $startTime;

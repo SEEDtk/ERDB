@@ -233,11 +233,10 @@
             <Indexes>
                 <Index>
                     <Notes>This index allows the user to find a particular
-                        taxonomic grouping by name. Because the scientifc name is
-                        also an alias, there is no index on scientific name.
+                        taxonomic grouping by scientific name.
                     </Notes>
                     <IndexFields>
-                        <IndexField name="alias" order="ascending" />
+                        <IndexField name="scientific-name" order="ascending" />
                     </IndexFields>
                 </Index>
             </Indexes>
@@ -552,8 +551,7 @@
                 <RegionInfo name="Sampling" col="3" row="1" />
             </DisplayInfo>
             <Notes>A site represents a single type of location from which samples are taken. The
-            ID of the site is a project prefix (e.g. "HMP" for the Human Microbiome Project) followed
-            by a vertical bar and the site's ID within the project.</Notes>
+            ID of the site is a mostly human-readable name.</Notes>
             <Fields>
                 <Field name="description" type="long-string">
                     <Notes>Printable description of this site. This is frequently very similar to the key.</Notes>
@@ -565,17 +563,17 @@
                 <RegionInfo name="Sampling" col="3" row="3" />
             </DisplayInfo>
             <Notes>A sample is a specific metagenomic sampling from a specific site. The ID is a 
-            project prefix (e.g. "HMP" for the Human Microbiome Project) followed by a vertical bar
+            project prefix (e.g. "HMP" for the Human Microbiome Project) followed by a period
             and the sample's ID within the project.</Notes>
             <Fields>
-                <Field name="reads" type="counter">
-                    <Notes>number of reads in the sample</Notes>
+                <Field name="dna-size" type="counter">
+                    <Notes>number of base pairs in the sample</Notes>
                 </Field>
                 <Field name="contigs" type="counter">
                     <Notes>number of contigs in the sample</Notes>
                 </Field>
-                <Field name="data-directory" type="string">
-                    <Notes>location in the samples repository of the sample's data directory</Notes>
+                <Field name="n50" type="counter">
+                    <Notes>length of the contig at the median point in the total DNA of the sample</Notes>
                 </Field>
             </Fields>
         </Entity>
@@ -626,25 +624,6 @@
                 <RegionInfo name="Sampling" caption="Site to\nSample" />
             </DisplayInfo>
             <Notes>This relationship links a sample to the site from which it came.</Notes>
-        </Relationship>
-        <Relationship name="Sample2Taxonomy" from="Sample" to="TaxonomicGrouping" arity="MM"
-            converse="Taxonomy2Sample">
-            <DisplayInfo theme="black">
-                <RegionInfo name="Sampling" caption="Sample to\nTaxonomy" />
-            </DisplayInfo>
-            <Notes>This relationship connects a sample to a genus found in the sample using 16s
-            analysis.</Notes>
-            <Fields>
-                <Field name="depth" type="float">
-                    <Notes>mean depth (coverage) of the expected population</Notes>
-                </Field>
-                <Field name="breadth" type="float">
-                    <Notes>mean breadth (abundance) of the expected population</Notes>
-                </Field>
-                <Field name="species" type="counter">
-                    <Notes>number of species found</Notes>
-                </Field>
-            </Fields>
         </Relationship>
         <Relationship name="Bin2Reference" from="Bin" to="ReferenceGenome" arity="MM"
             converse="Reference2Bin">

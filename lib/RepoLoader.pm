@@ -398,7 +398,7 @@ sub ExtractRepo {
         } else {
             # Here we have a file in the archive. Check its name.
             $stats->Add(archiveFile => 1);
-            if ($file->name =~ /((?:GenomeData|SubSystemData|ModelSEED|Other).+)/) {
+            if ($file->name =~ /((?:GenomeData|SubSystemData|ModelSEED|Other|Samples).+)/) {
                 # Compute the new file name.
                 my $newName = join("/", $targetDir, DenormalizedName($1));
                 # Extract the file.
@@ -519,6 +519,8 @@ sub CopySamples {
                 # We will store the reference genome data in this hash, keyed by genome ID and mapping to
                 # [genome name, taxon ID]. This will later be used to create the "refs.tbl" file.
                 my %refGenomes;
+                # These track the base pairs and contigs for the sample.
+                my ($dnaLetters, $contigs, $n50) = (0, 0, 0);
                 # Loop through the sample files.
                 opendir(my $sh, $sampleDir) || die "Could not open sample directory $sampleDir: $!";
                 my @files = grep { substr($_, 0, 1) ne '.' && -s "$sampleDir/$_" } readdir $sh;
@@ -539,6 +541,27 @@ sub CopySamples {
                         my $name = $gto->{scientific_name};
                         $refGenomes{$genomeID} = [$name, $taxID];
                         $stats->Add(sampleGenomesChecked => 1);
+                    } elsif ($file eq 'sample.fasta') {
+                        # Here we have the sample's contigs. We need to count them.
+                        my @contigLens;
+                        my $fh = $self->OpenFasta(sampleFasta => "$sampleDir/$file");
+                        while (my $triple = $self->GetLine(sampleFasta => $fh)) {
+                            my ($id, undef, $seq) = @$triple;
+                            my $len = length($seq);
+                            $dnaLetters += $len;
+                            $contigs++;
+                            push @contigLens, $len;
+                        }
+                        # Now we need to compute the N50. Sort the contig lengths.
+                        my @sorted = sort { $a <=> $b } @contigLens;
+                        # Find the median.
+                        my $accumulated = 0;
+                        my $half = $dnaLetters / 2;
+                        while ($accumulated < $half) {
+                            my $len = pop @sorted;
+                            $n50 = $len;
+                            $accumulated += $len;
+                        }
                     } else {
                         $stats->Add(sampleFilesSkipped => 1);
                     }
@@ -552,6 +575,10 @@ sub CopySamples {
                 }
                 close $oh;
                 print "refs.tbl created.\n";
+                # Write out the statistics.
+                undef $oh;
+                open($oh, ">$sampleODir/stats.tbl") || die "Could not open stats.tbl for $sample: $!";
+                print $oh "$contigs\t$dnaLetters\t$n50\n";
             }
         }
     }

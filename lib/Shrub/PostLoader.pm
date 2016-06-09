@@ -51,7 +51,7 @@ Percentage of genomes in which a function must occur singly in order to be consi
 
 =head3 new
 
-    my $loader = Shrub::PostLoader->new($loader, %options);
+    my $pLoader = Shrub::PostLoader->new($loader, %options);
 
 Create a new post-processing loader object.
 
@@ -271,6 +271,116 @@ sub SetUniRoles {
     print "Universal role flags updated.\n";
 }
 
+=head3 LoadSamples
+
+=cut
+
+sub LoadSamples {
+    my ($self, $sampleDir) = @_;
+    # Get the loader object.
+    my $loader = $self->{loader};
+    # Get the database object and the statistics object.
+    my $shrub = $loader->db;
+    my $stats = $loader->stats;
+    # Insure the output directory for the bins exists.
+    my $sampleODir = $FIG_Config::shrub_samples;
+    if (! -d $sampleODir) {
+        print "Creating $sampleODir.\n";
+        File::Copy::Recursive::pathmk($sampleODir);
+    }
+    # The following hashes are used to track sites and reference genomes already in the database.
+    my (%sites, %refGenomes);
+    # Get all the projects in this repository.
+    opendir(my $sh, "$sampleDir") || die "Could not open Samples repository: $!";
+    my @projects = grep { substr($_, 0, 1) ne '.' && -d "$sampleDir/$_" } readdir $sh;
+    closedir $sh;
+    # Loop through them.
+    for my $project (@projects) {
+        print "Processing project $project.\n";
+        my $projDir = "$sampleDir/$project";
+        $stats->Add(sampleProjects => 1);
+        # Get all the samples for this project.
+        opendir(my $dh, $projDir) || die "Could not open project directory $projDir: $!";
+        my @samples = grep { substr($_, 0, 1) ne '.' && -d "$projDir/bins.rast.json" } readdir $dh;
+        closedir $dh;
+        # Loop through them.
+        for my $sample (@samples) {
+            $stats->Add(sampleDirectories => 1);
+            # Compute the full sample ID.
+            my $sampleID = "$project.$sample";
+            # Get the site information.
+            my $ih = $loader->OpenFile(site => "$projDir/$sample/site.tbl");
+            my $fields = $loader->GetLine(site => $ih);
+            my (undef, $siteID, $siteName) = @$fields;
+            # Insure we have the site.
+            $loader->Insure(Site => $siteID, \%sites, description => $siteName);
+            # Read in the statistics and create the sample.
+            $ih = $loader->OpenFile(stats => "$projDir/$sample/stats.tbl");
+            $fields = $loader->GetLine(stats => $ih);
+            my ($contigCount, $dnaLetters, $n50) = @$fields;
+            $shrub->InsertObject('Sample', id => $sampleID, contigs => $contigCount, 'dna-size' => $dnaLetters, n50 => $n50,
+                Site2Sample_link => $siteID);
+            # Get the reference genomes.
+            $ih = $loader->OpenFile(refGenomes => "$projDir/$sample/refs.tbl");
+            while (! eof $ih) {
+                my $fields = $loader->GetLine(refGenomes => $ih);
+                my ($refID, $refName, $refTaxID) = @$fields;
+                my $inserted = $loader->Insure(ReferenceGenome => $refID, \%refGenomes, name => $refName,
+                    Taxonomy2Reference_link => $refTaxID);
+                # If this reference genome is new, set up its connections.
+                if ($inserted) {
+                    # If it matches one of our genomes, connect it.
+                    if ($shrub->Exists(Genome => $refID)) {
+                        $shrub->InsertObject('Reference2Genome', { 'from-link' => $refID, 'to-link' => $refID }, dup => 'ignore');
+                        $stats->Add(refGenomeInShrub => 1);
+                    } else {
+                        $stats->Add(refGenomeNotInShrub => 1);
+                    }
+                }
+            }
+            # Now read in the bins themselves from bins.rast.json.
+            my $binList = Bin::ReadBins("$projDir/$sample/bins.rast.json");
+            # Loop through the bins, creating the bin records.
+            my $binID = 0;
+            for my $bin (@$binList) {
+                $binID++;
+                my $name = $bin->name;
+                print "Processing bin $binID: $name.\n";
+                # We need to compute the bin's taxonomic grouping. This is the genus indicated by the bin name.
+                # The taxonomic ID in the bin object itself is a different one used for RAST guidance.
+                my ($genus) = split /\s+/, $name;
+                my ($taxID) = $shrub->GetFlat('TaxonomicGrouping', 'TaxonomicGrouping(scientific-name) = ?', [$genus], 'id');
+                die "Invalid genus $genus in bin.\n" if (! $taxID);
+                # Compute the database ID for the bin.
+                my $dbID = "$sampleID.$binID";
+                # Create the GTO file.
+                my $gtoFile = "$dbID.gto";
+                print "Copying GTO file $gtoFile.\n";
+                File::Copy::Recursive("$projDir/$sample/bin$binID.gto", "$sampleODir/$gtoFile");
+                print "Storing bin in database.\n";
+                # Get the universal roles.
+                my $uniH = $bin->uniProts;
+                # Create the bin record.
+                $shrub->InsertObject('Bin', id => $dbID, contigs => $bin->contigCount, description => $name,
+                        'dna-size' => $bin->len, Sample2Bin_link => $sampleID, Taxonomy2Bin_link => $taxID,
+                        'gto-file-name' => $gtoFile, 'uni-roles' => scalar(keys %$uniH));
+                # Connect the universal roles.
+                for my $uni (keys %$uniH) {
+                    my $count = $uniH->{$uni};
+                    $shrub->InsertObject('Bin2Function', 'from-link' => $dbID, 'to-link' => $uni, instances => $count);
+                    $stats->Add(binFunctionConnected => 1);
+                }
+                # Connect the reference genomes.
+                my @refs = $bin->refGenomes;
+                for my $ref (@refs) {
+                    $shrub->InsertObject('Bin2Reference', 'from-link' => $dbID, 'to-link' => $ref);
+                    $stats->Add(binRefConnected => 1);
+                }
+            }
+        }
+    }
+
+}
 =head2 Internal Methods
 
 =head3 CloseCluster
