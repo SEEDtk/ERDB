@@ -23,6 +23,8 @@ package RepoLoader;
     use base qw(Loader);
     use File::Copy::Recursive;
     use Archive::Tar;
+    use Net::FTP;
+    use SeedUtils;
 
 =head1 Repository Loader Utilities
 
@@ -396,7 +398,7 @@ sub ExtractRepo {
         } else {
             # Here we have a file in the archive. Check its name.
             $stats->Add(archiveFile => 1);
-            if ($file->name =~ /((?:GenomeData|SubSystemData|ModelSEED|Other).+)/) {
+            if ($file->name =~ /((?:GenomeData|SubSystemData|ModelSEED|Other|Samples).+)/) {
                 # Compute the new file name.
                 my $newName = join("/", $targetDir, DenormalizedName($1));
                 # Extract the file.
@@ -412,5 +414,174 @@ sub ExtractRepo {
     }
 }
 
+=head3 CopyTaxonomy
+
+    $loader->CopyTaxonomy($outDir);
+
+Download the taxonomy data from NCBI and extract it into the specified directory. Only the DMP files will be kept.
+
+=over 4
+
+=item outDir
+
+The output directory for the taxonomy data. The DMP files will be placed directly into it.
+
+=back
+
+=cut
+
+sub CopyTaxonomy {
+    my ($self, $outDir) = @_;
+    # Get the statistics object.
+    my $stats = $self->stats;
+    # Create an FTP connection to the NCBI.
+    print "Connecting to NCBI.\n";
+    my $ftp = Net::FTP->new("ftp.ncbi.nlm.nih.gov", Passive => 1);
+    $ftp->login('anonymous', 'rastuser25@patricbrc.org') || die "Could not log on to NCBI.";
+    $ftp->binary();
+    $ftp->cwd("/pub/taxonomy") || die "Could not access NCBI taxonomy directory.";
+    # Download the taxonomy TAR file.
+    print "Downloading taxonomy data.\n";
+    my $tarFile = $ftp->get("taxdump.tar.gz", "$outDir/taxdump.tar.gz");
+    die "Error downloading NCBI taxonomy archive." if ! $tarFile;
+    # Now extract the taxonomy files.
+    my $next = Archive::Tar->iter($tarFile, COMPRESS_GZIP);
+    while (my $file = $next->()) {
+        if ($file->is_file && $file->name =~ /\.dmp$/) {
+            my $oldName = $file->name;
+            my $newName = "$outDir/$oldName";
+            print "Extracting $newName.\n";
+            # Extract the file.
+            my $ok = $file->extract($newName);
+            if (! $ok) {
+                die "Error extracting into $newName.";
+            }
+            $stats->Add(taxFileAcquired => 1);
+        }
+    }
+}
+
+=head3 CopySamples
+
+    $loader->CopySamples($inDir, $outDir);
+
+Copy the metagenomic sample data from the specified input directory to the specified repository
+directory. The samples are stored in subdirectories of the input directory. They will be copied
+to subdirectories of the output directory.
+
+=over 4
+
+=item inDir
+
+The directory containing the samples in its subdirectories (one per sample).
+
+=item outDir
+
+The sample repository into which the incoming samples should be copied.
+
+=back
+
+=cut
+
+sub CopySamples {
+    my ($self, $inDir, $outDir) = @_;
+    # Get the statistics object.
+    my $stats = $self->stats;
+    # Loop through the input subdirectories.
+    opendir(my $dh, $inDir) || die "Could not open $inDir: $!";
+    my @samples = grep { substr($_, 0, 1) ne '.' && -d "$inDir/$_" } readdir $dh;
+    close $dh;
+    print scalar(@samples) . " sample directories found.\n";
+    for my $sample (@samples) {
+        my $sampleDir = "$inDir/$sample";
+        if (! -s "$sampleDir/bins.rast.json") {
+            print "$sampleDir incomplete-- skipping.\n";
+            $stats->Add(sampleSkipped => 1);
+        } else {
+            print "Processing $sampleDir.\n";
+            $stats->Add(sampleProcessed => 1);
+            # Figure out the project for this sample.
+            open(my $ih, "<$sampleDir/site.tbl") || die "Could not open site file for $sampleDir: $!";
+            my $line = <$ih>;
+            unless ($line && $line =~ /^(\S+)\t/) {
+                die "Invalid site file for $sampleDir.";
+            } else {
+                my $project = $1;
+                # Create the output path for this sample.
+                my $sampleODir = "$outDir/$project/$sample";
+                if (! -d $sampleODir) {
+                    print "Creating $sampleODir.\n";
+                    File::Copy::Recursive::pathmk($sampleODir);
+                    $stats->Add(sampleDirCreated => 1);
+                } else {
+                    print "Using $sampleODir.\n";
+                }
+                # We will store the reference genome data in this hash, keyed by genome ID and mapping to
+                # [genome name, taxon ID]. This will later be used to create the "refs.tbl" file.
+                my %refGenomes;
+                # These track the base pairs and contigs for the sample.
+                my ($dnaLetters, $contigs, $n50) = (0, 0, 0);
+                # Loop through the sample files.
+                opendir(my $sh, $sampleDir) || die "Could not open sample directory $sampleDir: $!";
+                my @files = grep { substr($_, 0, 1) ne '.' && -s "$sampleDir/$_" } readdir $sh;
+                closedir $sh;
+                for my $file (@files) {
+                    # Do we want to copy this file?
+                    if ($file =~ /^bin\d\.gto$/ || $file eq 'site.tbl' || $file eq 'bins.rast.json') {
+                        # Yes. Copy it.
+                        print "Copying $file.\n";
+                        File::Copy::Recursive::fcopy("$sampleDir/$file", "$sampleODir/$file");
+                        $stats->Add(sampleFilesCopied => 1);                       
+                    } elsif ($file =~ /^(\d+\.\d+)\.json$/) {
+                        # Here we have a reference genome. We need its name and taxonomy ID.
+                        my $genomeID = $1;
+                        print "Analyzing $file for $genomeID.\n";
+                        my $gto = SeedUtils::read_encoded_object("$sampleDir/$file");
+                        my $taxID = $gto->{ncbi_taxonomy_id};
+                        my $name = $gto->{scientific_name};
+                        $refGenomes{$genomeID} = [$name, $taxID];
+                        $stats->Add(sampleGenomesChecked => 1);
+                    } elsif ($file eq 'sample.fasta') {
+                        # Here we have the sample's contigs. We need to count them.
+                        my @contigLens;
+                        my $fh = $self->OpenFasta(sampleFasta => "$sampleDir/$file");
+                        while (my $triple = $self->GetLine(sampleFasta => $fh)) {
+                            my ($id, undef, $seq) = @$triple;
+                            my $len = length($seq);
+                            $dnaLetters += $len;
+                            $contigs++;
+                            push @contigLens, $len;
+                        }
+                        # Now we need to compute the N50. Sort the contig lengths.
+                        my @sorted = sort { $a <=> $b } @contigLens;
+                        # Find the median.
+                        my $accumulated = 0;
+                        my $half = $dnaLetters / 2;
+                        while ($accumulated < $half) {
+                            my $len = pop @sorted;
+                            $n50 = $len;
+                            $accumulated += $len;
+                        }
+                    } else {
+                        $stats->Add(sampleFilesSkipped => 1);
+                    }
+                }
+                # Write out the reference genome table.
+                open(my $oh, ">$sampleODir/refs.tbl") || die "Could not open refs.tbl for $sample: $!";
+                for my $genomeID (sort keys %refGenomes) {
+                    my $gData = $refGenomes{$genomeID};
+                    print $oh "$genomeID\t$gData->[0]\t$gData->[1]\n";
+                    $stats->Add(sampleGenomesWritten => 1);
+                }
+                close $oh;
+                print "refs.tbl created.\n";
+                # Write out the statistics.
+                undef $oh;
+                open($oh, ">$sampleODir/stats.tbl") || die "Could not open stats.tbl for $sample: $!";
+                print $oh "$contigs\t$dnaLetters\t$n50\n";
+            }
+        }
+    }
+}
 
 1;

@@ -86,6 +86,21 @@ to be a subsystem name.
 
 This allows a fairly flexible load from multiple sources.
 
+In addition to the SEED specifications, there are the following special commands.
+
+=over 4
+
+=item +Samples
+
+This specifies a Metagenome Samples directory. The directory name is given in the second column.
+All subdirectories will be analyzed and converted into samples in Exchange Format.
+
+=item +Taxonomy
+
+The taxonomy files will be downloaded from the NCBI website and unpacked into the appropriate directory.
+
+=back
+
 =cut
 
 # Start timing.
@@ -114,6 +129,12 @@ if ($opt->clear) {
     my $subsysDir = $loader->subsys_repo();
     File::Copy::Recursive::pathempty($subsysDir) ||
         die "Error clearing $subsysDir: $!";
+    my $sampleDir = $loader->sampleRepo;
+    if (-d $sampleDir) {
+        print "Erasing sample repository.\n";
+        File::Copy::Recursive::pathempty($sampleDir) ||
+            die "Error clearing $sampleDir: $!";
+    }
 }
 # Denote we don't have a SEED yet.
 my $inSEED = 0;
@@ -139,6 +160,22 @@ while (! eof $ih) {
         $loader->SetSEED($figDisk, $priv);
         # Denote we're in a SEED.
         $inSEED = 1;
+    } elsif ($command eq '+Taxonomy') {
+        # Here we have a request to download taxonomy data.
+        $loader->CopyTaxonomy($loader->taxRepo());
+        $inSEED = 0;
+    } elsif ($command eq '+Samples') {
+        # Here we have a sample directory.
+        my ($sampleDir) = @parms;
+        # Insure the directory is valid.
+        if (! $sampleDir) {
+            die "No directory specified for samples.";
+        } elsif (! -d $sampleDir) {
+            die "Invalid sample directory $sampleDir.";
+        } else {
+            print "Sample directory $sampleDir selected.\n";
+            $loader->CopySamples($sampleDir, $loader->sampleRepo());
+        }
     } elsif (! $inSEED) {
         # Other commands require a SEED be selected.
         die "You must select a SEED before issuing other commands.";
@@ -168,9 +205,6 @@ while (! eof $ih) {
         # Here the user wants to load a single genome.
         print "Loading single genome $command.\n";
         $loader->CopyGenome($command);
-    } elsif ($command eq '*Taxonomy') {
-        # Here the user wants the NCBI taxonomy data. Get its directory.
-        $loader->CopyTaxonomy();
     } else {
         # Here we have a subsystem name.
         print "Loading single subsystem $command.\n";

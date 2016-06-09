@@ -288,6 +288,8 @@ sub new {
     }
     # Get the global output directory.
     $retVal->{otherDir} = "$repo/Other";
+    # Get the samples output directory.
+    $retVal->{sampleDir} = "$repo/Samples";
     # Save the missing-flag and the privilege levels.
     $retVal->{missing} = $opt->missing;
     $retVal->{privilege} = $opt->privilege;
@@ -1088,34 +1090,40 @@ sub IndexGenomes {
 
 =head2 Utility Methods
 
+=head3 taxRepo
 
-=head3 CopyTaxonomy
+    my $dir = $loader->taxRepo;
 
-    $loader->CopyTaxonomy();
-
-Copy the taxonomy files from the current SEED.
+Return the name of the directory to contain the taxonomy data. If the directory does not exist, it will
+be created.
 
 =cut
 
-sub CopyTaxonomy {
+sub taxRepo {
     my ($self) = @_;
-    # Insure we have the global output directory.
-    my $outDir = $self->{otherDir};
-    if (! -d $outDir) {
-        File::Copy::Recursive::pathmk($outDir);
+    my $retVal = $self->{otherDir};
+    if (! -d $retVal) {
+        File::Copy::Recursive::pathmk($retVal);
     }
-    # Compute the taxonomy file directory.
-    my $taxInDir = $self->{figDisk} . "/FIG/Data/Global/Taxonomy";
-    # Get all the taxonomy data files.
-    opendir(my $dh, $taxInDir) || die "Could not open taxonomy directory $taxInDir: $!";
-    my @taxFiles = grep { $_ =~ /\.dmp$/ } readdir $dh;
-    # Copy them to the output directory.
-    for my $taxFile (@taxFiles) {
-        print "Copying $taxFile.\n";
-        File::Copy::Recursive::fcopy("$taxInDir/$taxFile", $outDir);
-    }
+    return $self->{otherDir};
 }
 
+=head3 sampleRepo
+
+    my $dir = $loader->sampleRepo;
+
+Return the name of the directory to contain the sample data.
+
+=cut
+
+sub sampleRepo {
+    my ($self) = @_;
+    my $retVal = $self->{sampleDir};
+    if (! -d $retVal) {
+        File::Copy::Recursive::pathmk($retVal);
+    }
+    return $self->{sampleDir};
+}
 
 
 =head3 SetSEED
