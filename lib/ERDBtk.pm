@@ -5184,7 +5184,7 @@ sub _SingleTableHash {
         if (! $unchanged) {
             $value = encode($fieldData->{type}, $value);
         }
-        $retVal{$fieldData->{name}} = $value;
+        $retVal{$fieldData->{realName}} = $value;
     }
     # Return the result.
     return %retVal;

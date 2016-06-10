@@ -22,6 +22,8 @@ package Shrub::PostLoader;
     use warnings;
     use BasicLocation;
     use ERDBtk::ID::Counter;
+    use Bin;
+    use File::Copy::Recursive;
 
 =head1 Post-Processing Loader Utilities
 
@@ -273,6 +275,19 @@ sub SetUniRoles {
 
 =head3 LoadSamples
 
+    $pLoader->LoadSamples($sampleDir);
+
+Load the metagenomic samples from the specified sample directory. This currently does a full replace. At some future
+point it should be made smarter.
+
+=over 4
+
+=item sampleDir
+
+The Samples directory from the input repository.
+
+=back
+
 =cut
 
 sub LoadSamples {
@@ -288,6 +303,11 @@ sub LoadSamples {
         print "Creating $sampleODir.\n";
         File::Copy::Recursive::pathmk($sampleODir);
     }
+    # Prepare the tables.
+    print "Preparing tables.\n";
+    my @tables = qw(Bin Sample Bin2Function Bin2Reference ReferenceGenome Site Reference2Genome);
+    $loader->Clear(@tables);
+    $loader->Open(@tables);
     # The following hashes are used to track sites and reference genomes already in the database.
     my (%sites, %refGenomes);
     # Get all the projects in this repository.
@@ -301,7 +321,7 @@ sub LoadSamples {
         $stats->Add(sampleProjects => 1);
         # Get all the samples for this project.
         opendir(my $dh, $projDir) || die "Could not open project directory $projDir: $!";
-        my @samples = grep { substr($_, 0, 1) ne '.' && -d "$projDir/bins.rast.json" } readdir $dh;
+        my @samples = grep { substr($_, 0, 1) ne '.' && -f "$projDir/$_/bins.rast.json" } readdir $dh;
         closedir $dh;
         # Loop through them.
         for my $sample (@samples) {
@@ -318,7 +338,7 @@ sub LoadSamples {
             $ih = $loader->OpenFile(stats => "$projDir/$sample/stats.tbl");
             $fields = $loader->GetLine(stats => $ih);
             my ($contigCount, $dnaLetters, $n50) = @$fields;
-            $shrub->InsertObject('Sample', id => $sampleID, contigs => $contigCount, 'dna-size' => $dnaLetters, n50 => $n50,
+            $loader->InsertObject('Sample', id => $sampleID, contigs => $contigCount, 'dna-size' => $dnaLetters, n50 => $n50,
                 Site2Sample_link => $siteID);
             # Get the reference genomes.
             $ih = $loader->OpenFile(refGenomes => "$projDir/$sample/refs.tbl");
@@ -349,37 +369,44 @@ sub LoadSamples {
                 # We need to compute the bin's taxonomic grouping. This is the genus indicated by the bin name.
                 # The taxonomic ID in the bin object itself is a different one used for RAST guidance.
                 my ($genus) = split /\s+/, $name;
+                $genus =~ s/[\[()\]]//g;;
                 my ($taxID) = $shrub->GetFlat('TaxonomicGrouping', 'TaxonomicGrouping(scientific-name) = ?', [$genus], 'id');
-                die "Invalid genus $genus in bin.\n" if (! $taxID);
+                if (! $taxID) {
+                    print "Unknown genus $genus in bin $binID.\n";
+                    $stats->Add(badBinGenus => 1);
+                    $taxID = '';
+                }
                 # Compute the database ID for the bin.
                 my $dbID = "$sampleID.$binID";
                 # Create the GTO file.
                 my $gtoFile = "$dbID.gto";
                 print "Copying GTO file $gtoFile.\n";
-                File::Copy::Recursive("$projDir/$sample/bin$binID.gto", "$sampleODir/$gtoFile");
+                File::Copy::Recursive::fcopy("$projDir/$sample/bin$binID.gto", "$sampleODir/$gtoFile");
                 print "Storing bin in database.\n";
                 # Get the universal roles.
                 my $uniH = $bin->uniProts;
                 # Create the bin record.
-                $shrub->InsertObject('Bin', id => $dbID, contigs => $bin->contigCount, description => $name,
+                $loader->InsertObject('Bin', id => $dbID, contigs => $bin->contigCount, description => $name,
                         'dna-size' => $bin->len, Sample2Bin_link => $sampleID, Taxonomy2Bin_link => $taxID,
                         'gto-file-name' => $gtoFile, 'uni-roles' => scalar(keys %$uniH));
                 # Connect the universal roles.
                 for my $uni (keys %$uniH) {
                     my $count = $uniH->{$uni};
-                    $shrub->InsertObject('Bin2Function', 'from-link' => $dbID, 'to-link' => $uni, instances => $count);
+                    $loader->InsertObject('Bin2Function', 'from-link' => $dbID, 'to-link' => $uni, instances => $count);
                     $stats->Add(binFunctionConnected => 1);
                 }
                 # Connect the reference genomes.
                 my @refs = $bin->refGenomes;
                 for my $ref (@refs) {
-                    $shrub->InsertObject('Bin2Reference', 'from-link' => $dbID, 'to-link' => $ref);
+                    $loader->InsertObject('Bin2Reference', 'from-link' => $dbID, 'to-link' => $ref);
                     $stats->Add(binRefConnected => 1);
                 }
             }
         }
     }
-
+    # Unspool the files.
+    print "Unspooling sample tables.\n";
+    $loader->Close();
 }
 =head2 Internal Methods
 
