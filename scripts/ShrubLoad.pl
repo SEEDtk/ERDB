@@ -95,6 +95,14 @@ The maximum gap allowed between clustered features, in base pairs. The default i
 
 If specified, DNA will not be stored in the DNA repository.
 
+=item nodomains
+
+If specified, protein domains will not be loaded.
+
+=item nochem
+
+If specified, chemistry data will not be loaded.
+
 =back
 
 =cut
@@ -113,6 +121,8 @@ my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDBtk::Utils::init_opt
         ['maxgap|g=i', "maximum gap allowed between clustered features", { default => 2000 }],
         ['noDNA', "suppress use of the DNA repository"],
         ['notaxon', "suppress loading the taxonomy data"],
+        ['nodomains', "suppress loading the domains"],
+        ['nochem', "suppress loading the chemistry data"],
         [xmode => [["exclusive|X", "exclusive database access"], ["shared|S", "shared database access"]]],
         );
 # Find out what we are loading.
@@ -195,7 +205,10 @@ if ($cleared && $dnaRepo) {
 my %genomes;
 # Create the function and role loaders.
 print "Analyzing functions and roles.\n";
-my $roleMgr = Shrub::Roles->new($loader, slow => $slowFlag, exclusive => $exclusive);
+my $roleMgr;
+if ($genomesLoading || $subsLoading || ! $opt->nochem) {
+    $roleMgr = Shrub::Roles->new($loader, slow => $slowFlag, exclusive => $exclusive);
+}
 # We only need the function loader if we are loading genomes.
 my $funcMgr;
 if ($genomesLoading) {
@@ -293,10 +306,12 @@ if ($subsLoading) {
     }
 }
 # Load the chemistry data.
-print "Processing chemistry data.\n";
-my $chemLoader = Shrub::ChemLoader->new($loader, exclusive => $exclusive, slow => $slowFlag,
-        roleMgr => $roleMgr, repo => $repo);
-$chemLoader->Process();
+if (! $opt->nochem) {
+    print "Processing chemistry data.\n";
+    my $chemLoader = Shrub::ChemLoader->new($loader, exclusive => $exclusive, slow => $slowFlag,
+            roleMgr => $roleMgr, repo => $repo);
+    $chemLoader->Process();
+}
 # Close and upload the load files.
 print "Unspooling load files.\n";
 $loader->Close();
@@ -372,42 +387,44 @@ if (-d "$repo/Samples") {
 } 
 
 # Finally, the domains. These are loaded from a global file.
-print "Processing domains.\n";
-# Set up to load the domain tables.
-my @dtables = qw(CddDomain Domain2Protein Domain2Role);
-if (! $cleared) {
-    $loader->Clear(@dtables);
-}
-$loader->Open(@dtables);
 # This will track the domains loaded.
 my %domains;
-# There are used for input.
-my ($fields, $dh);
-# Process the role/domain file.
-print "Connecting domains to roles.\n";
-$dh = $loader->OpenFile(role_domains => "$repo/Other/roles_cdd.tbl");
-while ($fields = $loader->GetLine(role_domains => $dh)) {
-    my ($roleID, $domains) = @$fields;
-    my @domains = split /,/, $domains;
-    for my $domain (@domains) {
-        DomainCheck($domain);
-        $loader->InsertObject('Domain2Role', 'from-link' => $domain, 'to-link' => $roleID);
+if (! $opt->nodomains) {
+    print "Processing domains.\n";
+    # Set up to load the domain tables.
+    my @dtables = qw(CddDomain Domain2Protein Domain2Role);
+    if (! $cleared) {
+        $loader->Clear(@dtables);
     }
-}
-close $dh;
-# Process the protein/domain file.
-print "Connecting domains to proteins.\n";
-$dh = $loader->OpenFile(prot_domains => "$repo/Other/peg_md5_cdd.tbl");
-while ($fields = $loader->GetLine(prot_domains => $dh)) {
-    my (undef, $prot, $domains) = @$fields;
-    my @domains = split /;/, $domains;
-    for my $domain (@domains) {
-        DomainCheck($domain);
-        $loader->InsertObject('Domain2Protein', 'from-link' => $domain, 'to-link' => $prot);
+    $loader->Open(@dtables);
+    # There are used for input.
+    my ($fields, $dh);
+    # Process the role/domain file.
+    print "Connecting domains to roles.\n";
+    $dh = $loader->OpenFile(role_domains => "$repo/Other/roles_cdd.tbl");
+    while ($fields = $loader->GetLine(role_domains => $dh)) {
+        my ($roleID, $domains) = @$fields;
+        my @domains = split /,/, $domains;
+        for my $domain (@domains) {
+            DomainCheck($domain);
+            $loader->InsertObject('Domain2Role', 'from-link' => $domain, 'to-link' => $roleID);
+        }
     }
+    close $dh;
+    # Process the protein/domain file.
+    print "Connecting domains to proteins.\n";
+    $dh = $loader->OpenFile(prot_domains => "$repo/Other/peg_md5_cdd.tbl");
+    while ($fields = $loader->GetLine(prot_domains => $dh)) {
+        my (undef, $prot, $domains) = @$fields;
+        my @domains = split /;/, $domains;
+        for my $domain (@domains) {
+            DomainCheck($domain);
+            $loader->InsertObject('Domain2Protein', 'from-link' => $domain, 'to-link' => $prot);
+        }
+    }
+    # Unspool domains.
+    $loader->Close();
 }
-# Unspool domains.
-$loader->Close();
 # Compute the total time.
 my $timer = time - $startTime;
 $stats->Add(totalTime => $timer);

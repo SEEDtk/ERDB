@@ -260,15 +260,15 @@ sub Insure {
     my $retVal;
     # Get the statistics and Shrub objects.
     my $stats = $self->stats;
-    my $shrub = $self->db;
     # Check the cache.
     if ($cache->{$id}) {
         $stats->Add("$entity-found" => 1);
     } else {
         # We need to insert.
-        $shrub->InsertObject($entity, { id => $id, %fields }, dup => 'replace');
+        $self->InsertObject($entity, id => $id, %fields);
         $stats->Add("$entity-inserted" => 1);
         $retVal = 1;
+        $cache->{$id} = 1;
     }
     # Return the insertion indicator.
     return $retVal;

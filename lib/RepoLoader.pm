@@ -390,6 +390,7 @@ sub ExtractRepo {
     # Clear the target directory.
     print "Erasing $targetDir.\n";
     File::Copy::Recursive::pathempty($targetDir);
+    print "Extracting archive.\n";
     # Create an iterator through the archive.
     my $next = Archive::Tar->iter($sourceFile, COMPRESS_GZIP);
     while (my $file = $next->()) {
@@ -398,14 +399,20 @@ sub ExtractRepo {
         } else {
             # Here we have a file in the archive. Check its name.
             $stats->Add(archiveFile => 1);
+            my $fname = $file->name;
             if ($file->name =~ /((?:GenomeData|SubSystemData|ModelSEED|Other|Samples).+)/) {
-                # Compute the new file name.
-                my $newName = join("/", $targetDir, DenormalizedName($1));
-                # Extract the file.
-                my $ok = $file->extract($newName);
-                $stats->Add(archiveFileExtracted => 1);
-                if (! $ok) {
-                    die "Error extracting into $newName.";
+                my $partialName = $1;
+                if ($partialName =~ /\.git/) {
+                    $stats->Add(archiveGitSkip => 1);
+                } else {
+                    # Compute the new file name.
+                    my $newName = join("/", $targetDir, DenormalizedName($partialName));
+                    # Extract the file.
+                    my $ok = $file->extract($newName);
+                    $stats->Add(archiveFileExtracted => 1);
+                    if (! $ok) {
+                        die "Error extracting into $newName.";
+                    }
                 }
             } else {
                 $stats->Add(archiveFileSkipped => 1);
@@ -459,6 +466,8 @@ sub CopyTaxonomy {
             $stats->Add(taxFileAcquired => 1);
         }
     }
+    # Remove the TAR file to save space in the repo.
+    unlink "$outDir/taxdump.tar.gz";
 }
 
 =head3 CopySamples
@@ -579,6 +588,8 @@ sub CopySamples {
                 undef $oh;
                 open($oh, ">$sampleODir/stats.tbl") || die "Could not open stats.tbl for $sample: $!";
                 print $oh "$contigs\t$dnaLetters\t$n50\n";
+                close $oh;
+                print "stats.tbl created.\n";
             }
         }
     }
