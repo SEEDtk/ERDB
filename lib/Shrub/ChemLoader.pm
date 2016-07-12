@@ -234,9 +234,12 @@ sub RefreshFiles {
         if (grep { $_ =~ /fatal:\s+(.+)/ } @output) {
             die "Error retrieving ModelSEEDDatabase: $1";
         }
+    } elsif (! -d "$repoDir/.git") {
+        # Directory is a copy. Skip it.
+        print "ModelSEED repo is a copy.\n";
     } else {
         # Directory found, refresh it.
-        print "Pulling ModeSEED repo.\n";
+        print "Pulling ModelSEED repo.\n";
         chdir $repoDir;
         my @output = `git pull`;
         if (grep { $_ =~ /conflict/ } @output) {
