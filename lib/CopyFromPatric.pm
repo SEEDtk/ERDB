@@ -382,10 +382,13 @@ sub WriteFeatureData {
     # Get the feature ID and function.
     my $id = $feature->{id};
     my $fun = $feature->{function};
-    # Get the location string.
-    my $locString = join(",", @{$feature->{location}});
-    # Write the feature line.
-    $self->PutLine($feature->{type} => $oh, $id, $locString, $fun);
+    # Only proceed if we have a function.
+    if (defined $fun) {
+        # Get the location string.
+        my $locString = join(",", @{$feature->{location}});
+        # Write the feature line.
+        $self->PutLine($feature->{type} => $oh, $id, $locString, $fun);
+    }
 }
 
 
