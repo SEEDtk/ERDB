@@ -24,6 +24,7 @@ use CopyFromSeed;
 use ScriptUtils;
 use File::Copy::Recursive;
 use Shrub::ChemLoader;
+use CopyFromPatric;
 
 =head1 Copy Data From one or more SEED FIGdisks to Create an Input Repository
 
@@ -84,9 +85,27 @@ to be a subsystem name.
 
 =back
 
+You can also specify genomes to be loaded from PATRIC. To do this, start with a header line
+containing the following fields.
+
+=over 4
+
+=item 1
+
+The command word C<+PATRIC>.
+
+=item 2
+
+The privilege level to assign-- C<0> (public), C<1> (projected), or C<2> (core). This
+defaults to the privilege level specified in the C<--privilege> command-line option.
+
+=back
+
+Each subsequent line should contain a SEED-style genome ID.
+
 This allows a fairly flexible load from multiple sources.
 
-In addition to the SEED specifications, there are the following special commands.
+In addition to the SEED and PATRIC specifications, there are the following special commands.
 
 =over 4
 
@@ -136,12 +155,11 @@ if ($opt->clear) {
             die "Error clearing $sampleDir: $!";
     }
 }
-# Denote we don't have a SEED yet.
-my $inSEED = 0;
+# Get the first line.
+my $line = <$ih>;
 # Loop through the input file.
-while (! eof $ih) {
-    my $line = <$ih>;
-    chomp $line;
+while (defined $line) {
+    $line =~ s/[\r\n]+$//;
     $stats->Add(commandLines => 1);
     my ($command, @parms) = split /\t/, $line;
     # Determine the purpose of this line.
@@ -155,15 +173,58 @@ while (! eof $ih) {
         # Default the privilege to 0.
         $priv //= $opt->privilege;
         # Tell the helper (and the user) about this SEED.
-        my $mode = ($inSEED ? "Switching to" : "Copying from");
-        print "$mode level-$priv SEED at $figDisk.\n";
+        print "Copying from level-$priv SEED at $figDisk.\n";
         $loader->SetSEED($figDisk, $priv);
-        # Denote we're in a SEED.
-        $inSEED = 1;
+        # Loop through the SEED commands.
+        my $done;
+        while (! eof $ih && ! $done) {
+            $line = <$ih>;
+            $stats->Add(subCommandLines => 1);
+            if (! defined $line || substr($line, 0, 1) eq '+') {
+                # Here we have a new section.
+                $done = 1;
+            } else {
+                $line =~ s/[\r\n]+$//;
+                if ($line eq '*Subsystems') {
+                    # Here the user wants to load all subsystems.
+                    my $subList = $loader->ComputeSubsystems();
+                    # Loop through the subsystems, loading them.
+                    print "Processing subsystems.\n";
+                    my ($count, $total) = (0, scalar @$subList);
+                    for my $sub (@$subList) {
+                        $count++;
+                        print "Loading subsystem $count of $total.\n";
+                        $loader->CopySubsystem($sub);
+                    }
+                } elsif ($line eq '*Genomes') {
+                    # Here the user wants to load all genomes.
+                    my $genomeList = $loader->AllGenomes();
+                    # Loop through the genomes, loading them.
+                    print "Processing genomes.\n";
+                    my($count, $total) = (0, scalar @$genomeList);
+                    for my $genome (@$genomeList) {
+                        $count++;
+                        print "Loading genome $count of $total.\n";
+                        $loader->CopyGenome($genome);
+                    }
+                } elsif ($line =~ /^(\d+\.\d+)/) {
+                    # Here the user wants to load a single genome.
+                    my $genome = $1;
+                    print "Loading single genome $genome.\n";
+                    $loader->CopyGenome($genome);
+                } else {
+                    # Here we have a subsystem name.
+                    print "Loading single subsystem $line.\n";
+                    my $dirName = $loader->CheckSubsystem($line);
+                    if ($dirName) {
+                        $loader->CopySubsystem($dirName);
+                    }
+                }
+            }
+        }
     } elsif ($command eq '+Taxonomy') {
         # Here we have a request to download taxonomy data.
         $loader->CopyTaxonomy($loader->taxRepo());
-        $inSEED = 0;
     } elsif ($command eq '+Samples') {
         # Here we have a sample directory.
         my ($sampleDir) = @parms;
@@ -173,48 +234,37 @@ while (! eof $ih) {
         } elsif (! -d $sampleDir) {
             die "Invalid sample directory $sampleDir.";
         } else {
+            # Upload the samples.
             print "Sample directory $sampleDir selected.\n";
             $loader->CopySamples($sampleDir, $loader->sampleRepo());
         }
-    } elsif (! $inSEED) {
-        # Other commands require a SEED be selected.
-        die "You must select a SEED before issuing other commands.";
-    } elsif ($command eq '*Subsystems') {
-        # Here the user wants to load all subsystems.
-        my $subList = $loader->ComputeSubsystems();
-        # Loop through the subsystems, loading them.
-        print "Processing subsystems.\n";
-        my ($count, $total) = (0, scalar @$subList);
-        for my $sub (@$subList) {
-            $count++;
-            print "Loading subsystem $count of $total.\n";
-            $loader->CopySubsystem($sub);
+    } elsif ($command eq '+PATRIC') {
+        # Get the privilege.
+        my ($priv) = @parms;
+        $priv //= $opt->privilege;
+        # Create the PATRIC helper.
+        print "Copying from level-$priv PATRIC.\n";
+        my $ploader = CopyFromPatric->new($opt);
+        my $done;
+        while (! eof $ih && ! $done) {
+            $line = <$ih>;
+            $stats->Add(subCommandLines => 1);
+            if (! defined $line || substr($line, 0, 1) eq '+') {
+                # Here we have a new section.
+                $done = 1;
+            } elsif ($line =~ /^(\d+\.\d+)/) {
+                my $genome = $1;
+                # Copy the genome.
+                print "Copying PATRIC genome $genome.\n";
+                $ploader->CopyGenome($genome);
+            }
         }
-    } elsif ($command eq '*Genomes') {
-        # Here the user wants to load all genomes.
-        my $genomeList = $loader->AllGenomes();
-        # Loop through the genomes, loading them.
-        print "Processing genomes.\n";
-        my($count, $total) = (0, scalar @$genomeList);
-        for my $genome (@$genomeList) {
-            $count++;
-            print "Loading genome $count of $total.\n";
-            $loader->CopyGenome($genome);
-        }
-    } elsif ($command =~ /^\d+\.\d+$/) {
-        # Here the user wants to load a single genome.
-        print "Loading single genome $command.\n";
-        $loader->CopyGenome($command);
-    } else {
-        # Here we have a subsystem name.
-        print "Loading single subsystem $command.\n";
-        my $dirName = $loader->CheckSubsystem($command);
-        if ($dirName) {
-            $loader->CopySubsystem($dirName);
-        }
+        # Roll up the statistics.
+        $stats->Accumulate($ploader->stats);
     }
+    $line = <$ih>;
 }
-# If we have genome output, create the genome index.
+# Create the genome index.
 $loader->IndexGenomes();
 # Compute the total time.
 my $timer = time - $startTime;

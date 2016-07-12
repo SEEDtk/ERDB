@@ -30,7 +30,7 @@ package CopyFromSeed;
 
 =head1 CopyFromSeed Helper Object
 
-This is a helper object that manages the data structures needed by L<CopyFromSeed.pl>.
+This is a helper object that manages the data structures needed by L<BuildRepo.pl>.
 Rather than pass dozens of parameters to each major subroutine, we simply pass around
 this object. It contains the following fields.
 
@@ -260,13 +260,8 @@ sub new {
     my $repo = $opt->repo;
     my $genomeOption = "$repo/GenomeData";
     $retVal->{genomeOutput} = $genomeOption;
-    # Get the repository's current genome index. Note we need to take special precautions if we're
-    # planning to clear.
-    if ($opt->clear) {
-        $retVal->{genomeIndex} = {};
-    } else {
-        $retVal->{genomeIndex} = $retVal->FindGenomeList($genomeOption);
-    }
+    # Clear the genome index.
+    $retVal->{genomeIndex} = {};
     # Determine if we're loading genomes at all. Note that the genomes option may not exist,
     # so we have to use a hash reference on $opt instead of a member reference.
     $retVal->{genomesOK} = ($opt->{genomes} && $opt->{genomes} ne 'none');
@@ -1160,6 +1155,8 @@ sub SetSEED {
     $self->{privilege} = $privilege;
     $self->{subPriv} = ($privilege == Shrub::PRIV ? 1 : 0);
     $stats->Add(coreSeeds => $self->{subPriv});
+    # Refresh the genome index.
+    $self->{genomeIndex} = $self->FindGenomeList($self->{genomeOutput});
     # Clear the tracking hashes.
     $self->{genomesProcessed} = {};
     $self->{genomeNames} = {};
