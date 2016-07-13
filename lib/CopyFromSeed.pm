@@ -607,7 +607,7 @@ sub genome_repo {
 
 =head3 CopyGenome
 
-    $loader->CopyGenome($genome);
+    $loader->CopyGenome($genome, $dir);
 
 Extract a genome from the SEED and copy it to the output repository. If
 the genome has already been copied, do nothing.
@@ -618,13 +618,17 @@ the genome has already been copied, do nothing.
 
 ID of the genome to copy.
 
+=item dir
+
+If specified, the name of the directory from which to load the genome.
+
 =back
 
 =cut
 
 sub CopyGenome {
     # Get the parameters.
-    my ($self, $genome) = @_;
+    my ($self, $genome, $dir) = @_;
     # Get the statistics object.
     my $stats = $self->stats;
     # Get the command-line options.
@@ -644,7 +648,7 @@ sub CopyGenome {
         $stats->Add('genome-suppressed' => 1);
     } else {
         # Compute the genome input directory.
-        my $genomeDir = "$self->{figDisk}/FIG/Data/Organisms/$genome";
+        my $genomeDir = $dir // "$self->{figDisk}/FIG/Data/Organisms/$genome";
         # Get the genome name.
         my $genomeName = $self->GenomeName($genome);
         if (! -d $genomeDir) {
@@ -903,7 +907,7 @@ sub ReadFunctions {
     # Declare the return variable.
     my %retVal;
     # Loop through the three function files, in order.
-    for my $file (qw(proposed_no_ff_functions proposed_functions assigned_functions)) {
+    for my $file (qw(assigned_functions proposed_no_ff_functions proposed_functions)) {
         # Only proceed if the current file type exists.
         my $fileName = "$genomeDir/$file";
         if (-f $fileName) {
@@ -912,9 +916,6 @@ sub ReadFunctions {
             # wins.
             while (! eof $ih) {
                 my $fidData = $self->GetLine($file => $ih);
-                if ($fidData->[0] eq 'fig|1120924.3.peg.1475') {
-                    print STDERR "Replacing $fidData->[0]\n";
-                }
                 $retVal{$fidData->[0]} = $fidData->[1];
             }
         }
@@ -1151,6 +1152,30 @@ sub SetSEED {
     # Store it in our data structures.
     $self->{figDisk} = $figDisk;
     $stats->Add(figDisks => 1);
+    # Reset the statistics and hashes.
+    $self->Reset($stats, $privilege);
+}
+
+=head3 Reset
+
+    $loader->Reset($privilege);
+
+Set up this object for another run through SEED genome directories.
+
+=over 4
+
+=item privilege
+
+The privilege level associated with the forthcoming annotations and subsystems.
+
+=back
+
+=cut
+
+sub Reset {
+    my ($self, $privilege) = @_;
+    # Get the statistics object.
+    my $stats = $self->stats;
     # Store the privilege level.
     $self->{privilege} = $privilege;
     $self->{subPriv} = ($privilege == Shrub::PRIV ? 1 : 0);
