@@ -650,7 +650,7 @@ sub CopyGenome {
         # Compute the genome input directory.
         my $genomeDir = $dir // "$self->{figDisk}/FIG/Data/Organisms/$genome";
         # Get the genome name.
-        my $genomeName = $self->GenomeName($genome);
+        my $genomeName = $self->GenomeName($genome, $dir);
         if (! -d $genomeDir) {
             # Here the genome simply isn't in the SEED.
             print "Genome $genome not found in SEED-- skipped.\n";
@@ -946,7 +946,7 @@ sub AllGenomes {
 
 =head3 GenomeName
 
-    my $genomeName = $self->GenomeName($genome);
+    my $genomeName = $self->GenomeName($genome, $dir);
 
 Determine the name of the genome with the specified ID. This might
 require reading it from the input organism directory or looking it up in
@@ -958,6 +958,10 @@ a hash.
 
 ID of the genome whose name is desired.
 
+=item dir (optional)
+
+The directory containing the genome data.
+
 =item RETURN
 
 Returns the genome name, or C<undef> if the genome cannot be found.
@@ -968,7 +972,7 @@ Returns the genome name, or C<undef> if the genome cannot be found.
 
 sub GenomeName {
     # Get the parameters.
-    my ($self, $genome) = @_;
+    my ($self, $genome, $dir) = @_;
     # Get the genome name hash.
     my $nameHash = $self->{genomeNames};
     # Have we looked at this genome before? (NOTE we use
@@ -977,7 +981,8 @@ sub GenomeName {
     if (! exists $nameHash->{$genome}) {
         # No, we have to read its flag file. If the genome does not
         # exist, the flag file method will return undef.
-        my $name = ReadFlagFile("$self->{figDisk}/FIG/Data/Organisms/$genome/GENOME");
+        $dir //= "$self->{figDisk}/FIG/Data/Organisms/$genome";
+        my $name = ReadFlagFile("$dir/GENOME");
         $self->stats->Add(genomeNameRead => 1);
         if (! $name) {
             # The genome is not in the input. Do we already have it in the repository?
