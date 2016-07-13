@@ -103,9 +103,41 @@ defaults to the privilege level specified in the C<--privilege> command-line opt
 
 Each subsequent line should contain a SEED-style genome ID.
 
-This allows a fairly flexible load from multiple sources.
+Similarly, you can load from a RAST instance. To do this, start with a header line
+containing the following fields.
 
-In addition to the SEED and PATRIC specifications, there are the following special commands.
+=over 4
+
+=item 1
+
+The command word C<+RAST>.
+
+=item 2
+
+The root job directory of the RAST instance (e.g. C</vol/rast-prod/jobs>).
+
+=item 3
+
+The privilege level to assign-- C<0> (public), C<1> (projected), or C<2> (core). This
+defaults to the privilege level specified in the C<--privilege> command-line option.
+
+=back
+
+Each subsequent line should have two fields.
+
+=over 4
+
+=item 1
+
+The genome ID (SEED-style).
+
+=item 2
+
+The RAST job number.
+
+=back
+
+In addition to the SEED, RAST, and PATRIC specifications, there are the following special commands.
 
 =over 4
 
@@ -257,10 +289,39 @@ while (defined $line) {
                 # Copy the genome.
                 print "Copying PATRIC genome $genome.\n";
                 $ploader->CopyGenome($genome);
+            } else {
+                print "Invalid PATRIC input line: $line";
+                $stats->Add(badInput => 1);
             }
         }
         # Roll up the statistics.
         $stats->Accumulate($ploader->stats);
+    } elsif ($command eq '+RAST') {
+        # Get the RAST directory and privilege level.
+        my ($rastDir, $priv) = @parms;
+        $priv //= $opt->privilege;
+        # Reset the loader.
+        $loader->Reset($priv);
+        print "Copying from level-$priv RAST at $rastDir.\n";
+        $stats->Add(rastInstances => 1);
+        # Loop through the genomes.
+        my $done;
+        while (! eof $ih && ! $done) {
+            $line = <$ih>;
+            $stats->Add(subCommandLines => 1);
+            if (! defined $line || substr($line, 0, 1) eq '+') {
+                # Here we have a new section.
+                $done = 1;
+            } elsif ($line =~ /^(\d+\.\d+)\t(\d+)/) {
+                my ($genome, $job) = ($1, $2);
+                # Copy the genome.
+                print "Copying RAST genome $genome.\n";
+                $loader->CopyGenome($genome, "$rastDir/$job/rp/$genome");
+            } else {
+                print "Invalid RAST input line: $line";
+                $stats->Add(badInput => 1);
+            }
+        }
     }
     $line = <$ih>;
 }
