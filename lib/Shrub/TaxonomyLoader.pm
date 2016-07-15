@@ -306,7 +306,7 @@ sub LoadTaxonomies {
         # Create the taxonomy group record.
         $loader->InsertObject('TaxonomicGrouping', id => $taxID, domain => $domain, hidden => $hidden,
                'scientific-name' => $name, IsTaxonomicGroupOf_link => $parent,
-               alias => $aliases);
+               alias => $aliases, type => $type);
     }
 }
 
