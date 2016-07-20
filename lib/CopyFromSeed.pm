@@ -1158,7 +1158,7 @@ sub SetSEED {
     $self->{figDisk} = $figDisk;
     $stats->Add(figDisks => 1);
     # Reset the statistics and hashes.
-    $self->Reset($stats, $privilege);
+    $self->Reset($privilege);
 }
 
 =head3 Reset
