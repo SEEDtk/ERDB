@@ -324,6 +324,10 @@ while (defined $line) {
                 $stats->Add(badInput => 1);
             }
         }
+    } else {
+        print "ERROR: Unknown command $command.\n";
+        $stats->Add(badCommands => 1);
+        $line = <$ih>;
     }
 }
 # Create the genome index.
