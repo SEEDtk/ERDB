@@ -298,7 +298,7 @@ sub LoadSamples {
     my $shrub = $loader->db;
     my $stats = $loader->stats;
     # Insure the output directory for the bins exists.
-    my $sampleODir = $FIG_Config::shrub_samples;
+    my $sampleODir = $FIG_Config::shrub_sample;
     if (! -d $sampleODir) {
         print "Creating $sampleODir.\n";
         File::Copy::Recursive::pathmk($sampleODir);
