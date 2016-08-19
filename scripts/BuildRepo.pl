@@ -257,6 +257,7 @@ while (defined $line) {
     } elsif ($command eq '+Taxonomy') {
         # Here we have a request to download taxonomy data.
         $loader->CopyTaxonomy($loader->taxRepo());
+        $line = <$ih>;
     } elsif ($command eq '+Samples') {
         # Here we have a sample directory.
         my ($sampleDir) = @parms;
@@ -270,6 +271,7 @@ while (defined $line) {
             print "Sample directory $sampleDir selected.\n";
             $loader->CopySamples($sampleDir, $loader->sampleRepo());
         }
+        $line = <$ih>;
     } elsif ($command eq '+PATRIC') {
         # Get the privilege.
         my ($priv) = @parms;
@@ -322,8 +324,11 @@ while (defined $line) {
                 $stats->Add(badInput => 1);
             }
         }
+    } else {
+        print "ERROR: Unknown command $command.\n";
+        $stats->Add(badCommands => 1);
+        $line = <$ih>;
     }
-    $line = <$ih>;
 }
 # Create the genome index.
 $loader->IndexGenomes();
