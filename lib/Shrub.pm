@@ -810,7 +810,7 @@ sub row_to_pegs {
 
 =head3 desc_to_function
 
-    my $funcID = Shrub::Functions::desc_to_function($function);
+    my $funcID = $shrub->desc_to_function($function);
 
 Return the function ID associated with a function description, or C<undef> if the function is ill-formed
 or contains roles not in the database.
@@ -1056,7 +1056,7 @@ sub genome_fasta {
 
     my $uniRoleH = $shrub->GetUniRoles();
 
-Return a reference to a hash mapping the ID of each universal role (which is actually a 
+Return a reference to a hash mapping the ID of each universal role (which is actually a
 function) to its description.
 
 =cut
@@ -1210,7 +1210,7 @@ sub taxonomy_of {
     # Compute the field list. The first field is the ID, the second is the field being returned,
     # the third is the domain flag (TRUE when we want to stop) and the hidden-level flag (TRUE if
     # we want to hide the level).
-    my $fields = 'TaxonomicGrouping(id) TaxonomicGrouping(' . ($options{ids} ? 'id' : 'scientific-name') . 
+    my $fields = 'TaxonomicGrouping(id) TaxonomicGrouping(' . ($options{ids} ? 'id' : 'scientific-name') .
             ') TaxonomicGrouping(domain) TaxonomicGrouping(hidden)';
     # Get the taxonomy ID for this genome.
     my ($taxData) = $self->GetAll('Genome2Taxonomy TaxonomicGrouping', 'Genome2Taxonomy(from-link) = ?', [$genomeID], $fields);
@@ -1235,7 +1235,7 @@ sub taxonomy_of {
     }
     # Return the taxonomy list.
     return @retVal;
-} 
+}
 
 
 =head2 Query Methods
