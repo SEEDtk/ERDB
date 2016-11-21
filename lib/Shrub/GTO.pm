@@ -59,11 +59,14 @@ sub new {
     my ($name, $domain, $gc) = $shrub->GetEntityValues(Genome => $genomeID, 'name domain genetic-code');
     # Only proceed if we found the genome.
     if ($name) {
+        # Compute the taxonomy ID.
+        my ($taxonID) = $shrub->GetFlat('Genome2Taxonomy', 'Genome2Taxonomy(from-link) = ?', [$genomeID], 'to-link');
         # Create a blank GTO.
         $retVal = GenomeTypeObject::new($class);
         # Fill in the base data.
         $retVal->set_metadata({ id => $genomeID, scientific_name => $name, domain => $domain,
-                genetic_code => $gc, source => 'Shrub', source_id => $genomeID });
+                genetic_code => $gc, source => 'Shrub', source_id => $genomeID,
+                ncbi_taxonomy_id => $taxonID });
         # Get the contigs.
         my $contigs = Shrub::Contigs->new($shrub, $genomeID);
         my @contigHashes = map { { id => $_->[0], dna => $_->[2] } } $contigs->tuples;
