@@ -684,7 +684,7 @@ sub CopyGenome {
             } else {
                 $domain = 'unknown';
             }
-            my $prokFlag = ($domain =~ /^(?:Archaea|Bacteria)/) || 0;
+            my $prokFlag = ($domain =~ /^(?:Archaea|Bacteria)/ ? 1 : 0);
             if ($opt->{proks} && ! $prokFlag) {
                 # Here we are only loading proks and this isn't one, so we
                 # skip it.
