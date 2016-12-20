@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="http://pubseed.theseed.org/FIG/Html/ERDBtk_DBD.xsd">
+    <Title>AMR Variations Database</Title>
+    <Notes>[p]This database tracks DNA variation sets for roles that
+        differentiate between drug-susceptible and drug-resistant
+        pathogens. A [i]variation[/i] in this context is a DNA column
+        that varies between features for a specified role. A [i]variation
+        set[/i] is a group of related variations. A variation set can therefore
+        be thought of as a matrix where each row is a particular feature and
+        each column is a variation (corresponding to a DNA location in the role
+        alignment). We want to determine which rows of the matrix indicate drug
+        resistance and which indicate susceptibility so that this information can
+        be used to estimate the resistance phenotype for new genomes.[/p]
+        [p]The diagram colors indicate the general category of data.[/p]
+        [list]
+        [b]Red[/b]
+        Genome group: includes genomes and features.[*]
+        [b]Blue[/b]
+        Annotation group: includes the roles, variations, and variation
+        sets.[*]
+        [b]Green[/b] Drug group: includes drugs and phenotypes.[*]
+        [/list]
+    </Notes>
+    <Regions>
+    </Regions>
+    <Diagram height="800" width="800" ratio="0.7" size="90"
+        fontSize="12" editable="0" />
+    <Entities>
+        <Entity name="Genome" keyType="short-string" default="id name">
+            <DisplayInfo theme="red">
+                <RegionInfo name="" col="1" row="1" />
+            </DisplayInfo>
+            <Notes>A genome represents a specific organism with DNA. All
+            features in the database belong to genomes.
+            </Notes>
+            <Fields>
+                <Field name="name" type="string">
+                    <Notes>Full genus/species/strain name of the genome, occasionally
+                        containing notes from the uploader.
+                    </Notes>
+                </Field>
+                <Field name="domain" type="string">
+                    <Notes>Domain for this genome-- Eukaryota, Archaea, Bacteria, etc.</Notes>
+                </Field>
+            </Fields>
+            <Indexes>
+                <Index>
+                    <Notes>This index allows searching for genomes by name.</Notes>
+                    <IndexFields>
+                        <IndexField name="name" order="ascending" />
+                    </IndexFields>
+                </Index>
+            </Indexes>
+        </Entity>
+        <Entity name="Feature" keyType="string" default="id">
+            <DisplayInfo theme="red">
+                <RegionInfo name="" col="3" row="3" />
+            </DisplayInfo>
+            <Notes>A feature (sometimes also called a gene) is a part of a
+                genome that is of special interest. Features may be spread across
+                multiple DNA sequences (contigs) of a genome, but never across more
+                than one genome. Each feature in the database has a unique FIG
+                ID that functions as its ID in this table.
+            </Notes>
+            <Fields>
+                <Field name="feature-type" type="short-string">
+                    <Notes>Code indicating the type of this feature. Among the
+                        codes currently supported are "peg" for a protein encoding
+                        gene, "bs" for a binding site, "opr" for an operon, and so
+                        forth.
+                    </Notes>
+                </Field>
+                <Field name="sequence" type="long-string">
+                    <Notes>DNA sequence of this feature. This is used to generate alignments
+                    for roles.</Notes>
+                </Field>
+            </Fields>
+        </Entity>
+        <Entity name="Role" keyType="short-string" default="id description ec-number">
+            <DisplayInfo theme="blue">
+                <RegionInfo name="" row="5" col="3" />
+            </DisplayInfo>
+            <Notes>A role represents a single effect of a protein in a cell. The
+                fundamental purpose of annotation is to assign roles to proteins.
+                The collection of roles (often only one) associated with a feature
+                is the feature's function. Each role is assigned a short string key.
+            </Notes>
+            <Fields>
+                <Field name="description" type="long-string">
+                    <Notes>textual description of the role</Notes>
+                </Field>
+                <Field name="ec-number" type="string">
+                    <Notes>EC number of this role (if any)</Notes>
+                </Field>
+                <Field name="tc-number" type="string">
+                    <Notes>transporter classification of this role (if any)</Notes>
+                </Field>
+                <Field name="hypo" type="boolean">
+                    <Notes>TRUE if this is a hypothetical role, else FALSE</Notes>
+                </Field>
+                <Field name="checksum" type="hash-string">
+                    <Notes>Checksum for this role. The role is first normalized by converting
+                    it to lower case and removing extra spaces, EC numbers, and TC numbers. Then
+                    an MD5 is computed.</Notes>
+                </Field>
+            </Fields>
+            <Indexes>
+                <Index unique="1">
+                    <Notes>This index allows searching for roles by the checksum string.</Notes>
+                    <IndexFields>
+                        <IndexField name="checksum" order="ascending" />
+                    </IndexFields>
+                </Index>
+                <Index>
+                    <Notes>This index allows searching through roles by EC number.
+                    </Notes>
+                    <IndexFields>
+                        <IndexField name="ec-number" order="ascending" />
+                    </IndexFields>
+                </Index>
+                <Index>
+                    <Notes>This index allows searching through roles by TC number.
+                    </Notes>
+                    <IndexFields>
+                        <IndexField name="tc-number" order="ascending" />
+                    </IndexFields>
+                </Index>
+                <Index>
+                    <Notes>This index allows searching through roles by text. It can be
+                        used with LIKE-style queries to find similar roles.
+                    </Notes>
+                    <IndexFields>
+                        <IndexField name="description" order="ascending" />
+                    </IndexFields>
+                </Index>
+            </Indexes>
+        </Entity>
+        <Entity name="Variation" keyType="short-string" default="id position">
+            <DisplayInfo theme="blue">
+                <RegionInfo name="" row="5" col="5" />
+            </DisplayInfo>
+            <Notes>A variation is column in the alignment of a role believed to
+            be significant in drug resistance. The ID is the role ID followed by
+            a period and the column number.
+            </Notes>
+            <Fields>
+                <Field name="position" type="int">
+                    <Notes>ordinal position (1-based) of the alignment column</Notes>
+                </Field>
+            </Fields>
+        </Entity>
+        <Entity name="VariationSet" keyType="short-string" default="id">
+            <DisplayInfo theme="blue">
+                <RegionInfo name="" row="3" col="5" />
+            </DisplayInfo>
+            <Notes>A variation set is a group of variations. The DNA values of a feature
+            for all the columns in a variation set are believed to determine the drug phenotype
+            of the feature. The ID is an MD5 of the parent role ID followed by the column
+            numbers in sequence.
+            </Notes>
+        </Entity>
+        <Entity name="Drug" keyType="string" default="id">
+            <DisplayInfo theme="green">
+                <RegionInfo name="" row="1" col="5" />
+            </DisplayInfo>
+            <Notes>A drug is a named therapeutic drug. The purpose of the database is to study
+            which organisms are susceptible to various drugs and which are resistant. The ID is
+            an MD5 of the drug name.</Notes>
+            <Fields>
+                <Field name="name" type="long-string">
+                    <Notes>This is the official name of the drug.</Notes>
+                </Field>
+            </Fields>
+            <Indexes>
+                <Index unique="1">
+                    <Notes>This index allows searching through drugs by name.</Notes>
+                    <IndexFields>
+                        <IndexField name="name" order="ascending" />
+                    </IndexFields>
+                </Index>
+            </Indexes>
+        </Entity>
+        <Entity name="Phenotype" keyType="string" default="id">
+            <DisplayInfo theme="green">
+                <RegionInfo name="" row="1" col="3" />
+            </DisplayInfo>
+            <Notes>A phenotype is a pair [drug name, type] where [i]type[/i] is either [i]resistant[/i]
+            or [i]susceptible[/i] (denoted by "R" or "S"). The ID is the drug ID followed by the
+            type letter (R/S).</Notes>
+            <Fields>
+                <Field name="type" type="char">
+                    <Notes>The type is [i]R[/i] for resistant to the drug and [i]S[/i] for susceptible
+                    to the drug.</Notes>
+                </Field>
+            </Fields>
+        </Entity>
+    </Entities>
+    <Relationships>
+        <Relationship name="Genome2Feature" from="Genome" to="Feature" arity="1M" converse="Feature2Genome"
+            embedded="1">
+            <DisplayInfo theme="red">
+                <RegionInfo name="" caption="Genome to\nFeature" />
+            </DisplayInfo>
+            <Notes>This relationship links a genome to its constituent features.</Notes>
+        </Relationship>
+        <Relationship name="Role2Feature" from="Role" to="Feature" arity="MM" converse="Feature2Role">
+            <DisplayInfo theme="blue">
+                <RegionInfo name="" caption="Feature\nto Role" />
+            </DisplayInfo>
+            <Notes>This relationship links a feature to the roles it performs. Most features have
+            a single role, but some have multiple roles.</Notes>
+        </Relationship>
+        <Relationship name="Role2Variation" from="Role" to="Variation" arity="1M" embedded="1"
+            converse="Variation2Role">
+            <DisplayInfo theme="blue">
+                <RegionInfo name="" caption="Role to\nVariation" />
+            </DisplayInfo>
+            <Notes>This relationship connects a role to the variations on the role's alignment that
+            are used to determine drug resistance.</Notes>
+        </Relationship>
+        <Relationship name="Set2Variation" from="VariationSet" to="Variation" arity="1M"
+            converse="Variation2Set" embedded="1">
+            <DisplayInfo theme="blue">
+                <RegionInfo name="" caption="Set to\nVariation" />
+            </DisplayInfo>
+            <Notes>This relationship connects a variation set to its constituent variations.</Notes>
+        </Relationship>
+        <Relationship name="Role2Set" from="Role" to="VariationSet" arity="1M" converse="Set2Role"
+            embedded="1">
+            <DisplayInfo theme="blue">
+                <RegionInfo name="" caption="Role\nto Set" />
+            </DisplayInfo>
+            <Notes>This relationship connects a role to a variation set that applies to the role's
+            alignment.</Notes>
+        </Relationship>
+        <Relationship name="Feature2Set" from="Feature" to="VariationSet" arity="MM" converse="Set2Feature">
+            <DisplayInfo theme="blue">
+                <RegionInfo name="" caption="Feature\nto Set" />
+            </DisplayInfo>
+            <Notes>This relationship connects a feature to a variation set, and contains the feature's
+            column values for the set.</Notes>
+            <Fields>
+                <Field name="letters" type="string">
+                    <Notes>The sequence of letters for this variation set found in this feature.</Notes>
+                </Field>
+            </Fields>
+        </Relationship>
+        <Relationship name="Phenotype2Feature" from="Phenotype" to="Feature" arity="MM" converse="Feature2Phenotype">
+            <DisplayInfo theme="green">
+                <RegionInfo name="" caption="Phenotype\nto Feature" />
+            </DisplayInfo>
+            <Notes>This relationship connects a phenotype to the features that possess that phenotype.</Notes>
+        </Relationship>
+        <Relationship name="Drug2Set" from="Drug" to="VariationSet" arity="MM" converse="Set2Drug">
+            <DisplayInfo theme="green">
+                <RegionInfo name="" caption="Drug\nto Set" />
+            </DisplayInfo>
+            <Notes>This relationship connects a drug to the sets that determine a feature's drug phenotype.</Notes>
+        </Relationship>
+        <Relationship name="Drug2Phenotype" from="Drug" to="Phenotype" arity="1M" converse="Phenotype2Drug"
+            embedded="1">
+            <DisplayInfo theme="green">
+                <RegionInfo name="" caption="Phenotype\nto Drug" />
+            </DisplayInfo>
+            <Notes>This relationship connects a drug to its two phenotypes.</Notes>
+        </Relationship>
+    </Relationships>
+</Database>
