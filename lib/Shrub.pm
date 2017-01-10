@@ -1169,6 +1169,59 @@ sub write_peg_fasta {
     }
 }
 
+=head3 reaction_formula
+
+    my $formula = $shrub->reaction_formula($rxnID, $nameFlag);
+
+Compute the displayable formula for a reaction.
+
+=over 4
+
+=item rxnID
+
+The ID of the relevant reaction.
+
+=item nameFlag (optional)
+
+If TRUE, the name of each compound will be used. If FALSE or omitted, the compound chemical formula will be used.
+
+=item RETURN
+
+Returns a string representation of the chemical reaction.
+
+=back
+
+=cut
+
+use constant CONNECTORS => { '<' => '<=', '=' => '<=>', '>' => '=>' };
+
+sub reaction_formula {
+    my ($self, $rxnID, $nameFlag) = @_;
+    # This will be the return string.
+    my $retVal;
+    # Compute the name of the field to use.
+    my $cField = 'Compound(' . ($nameFlag ? 'label' : 'formula') . ')';
+    # Get the reaction compounds and the information about each.
+    my @formulaData = $self->GetAll('Reaction Reaction2Compound Compound', 'Reaction(id) = ?', [$rxnID],
+            "Reaction(direction) Reaction2Compound(product) Reaction2Compound(stoichiometry) $cField");
+    # Only proceed if we found the reaction.
+    if (@formulaData) {
+        # We accumulate the left and right sides separately.
+        my @side = ([], []);
+        my $dir;
+        for my $formulaDatum (@formulaData) {
+            my ($direction, $product, $stoich, $form) = @$formulaDatum;
+            my $compound = ($stoich > 1 ? "$stoich*" : '') . $form;
+            push @{$side[$product]}, $compound;
+            $dir //= CONNECTORS->{$direction};
+        }
+        # Join it all together.
+        $retVal = join(" $dir ", map { join(" + ", @$_) } @side);
+    }
+    return $retVal;
+}
+
+
 =head3 taxonomy_of
 
     my @taxa = $shrub->taxonomy_of($genomeID, %options);
