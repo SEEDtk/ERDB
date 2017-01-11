@@ -74,7 +74,7 @@ sub new {
         # Get the features.
         my $fpattern = "fig|$genomeID.%";
         my %fids = map { $_->[0] => { -id => $_->[0], -type => $_->[1], -function => $_->[2], -location => [] } }
-                $shrub->GetAll('Genome2Feature Feature Feature2Function Function',
+                $shrub->GetAll('Feature Feature2Function Function',
                 'Feature2Function(from-link) LIKE ? ORDER BY Feature2Function(from-link), Feature2Function(security) DESC',
                 [$fpattern], 'Feature(id) Feature(feature-type) Function(description)');
         # Compute the location strings.
