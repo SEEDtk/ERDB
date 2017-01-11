@@ -73,7 +73,7 @@ sub new {
     if ($contigPath) {
         my $contigFile = "$repo/$contigPath";
         # Create the contigs object.
-        my $retVal = Contigs::new($class, $contigFile, genomeID => $genomeID, genetic_code => $geneticCode);
+        $retVal = Contigs::new($class, $contigFile, genomeID => $genomeID, genetic_code => $geneticCode);
         # Add the shrub reference.
         $retVal->{shrub} = $shrub;
     }
