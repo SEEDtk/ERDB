@@ -45,6 +45,8 @@ L<Shrub> object for accessing the database.
 
     my $contigObj = Shrub::Contigs->new($shrub, $genomeID);
 
+Create a Contigs object for the specified genome ID. If the genome is not found, it will return an undefined value.
+
 =over 4
 
 =item shrub
@@ -62,14 +64,19 @@ ID of the genome whose contigs are desired.
 sub new {
     # Get the parameters.
     my ($class, $shrub, $genomeID) = @_;
+    # This will be the return variable.
+    my $retVal;
     # Get the path to the genome's contig FASTA file.
     my $repo = $shrub->DNArepo;
     my ($contigPath, $geneticCode) = $shrub->GetEntityValues(Genome => $genomeID, 'contig-file genetic-code');
-    my $contigFile = "$repo/$contigPath";
-    # Create the contigs object.
-    my $retVal = Contigs::new($class, $contigFile, genomeID => $genomeID, genetic_code => $geneticCode);
-    # Add the shrub reference.
-    $retVal->{shrub} = $shrub;
+    # Only proceed if we found the genome.
+    if ($contigPath) {
+        my $contigFile = "$repo/$contigPath";
+        # Create the contigs object.
+        my $retVal = Contigs::new($class, $contigFile, genomeID => $genomeID, genetic_code => $geneticCode);
+        # Add the shrub reference.
+        $retVal->{shrub} = $shrub;
+    }
     # Return it.
     return $retVal;
 }
