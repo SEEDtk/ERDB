@@ -207,7 +207,13 @@ my %genomes;
 print "Analyzing functions and roles.\n";
 my $roleMgr;
 if ($genomesLoading || $subsLoading || ! $opt->nochem) {
-    $roleMgr = Shrub::Roles->new($loader, slow => $slowFlag, exclusive => $exclusive);
+    # Check for a role file.
+    my $roleFile = "$repo/Other/roles.tbl";
+    if (! -f $roleFile) {
+        $roleFile = '';
+    }
+    # Create the role manager.
+    $roleMgr = Shrub::Roles->new($loader, slow => $slowFlag, exclusive => $exclusive, roleFile => $roleFile);
 }
 # We only need the function loader if we are loading genomes.
 my $funcMgr;
@@ -384,7 +390,7 @@ if ($genomesLoading) {
 # in the repository.
 if (-d "$repo/Samples") {
     $postLoader->LoadSamples("$repo/Samples");
-} 
+}
 
 # Finally, the domains. These are loaded from a global file.
 # This will track the domains loaded.

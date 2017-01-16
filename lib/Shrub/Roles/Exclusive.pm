@@ -78,8 +78,17 @@ L<Shrub> object or a <Shrub::DBLoader> object.
 
 =item options
 
-A hash of options for the object. Currently there are none of relevance to this
-subclass.
+A hash of options for the object, including zero or more of the following.
+
+=over 8
+
+=item roleFile
+
+Name of a tab-delimited file containing role ID information from a previous database so that
+IDs remain constant. Each row of the file should contain (0) a role ID, (1) the corresponding
+checksum, (2) an optional ec number, and (3) an optional tc number.
+
+=back
 
 =back
 
@@ -90,6 +99,22 @@ sub init {
     my ($self, $loader, %options) = @_;
     # We need to fill in these hashes from the database.
     my (%roleNums, %checkHash, %prefixHash);
+    # Start by checking the caller-provided file.
+    if ($options{roleFile}) {
+        open(my $ih, '<', $options{roleFile}) || die "Could not open role file: $!";
+        while (! eof $ih) {
+            my $line = <$ih>;
+            chomp $line;
+            my ($roleID, $checksum, $ecNum, $tcNum) = split /\t/, $line;
+            # Save the role ID for this checksum.
+            $checkHash{$checksum} = $roleID;
+            # Save the EC and TC numbers for this role.
+            $roleNums{$roleID} = [$ecNum, $tcNum];
+            # Compute the next available suffix.
+            ERDBtk::ID::Magic::Exclusive::UpdatePrefixHash(\%prefixHash, $roleID);
+        }
+    }
+    # This query will override the above with what's already in the database.
     my $q = $self->{erdb}->Get('Role', '', [], 'id checksum ec-number tc-number');
     while (my $roleData = $q->Fetch()) {
         my ($roleID, $checksum, $ecNum, $tcNum) = $roleData->Values('id checksum ec-number tc-number');

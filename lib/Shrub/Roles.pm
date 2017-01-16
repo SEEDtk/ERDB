@@ -140,6 +140,39 @@ sub TextJoin {
     return $retVal;
 }
 
+=head3 Checkpoint
+
+    Shrub::Roles::Checkpoint($shrub, $fileName);
+
+Checkpoint the current roles to a file. This writes the role ID, the checksum, and the EC and TC numbers to
+a tab-delimited file so they can be used to insure role IDs remain constant between reloads of the database.
+
+=over 4
+
+=item shrub
+
+A L<Shrub> object used to access the database.
+
+=item fileName
+
+The name of the file in which to store the role information.
+
+=back
+
+=cut
+
+sub Checkpoint {
+    my ($shrub, $fileName) = @_;
+    # Open the output file.
+    open(my $oh, ">$fileName") || die "Could not open output file: $!";
+    # Loop through the roles.
+    my $q = $shrub->Get('Role', '', [], 'id checksum ec-number tc-number');
+    while (my $roleData = $q->Fetch()) {
+        my @line = $roleData->Values('id checksum ec-number tc-number');
+        print $oh join("\t", @line) . "\n";
+    }
+}
+
 =head2 Role Text Analysis Methods
 
 =head3 EC_PATTERN

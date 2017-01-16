@@ -403,13 +403,25 @@ sub CheckSubsystem {
     } elsif (! -f "$subBase/$dirName/EXCHANGABLE") {
         print "Subsystem $subName is private in SEED.\n";
         $stats->Add(subsystemPrivate => 1);
-    } elsif (-f "$subBase/$dirName/spreadsheet") {
-        # This is a real subsystem. Save it.
-        $retVal = $dirName;
-        $stats->Add(subsystemKept => 1);
-    } else {
+    } elsif (! -f "$subBase/$dirName/spreadsheet") {
         print "Subsystem $subName has no spreadsheet.\n";
         $stats->Add(subsystemNoSheet => 1);
+    } else {
+        # Check the classification for an experimental subsystem.
+        my $ok = 1;
+        if (open(my $ch, "$subBase/$dirName/CLASSIFICATION")) {
+            my $line = <$ch>;
+            if ($line =~ /experimental/i) {
+                $ok = 0;
+                print "Subsystem $subName is experimental.\n";
+                $stats->Add(subsystemExperimental => 1);
+            }
+        }
+        if ($ok) {
+            # This is a real subsystem. Save it.
+            $retVal = $dirName;
+            $stats->Add(subsystemKept => 1);
+        }
     }
     # Return the directory name.
     return $retVal;
