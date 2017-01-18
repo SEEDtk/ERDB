@@ -501,8 +501,9 @@ sub LoadGenome {
      if ($taxLoader) {
          ($conf, $taxID) = $taxLoader->ComputeTaxID($genome, $metaHash->{taxid}, $metaHash->{name});
      }
-     # Decide if the genome is well-behaved.
-     my $wellBehaved = ($metaHash->{prokaryotic} && ! $qHash->{$genome} && $genomeHash->{'dna-size'} >= 300000);
+     # Decide if the genome is well-behaved. It must have at least 300 kilobases, not be questionable, and be a
+     # prokaryotic core genome.
+     my $wellBehaved = ($metaHash->{prokaryotic} && ! $qHash->{$genome} && $genomeHash->{'dna-size'} >= 300000 && $metaHash->{type});
      # Now we can create the genome record.
      print "Storing $genome in database.\n";
      $loader->InsertObject('Genome', id => $genome, %$genomeHash,
