@@ -179,6 +179,21 @@ my $utils = ERDBtk::Utils->new($shrub);
 if ($opt->tar) {
     $loader->ExtractRepo($opt->tar, $repo);
 }
+# Get the list of questionable genomes.
+my $questionablesFile = "$repo/Other/questionables.tbl";
+my %questionables;
+if (! -s $questionablesFile) {
+    print "$questionablesFile missing or empty-- ignored.\n";
+} else {
+    open(my $ih, '<', $questionablesFile) || die "Could not open $questionablesFile: $!";
+    while (! eof $ih) {
+        my $line = <$ih>;
+        if ($line =~ /^(\d+\.\d+)/) {
+            $questionables{$1} = 1;
+            $stats->Add(questionableGenome => 1);
+        }
+    }
+}
 # Create the post-loading helper object.
 my $postLoader = Shrub::PostLoader->new($loader, maxGap => $opt->maxgap, exclusive => $exclusive);
 # Compute the genome and subsystem repository locations.
@@ -235,7 +250,7 @@ if (! $opt->notaxon) {
 if ($genomesLoading) {
     print "Processing genomes.\n";
     my $gLoader = Shrub::GenomeLoader->new($loader, funcMgr => $funcMgr, slow => $slowFlag,
-            exclusive => $exclusive, dnaRepo => $dnaRepo, taxon => $taxLoader);
+            exclusive => $exclusive, dnaRepo => $dnaRepo, taxon => $taxLoader, qHash => \%questionables);
     # Determine the list of genomes to load.
     $gHash = $gLoader->ComputeGenomeList($genomeDir, $genomeSpec);
     # Curate the genome list to eliminate redundant genomes. This returns a hash of genome IDs to

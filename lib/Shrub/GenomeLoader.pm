@@ -65,6 +65,10 @@ suppressed.
 A L<Shrub::TaxonomyLoader> object specifying taxonomic data. This is used to compute the genome's
 taxon ID.
 
+=item qHash
+
+Reference to a hash keyed on genome ID containing the questionable (that is, not well-behaved) genomes.
+
 =back
 
 =cut
@@ -118,6 +122,10 @@ suppressed. The default is the DNA repository value in L<FIG_Config>.
 A L<Shrub::TaxonomyLoader> object containing taxonomic data. If omitted, taxonomic IDs are
 not computed.
 
+=item qHash
+
+Reference to a hash of the genomes that are not well-behaved.
+
 =back
 
 =back
@@ -131,6 +139,8 @@ sub new {
     my $slow = $options{slow} || 0;
     # Get the function-loader object.
     my $funcMgr = $options{funcMgr};
+    # Get the questionable-genomes hash.
+    my $qHash = $options{qHash} // {};
     # Get the DNA repository.
     my $shrub = $loader->db();
     my $dnaRepo = $options{dnaRepo} // $shrub->DNArepo('optional');
@@ -147,7 +157,7 @@ sub new {
     # Create the object.
     my $retVal = { loader => $loader, md5 => undef,
         funcMgr => $funcMgr, slow => $slow, dnaRepo => $dnaRepo,
-        taxLoader => $taxLoader };
+        taxLoader => $taxLoader, qHash => $qHash };
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;
@@ -440,6 +450,8 @@ sub LoadGenome {
     my $taxLoader = $self->{taxLoader};
     # Get the function loader.
     my $funcMgr = $self->{funcMgr};
+    # Get the hash of questionable genomes.
+    my $qHash = $self->{qHash};
     # If we do not already have the metadata hash, read it in.
     if (! defined $metaHash) {
         $metaHash = $loader->ReadMetaData("$genomeDir/genome-info",
@@ -489,12 +501,15 @@ sub LoadGenome {
      if ($taxLoader) {
          ($conf, $taxID) = $taxLoader->ComputeTaxID($genome, $metaHash->{taxid}, $metaHash->{name});
      }
+     # Decide if the genome is well-behaved.
+     my $wellBehaved = ($metaHash->{prokaryotic} && ! $qHash->{$genome} && $genomeHash->{'dna-size'} >= 300000);
      # Now we can create the genome record.
      print "Storing $genome in database.\n";
      $loader->InsertObject('Genome', id => $genome, %$genomeHash,
              core => $metaHash->{type}, name => $metaHash->{name}, prokaryotic => $metaHash->{prokaryotic},
              'contig-file' => $relPath, 'genetic-code' => $code, domain => $metaHash->{domain}, %fidStats,
-             Taxonomy2Genome_confidence => $conf, Taxonomy2Genome_link => $taxID);
+             Taxonomy2Genome_confidence => $conf, Taxonomy2Genome_link => $taxID,
+             'well-behaved' => $wellBehaved);
      $stats->Add(genomeInserted => 1);
      # Connect the contigs to it.
      for my $contigDatum (@$contigList) {
