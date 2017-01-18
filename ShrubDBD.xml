@@ -80,6 +80,9 @@
                 <Field name="domain" type="string">
                     <Notes>Domain for this genome-- Eukaryota, Archaea, Bacteria, etc.</Notes>
                 </Field>
+                <Field name="well-behaved" type="boolean">
+                    <Notes>TRUE if this is a well-behaved genome (prokaryotic, nearly complete), else FALSE</Notes>
+                </Field>
                 <Field name="genetic-code" type="int">
                     <Notes>Genetic code for translating this genome's coding features to
                     proteins.</Notes>
@@ -565,7 +568,7 @@
             <DisplayInfo theme="black" caption="Sample">
                 <RegionInfo name="Sampling" col="3" row="3" />
             </DisplayInfo>
-            <Notes>A sample is a specific metagenomic sampling from a specific site. The ID is a 
+            <Notes>A sample is a specific metagenomic sampling from a specific site. The ID is a
             project prefix (e.g. "HMP" for the Human Microbiome Project) followed by a period
             and the sample's ID within the project.</Notes>
             <Fields>

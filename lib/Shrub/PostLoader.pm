@@ -231,7 +231,7 @@ sub SetUniRoles {
     # This will count the finds for each function.
     my %funFinds;
     # Loop through the genomes. Notice we count them along the way.
-    my @genomes = $shrub->GetAll('Genome', '', [], 'id name');
+    my @genomes = $shrub->GetAll('Genome', 'Genome(well-behaved) = ?', [1], 'id name');
     my $gCount = 0;
     for my $genome (@genomes) {
         my ($genomeID, $name) = @$genome;

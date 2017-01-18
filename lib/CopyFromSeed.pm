@@ -690,6 +690,8 @@ sub CopyGenome {
         } else {
             # Now find out this genome's domain.
             my $taxonomy = ReadFlagFile("$genomeDir/TAXONOMY");
+            # Remove spurious spaces.
+            $taxonomy =~ s/^\s+//;
             my $domain;
             if ($taxonomy) {
                 ($domain) = split /\s*;\s*/, $taxonomy, 2;
