@@ -41,6 +41,8 @@ The command-line options are those found in L<Shrub/script_options> plus the fol
 
 Location of the input repository. The default is C<Inputs> in the SEEDtk Data directory.
 
+=back
+
 =cut
 
 # Get the command-line parameters.
