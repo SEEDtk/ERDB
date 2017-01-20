@@ -62,6 +62,15 @@ time.
 Verify that each function is connected to its roles and has the correct description text.
 Mutually exclusive with C<clear>.
 
+=item checkroles
+
+Specifies a file name. The role checksums in the file will be matched against the role checksums in
+the database.
+
+=item analyzeUnis
+
+List the well-behaved genomes that are missing universal proteins.
+
 =back
 
 =cut
@@ -74,7 +83,9 @@ my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDBtk::Utils::init_opt
     ['fixup|f', "fix existing tables to match the DBD"],
     ['missing|m', "create missing tables"],
     ['relfix|r=s@', "verify relationship (all to verify all)"],
-    ['fixfuns|F', "verify the functions table"]
+    ['fixfuns|F', "verify the functions table"],
+    ['checkroles|roleCheck=s', "verify the role checksums"],
+    ['analyzeUnis', "list the well-behaved genomes that are missing universal proteins"]
     );
 # Validate the options.
 if ($opt->clear) {
@@ -84,6 +95,10 @@ if ($opt->clear) {
         die "Cannot specify both \"clear\" and \"missing\".";
     } elsif ($opt->fixfuns) {
         die "Cannot specify both \"clear\" and \"fixfuns\".";
+    } elsif ($opt->checkroles) {
+        die "Cannot specify both \"clear\" and \"checkroles\".";
+    } elsif ($opt->analyzeUnis) {
+        die "Cannot specify both \"clear\" and \"analyzeUnis\".";
     }
 }
 # Connect to the database and get the command parameters.
@@ -131,6 +146,14 @@ if ($cleared) {
         print "Function table will be verified.\n";
         FixFunctionTable($shrub, $stats);
     }
+    # Check for a role verify.
+    if ($opt->checkroles) {
+        CheckRoles($shrub, $stats, $opt->checkroles);
+    }
+    # Check for a universal protein analysis.
+    if ($opt->analyzeunis) {
+        AnalyzeUnis($shrub, $stats);
+    }
 }
 # Compute the total time.
 my $timer = time - $startTime;
@@ -140,6 +163,149 @@ print "Database processed.\n" . $stats->Show();
 
 
 =head2 Utility Subroutines
+
+=head3 CheckRoles
+
+    CheckRoles($shrub, $stats, $fileName);
+
+This method compares the roles in the specified tab-delimited file to the roles in the database. If a checksum
+fails to match, it is an error. The specified file should generally be dumped from the previous version of the
+database using the L<Checkpoint.pl> script. The goal is to insure that role IDs are consistent from version to
+version of the database, now that they are actually being used regularly.
+
+=over 4
+
+=item shrub
+
+A L<Shrub> object for connecting to the database.
+
+=item stats
+
+A L<Stats> object for statistics on this script.
+
+=item fileName
+
+The name of a tab-delimited file containing role IDs in the first column and the corresponding checksum in the second
+column.
+
+=back
+
+=cut
+
+sub CheckRoles {
+    my ($shrub, $stats, $fileName) = @_;
+    print "Reading role checkpoint file $fileName.\n";
+    # Read through the role file.
+    open(my $ih, '<', $fileName) || die "Could not open role checkpoint file: $!";
+    while (! eof $ih) {
+        my $line = <$ih>;
+        $stats->Add(roleFileLineIn => 1);
+        my ($role, $checkSum) = ($line =~ /^(\S+)\t(\S+)/);
+        # Only proceed if we have a valid role line.
+        if (! $role) {
+            $stats->Add(roleFileLineSkipped => 1);
+        } else {
+            # Look for the checksum.
+            my ($dbRole) = $shrub->GetAll('Role', 'Role(checksum) = ?', [$checkSum], 'id description');
+            if (! $dbRole) {
+                $stats->Add(roleFileChecksumNotFound => 1);
+                # The checksum was not found. See if the role is in the database with a different checksum.
+                ($dbRole) = $shrub->GetAll('Role', 'Role(id) = ?', [$role], 'checksum description');
+                if ($dbRole) {
+                    # This can happen when a role disappears for a long time and a new one appears with a similar name.
+                    $stats->Add(roleFileChecksumChanged => 1);
+                    print "WARNING: Role $role changed to: $dbRole->[1].\n";
+                }
+            } elsif ($dbRole->[0] eq $role) {
+                # This is the good thing: checksum still points to the same role.
+                $stats->Add(roleFileLineMatch => 1);
+            } else {
+                # Here the checksum points to a new role ID. This is what we don't want to happen.
+                $stats->Add(roleFileMismatch => 1);
+                print "ERROR: Role $role has new ID $dbRole->[0]: $dbRole->[1]\n";
+            }
+        }
+    }
+}
+
+=head3 AnalyzeUnis
+
+    AnalyzeUnis($shrub, $stats);
+
+This method analyzes universal proteins (represented in the database as functions) and counts the well-behaved genomes
+containing each one. If a universal protein is missing from 10 or fewer genomes, those 10 are listed. At the end, a list
+of the well-behaved genomes missing at least half of the universal roles will be displayed. (There should be none.)
+
+=over 4
+
+=item shrub
+
+A L<Shrub> object for accessing the database.
+
+=item stats
+
+A L<Stats> object for tracking statistics of this run.
+
+=back
+
+=cut
+
+sub AnalyzeUnis {
+    my ($shrub, $stats) = @_;
+    # First, we need all the well-behaved genomes.
+    print "Loading well-behaved genomes.";
+    my %gHash = map { $_->[0] => [$_->[1], $_->[2]] }
+            $shrub->GetAll('Genome', 'Genome(well-behaved) = ?', [1], 'id name dna-size');
+    my $gCount = scalar keys %gHash;
+    print "  $gCount genomes found.\n";
+    $stats->Add(auGenomes => $gCount);
+    # This hash will count the number of times each genome is not found for a function.
+    my %unFound;
+    # Now loop through the universal proteins.
+    my $q = $shrub->Get('Function', 'Function(universal) = ?', [1], 'id description');
+    while (my $funData = $q->Fetch()) {
+        # Get the function ID and description.
+        my ($funID, $funText) = $funData->Values(['id', 'description']);
+        print "Processing $funID: $funText.";
+        # Get all the genomes with this function.
+        my %gFound = map { $_ => 1 } $shrub->GetFlat('Function2Feature Feature2Genome Genome',
+                'Function2Feature(from-link) = ? AND Function2Feature(security) = ? AND Genome(well-behaved) = ?',
+                [$funID, 2, 1], 'Feature2Genome(to-link)');
+        my $numFound = scalar keys %gFound;
+        print "  $numFound genomes found.";
+        # Compute the missing genomes.
+        my @missing;
+        for my $genome (keys %gHash) {
+            if ($gFound{$genome}) {
+                $stats->Add(auGenomeFound => 1);
+            } else {
+                $stats->Add(auGenomeNotFound => 1);
+                push @missing, $genome;
+                $unFound{$genome}++;
+            }
+        }
+        my $numNotFound = scalar @missing;
+        print "  $numNotFound missing.\n";
+        # Print them here if there are few enough.
+        if ($numNotFound < 10) {
+            for my $genome (sort @missing) {
+                print "    " . join("\t", $genome, @{$gHash{$genome}}) . "\n";
+            }
+        }
+    }
+    # Now get a list of the really bad genomes.
+    my $threshold = $gCount / 2;
+    my @badGenomes = sort { $unFound{$b} <=> $unFound{$a} } grep { $unFound{$_} > $threshold } keys %unFound;
+    if (! @badGenomes) {
+        print "No bad genomes found.\n";
+    } else {
+        print "Bad Genomes Found.\n";
+        for my $genome (@badGenomes) {
+            print "    $unFound{$genome}\t$genome\t$gHash{$genome}\n";
+            $stats->Add(auBadGenomes => 1);
+        }
+    }
+}
 
 =head3 FixFunctionTable
 

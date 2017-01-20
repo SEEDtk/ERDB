@@ -53,6 +53,10 @@ operation. The hash maps each role ID to a field hash suitable for L<ERDBtk/Inse
 
 Reference to a hash mapping the checksums of the existing roles to their IDs.
 
+=item inDB
+
+A hash of the roles currently in the database.
+
 =back
 
 =head2 Special Methods
@@ -97,8 +101,8 @@ checksum, (2) an optional ec number, and (3) an optional tc number.
 sub init {
     # Get the parameters.
     my ($self, $loader, %options) = @_;
-    # We need to fill in these hashes from the database.
-    my (%roleNums, %checkHash, %prefixHash);
+    # We need to fill in these hashes from the database and the role file.
+    my (%roleNums, %checkHash, %prefixHash, %inDB);
     # Start by checking the caller-provided file.
     if ($options{roleFile}) {
         open(my $ih, '<', $options{roleFile}) || die "Could not open role file: $!";
@@ -122,12 +126,15 @@ sub init {
         $checkHash{$checksum} = $roleID;
         # Save the EC and TC numbers for this role.
         $roleNums{$roleID} = [$ecNum, $tcNum];
+        # Denote this role is in the database.
+        $inDB{$roleID} = 1;
         # Compute the next available suffix.
         ERDBtk::ID::Magic::Exclusive::UpdatePrefixHash(\%prefixHash, $roleID);
     }
     # Store the hashes we just computed.
     $self->{roleNums} = \%roleNums;
     $self->{checkHash} = \%checkHash;
+    $self->{inDB} = \%inDB;
     # Create the Magic Name ID inserter. Note that we don't provide the check field. We do the
     # checksum handling in this object.
     $self->{inserter} = ERDBtk::ID::Magic->new(Role => $loader, $loader->stats, exclusive => 1,
@@ -186,9 +193,10 @@ Returns the ID of the role in the database.
 sub InsertRole {
     # Get the parameters.
     my ($self, $checkSum, $ecNum, $tcNum, $hypo, $roleText) = @_;
-    # Get the checksum hash, the number hash, and the update hash.
+    # Get the checksum hash, the number hash, the in-db hash, and the update hash.
     my $checkHash = $self->{checkHash};
     my $roleNums = $self->{roleNums};
+    my $inDB = $self->{inDB};
     my $updates = $self->{updates};
     # Get the statistics object.
     my $stats = $self->stats;
@@ -210,6 +218,12 @@ sub InsertRole {
             $ecNum = $bestEC;
             $tcNum = $bestTC;
             $stats->Add(roleNumsUpdate => 1);
+        }
+        # Is it in the database?
+        if (! $inDB->{$retVal}) {
+            # No, we need an update.
+            $needUpdate = 1;
+            $stats->Add(roleRecovered => 1);
         }
     } else {
         # The role does not exist, we need to insert it.

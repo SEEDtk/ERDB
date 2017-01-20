@@ -152,7 +152,7 @@ sub UpdatePrefixHash {
     # The default next suffix is 2.
     my ($prefix, $suffix) = ($id, 2);
     # Check for a pre-existing suffix.
-    if ($id =~ /^(.+)(\d+)$/) {
+    if ($id =~ /^(.+?)(\d+)$/) {
         # We want one more than the pre-existing one.
         ($prefix, $suffix) = ($1, $2 + 1);
     }

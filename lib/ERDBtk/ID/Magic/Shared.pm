@@ -105,17 +105,22 @@ sub ComputeID {
     my ($prefix, $suffix) = ERDBtk::ID::Magic::Name($name);
     $stats->Add($entityName . "IdRequested" => 1);
     # Look for examples of this ID.
-    my ($id) = $erdb->GetFlat($entityName, "$entityName(id) LIKE ? ORDER BY $entityName(id) DESC LIMIT 1",
+    my @ids = $erdb->GetFlat($entityName, "$entityName(id) LIKE ? ORDER BY $entityName(id) LIMIT 1",
             ["$prefix%"], 'id');
     # Was a version of this ID found?
-    if ($id) {
+    for my $id (@ids) {
         # Yes. Try to compute a suffix.
+        my $newSuffix;
         if ($id eq $prefix) {
             # Here we've found the exact same ID. Use a suffix of 2 to distinguish us.
-            $suffix = 2;
+            $newSuffix = 2;
         } elsif (substr($id, length($prefix)) =~ /^(\d+)$/) {
             # Here we've found the same ID with a numeric suffix. Compute a new suffix that is 1 greater.
-            $suffix = $1 + 1;
+            $newSuffix = $1 + 1;
+        }
+        # Choose the highest suffix found so far.
+        if ($newSuffix && (! $suffix || $newSuffix > $suffix)) {
+            $suffix = $newSuffix;
         }
     }
     # Return the prefix and suffix.
