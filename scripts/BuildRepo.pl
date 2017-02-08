@@ -330,6 +330,7 @@ while (defined $line) {
         $line = <$ih>;
     }
 }
+print "End of command file.\n";
 # Create the genome index.
 $loader->IndexGenomes();
 # Compute the total time.
