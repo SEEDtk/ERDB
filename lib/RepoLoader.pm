@@ -117,7 +117,7 @@ sub FindGenomeList {
                 # Compute the directory name.
                 my $dirName = "$dir/$subDir";
                 # Check to see if this is a genome.
-                if ($subDir =~ /^\d+\.\d+$/) {
+                if (-f "$dirName/genome-info") {
                     # Here we have a genome directory.
                     if ($nameless) {
                         $retVal{$subDir} = $dirName;
@@ -540,7 +540,7 @@ sub CopySamples {
                         # Yes. Copy it.
                         print "Copying $file.\n";
                         File::Copy::Recursive::fcopy("$sampleDir/$file", "$sampleODir/$file");
-                        $stats->Add(sampleFilesCopied => 1);                       
+                        $stats->Add(sampleFilesCopied => 1);
                     } elsif ($file =~ /^(\d+\.\d+)\.json$/) {
                         # Here we have a reference genome. We need its name and taxonomy ID.
                         my $genomeID = $1;
