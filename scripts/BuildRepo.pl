@@ -209,7 +209,7 @@ while (defined $line) {
         $loader->SetSEED($figDisk, $priv);
         # Loop through the SEED commands.
         my $done;
-        while (! eof $ih && ! $done) {
+        while (! $done) {
             $line = <$ih>;
             $stats->Add(subCommandLines => 1);
             if (! defined $line || substr($line, 0, 1) eq '+') {
@@ -280,7 +280,7 @@ while (defined $line) {
         print "Copying from level-$priv PATRIC.\n";
         my $ploader = CopyFromPatric->new($opt);
         my $done;
-        while (! eof $ih && ! $done) {
+        while (! $done) {
             $line = <$ih>;
             $stats->Add(subCommandLines => 1);
             if (! defined $line || substr($line, 0, 1) eq '+') {
@@ -308,7 +308,7 @@ while (defined $line) {
         $stats->Add(rastInstances => 1);
         # Loop through the genomes.
         my $done;
-        while (! eof $ih && ! $done) {
+        while (! $done) {
             $line = <$ih>;
             $stats->Add(subCommandLines => 1);
             if (! defined $line || substr($line, 0, 1) eq '+') {

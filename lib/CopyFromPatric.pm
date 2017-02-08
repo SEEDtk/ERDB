@@ -41,12 +41,12 @@ The L<Getopt::Long::Descriptive::Opts> object containing the command-line option
 
 =item genomeIndex
 
-Reference to a hash of existing genomes in the repository, mapping each genomeID to a 2-tuple containing its name 
+Reference to a hash of existing genomes in the repository, mapping each genomeID to a 2-tuple containing its name
 and directory location.
 
 =item genomesProcessed
 
-Reference to a hash of genomes processed, mapping each genome ID to 1. 
+Reference to a hash of genomes processed, mapping each genome ID to 1.
 
 =item genomeOutput
 
@@ -151,6 +151,16 @@ sub CopyGenome {
             my $genomeName = $gto->{scientific_name};
             my $domain = $gto->{domain};
             my $geneticCode = $gto->{genetic_code};
+            # Punt if the domain is missing.
+            if (! $domain) {
+                $domain = 'Bacteria';
+                print "WARNING: missing domain for $genome: $genomeName.\n";
+                $stats->Add(missingDomainInPATRIC => 1);
+            } else {
+                # Clean up a bad domain name.
+                $domain =~ s/\s//g;
+                $domain = ucfirst $domain;
+            }
             # Determine if we are prokaryotic.
             my $prokFlag = ($domain eq 'Bacteria' || $domain eq 'Archaea');
             # Compute the output directory.
