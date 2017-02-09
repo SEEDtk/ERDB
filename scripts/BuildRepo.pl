@@ -278,7 +278,7 @@ while (defined $line) {
         $priv //= $opt->privilege;
         # Create the PATRIC helper.
         print "Copying from level-$priv PATRIC.\n";
-        my $ploader = CopyFromPatric->new($opt);
+        my $ploader = CopyFromPatric->new($priv, $opt);
         my $done;
         while (! $done) {
             $line = <$ih>;

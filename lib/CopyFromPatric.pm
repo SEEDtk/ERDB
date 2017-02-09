@@ -70,11 +70,15 @@ L<P3DataAPI> object for talking to PATRIC.
 
 =head3 new
 
-    my $loader = CopyFromPatric->new($opt)
+    my $loader = CopyFromPatric->new($privilege, $opt)
 
 Create a new PATRIC genome loader with the specified command-line options.
 
 =over 4
+
+=item privilege
+
+The privilege level to assign to annotations.
 
 =item opt
 
@@ -86,7 +90,7 @@ L<CopyFromSeed/common_options>.
 =cut
 
 sub new {
-    my ($class, $opt) = @_;
+    my ($class, $privilege, $opt) = @_;
     # Create the base-class object.
     my $retVal = Loader::new($class);
     # Attach the command-line options.
@@ -101,7 +105,7 @@ sub new {
     $retVal->{genomesProcessed} = {};
     # Set the missing-only and privilege options.
     $retVal->{missing} = $opt->missing;
-    $retVal->{privilege} = $opt->privilege;
+    $retVal->{privilege} = $privilege;
     # Enable access to PATRIC from Argonne.
     $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME} = 0;
     # Connect to PATRIC.
@@ -153,13 +157,20 @@ sub CopyGenome {
             my $geneticCode = $gto->{genetic_code};
             # Punt if the domain is missing.
             if (! $domain) {
-                $domain = 'Bacteria';
+                $skip = 1;
                 print "WARNING: missing domain for $genome: $genomeName.\n";
                 $stats->Add(missingDomainInPATRIC => 1);
             } else {
                 # Clean up a bad domain name.
                 $domain =~ s/\s//g;
                 $domain = ucfirst $domain;
+                # Check for contigs.
+                my $contigs = $gto->{contigs};
+                if (! $contigs || ! @$contigs) {
+                    $skip = 1;
+                    print "WARNING: missing contigs for $genome: $genomeName.\n";
+                    $stats->Add(missingContigsInPATRIC => 1);
+                }
             }
             # Determine if we are prokaryotic.
             my $prokFlag = ($domain eq 'Bacteria' || $domain eq 'Archaea');
