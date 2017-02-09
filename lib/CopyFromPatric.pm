@@ -70,7 +70,7 @@ L<P3DataAPI> object for talking to PATRIC.
 
 =head3 new
 
-    my $loader = CopyFromPatric->new($privilege, $opt)
+    my $loader = CopyFromPatric->new($privilege, $opt, \%genomesProcessed)
 
 Create a new PATRIC genome loader with the specified command-line options.
 
@@ -85,12 +85,17 @@ The privilege level to assign to annotations.
 L<Getopt::Long::Descriptive::Opts> object containing the command-line options, which should be those found in
 L<CopyFromSeed/common_options>.
 
+=item genomesProcessed
+
+If specified, a reference to a hash of genome IDs already processed by this load. These genomes will not be
+reprocessed.
+
 =back
 
 =cut
 
 sub new {
-    my ($class, $privilege, $opt) = @_;
+    my ($class, $privilege, $opt, $genomesProcessed) = @_;
     # Create the base-class object.
     my $retVal = Loader::new($class);
     # Attach the command-line options.
@@ -102,7 +107,7 @@ sub new {
     # Load the genome index.
     $retVal->{genomeIndex} = $retVal->FindGenomeList($genomeOption);
     # Denote no genomes have been processed.
-    $retVal->{genomesProcessed} = {};
+    $retVal->{genomesProcessed} = $genomesProcessed // {};
     # Set the missing-only and privilege options.
     $retVal->{missing} = $opt->missing;
     $retVal->{privilege} = $privilege;

@@ -187,6 +187,8 @@ if ($opt->clear) {
             die "Error clearing $sampleDir: $!";
     }
 }
+# This hash is used to prevent us from reloading genomes we've already processed.
+my %genomesProcessed;
 # Get the first line.
 my $line = <$ih>;
 # Loop through the input file.
@@ -206,7 +208,7 @@ while (defined $line) {
         $priv //= $opt->privilege;
         # Tell the helper (and the user) about this SEED.
         print "Copying from level-$priv SEED at $figDisk.\n";
-        $loader->SetSEED($figDisk, $priv);
+        $loader->SetSEED($figDisk, $priv, \%genomesProcessed);
         # Loop through the SEED commands.
         my $done;
         while (! $done) {
@@ -278,7 +280,7 @@ while (defined $line) {
         $priv //= $opt->privilege;
         # Create the PATRIC helper.
         print "Copying from level-$priv PATRIC.\n";
-        my $ploader = CopyFromPatric->new($priv, $opt);
+        my $ploader = CopyFromPatric->new($priv, $opt, \%genomesProcessed);
         my $done;
         while (! $done) {
             $line = <$ih>;
@@ -302,7 +304,7 @@ while (defined $line) {
         my ($rastDir, $priv) = @parms;
         $priv //= $opt->privilege;
         # Reset the loader.
-        $loader->Reset($priv);
+        $loader->Reset($priv, \%genomesProcessed);
         print "Copying from level-$priv RAST at $rastDir.\n";
         $stats->Add(rastInstances => 1);
         # Loop through the genomes.

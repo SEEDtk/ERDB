@@ -1143,7 +1143,7 @@ sub sampleRepo {
 
 =head3 SetSEED
 
-    $loader->SetSEED($figDisk, $privilege);
+    $loader->SetSEED($figDisk, $privilege, \%genomesProcessed);
 
 Set the SEED FIGdisk and the associated privilege levels.
 
@@ -1157,13 +1157,18 @@ Path to the SEED FIGdisk to be used as the source for subsequent loads.
 
 The privilege level associated with the SEED's annotations and subsystems.
 
+=item genomesProcessed
+
+If specified, a reference to a hash of the genomes already loaded in this run. They will not be
+reprocessed.
+
 =back
 
 =cut
 
 sub SetSEED {
     # Get the parameters.
-    my ($self, $figDisk, $privilege) = @_;
+    my ($self, $figDisk, $privilege, $genomesProcessed) = @_;
     # Get the statistics object.
     my $stats = $self->stats;
     # Verify the FIGdisk.
@@ -1172,12 +1177,12 @@ sub SetSEED {
     $self->{figDisk} = $figDisk;
     $stats->Add(figDisks => 1);
     # Reset the statistics and hashes.
-    $self->Reset($privilege);
+    $self->Reset($privilege, $genomesProcessed);
 }
 
 =head3 Reset
 
-    $loader->Reset($privilege);
+    $loader->Reset($privilege, \%genomesProcessed);
 
 Set up this object for another run through SEED genome directories.
 
@@ -1187,12 +1192,17 @@ Set up this object for another run through SEED genome directories.
 
 The privilege level associated with the forthcoming annotations and subsystems.
 
+=item genomesProcessed
+
+If specified, a reference to a hash of the genomes already loaded in this run. They will not be
+reprocessed.
+
 =back
 
 =cut
 
 sub Reset {
-    my ($self, $privilege) = @_;
+    my ($self, $privilege, $genomesProcessed) = @_;
     # Get the statistics object.
     my $stats = $self->stats;
     # Store the privilege level.
@@ -1202,7 +1212,7 @@ sub Reset {
     # Refresh the genome index.
     $self->{genomeIndex} = $self->FindGenomeList($self->{genomeOutput});
     # Clear the tracking hashes.
-    $self->{genomesProcessed} = {};
+    $self->{genomesProcessed} = $genomesProcessed // {};
     $self->{genomeNames} = {};
 }
 
