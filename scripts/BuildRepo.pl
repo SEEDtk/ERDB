@@ -289,7 +289,6 @@ while (defined $line) {
             } elsif ($line =~ /^(\d+\.\d+)/) {
                 my $genome = $1;
                 # Copy the genome.
-                print "Copying PATRIC genome $genome.\n";
                 $ploader->CopyGenome($genome);
             } else {
                 print "Invalid PATRIC input line: $line";
