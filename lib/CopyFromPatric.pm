@@ -172,8 +172,6 @@ sub CopyGenome {
                     $stats->Add(missingContigsInPATRIC => 1);
                 }
             }
-            # Determine if we are prokaryotic.
-            my $prokFlag = ($domain eq 'Bacteria' || $domain eq 'Archaea');
             # Compute the output directory.
             my $relPath = $self->RepoPath($genomeName);
             # Create the full path.
@@ -206,6 +204,8 @@ sub CopyGenome {
                     File::Path::make_path($outDir);
                     $stats->Add(genomeDirCreated => 1);
                 }
+                # Determine if we are prokaryotic.
+                my $prokFlag = ($domain eq 'Bacteria' || $domain eq 'Archaea');
                 # Get the privilege level.
                 my $privilege = $self->{privilege};
                 # We have almost all of the metadata. Now we want to copy the
