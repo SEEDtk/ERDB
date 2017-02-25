@@ -32,7 +32,7 @@ package Shrub;
     use Shrub::Functions;
     use gjoseqlib;
     use BasicLocation;
-
+    use RoleParse;
 
 =head1 Shrub Database Package
 
@@ -838,7 +838,7 @@ sub desc_to_function {
     # Only proceed if roles were found.
     if (scalar @$roles) {
         # Get the role checksums.
-        my @checksums = map { Shrub::Roles::Checksum($_) } @$roles;
+        my @checksums = map { RoleParse::Checksum($_) } @$roles;
         # Extract the role IDs.
         my $filter = 'Role(checksum) IN (' . join(', ', map { '?' } @checksums) . ')';
         my %roleIDs = map { $_->[0] => $_->[1] } $self->GetAll('Role', $filter, \@checksums, 'checksum id');
