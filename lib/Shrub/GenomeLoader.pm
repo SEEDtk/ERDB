@@ -326,7 +326,7 @@ sub CurateNewGenomes {
     # We will also build a list of genome IDs in here.
     my (@genomes, @nonCoreGenomes);
     print "Reading incoming genome metadata.\n";
-    for my $genome (keys %$genomeHash) {
+    for my $genome (sort keys %$genomeHash) {
         # Get this genome's source directory.
         my $genomeDir = $genomeHash->{$genome};
         # Read the metadata.
@@ -378,7 +378,7 @@ sub CurateNewGenomes {
             }
             # Loop through the rival genomes.
             my $discard;
-            for my $rivalGenome (keys %rivals) {
+            for my $rivalGenome (sort keys %rivals) {
                 # Get the rival genome's core flag.
                 my $rivalCore = $genomesById{$rivalGenome}[1];
                 # Discard the new genome if it has the same core status as the rival and the MISSING
