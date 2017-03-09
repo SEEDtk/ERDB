@@ -93,6 +93,16 @@ sub new {
             my ($fid, $seq) = $rec->Values('Feature2Protein(from-link) Protein(sequence)');
             $fids{$fid}{-protein_translation} = $seq;
         }
+        # Compute the protein families.
+        $q = $shrub->Get('Feature2Protein Protein2Family ProteinFamily Family2Function Function', 'Feature2Protein(from-link) LIKE ?',
+                [$fpattern], 'Feature2Protein(from-link) ProteinFamily(id) Function(description)');
+        while (my $rec = $q->Fetch()) {
+            my ($fid, $family, $func) = $rec->Values('Feature2Protein(from-link) ProteinFamily(id) Function(description)');
+            if ($family =~ /^GF(.+)/) {
+                $family = "PGF_$1";
+                push @{$fids{$fid}{-family_assignments}}, ['PGFAM', $family, $func];
+            }
+        }
         # Add the features.
         for my $fid (keys %fids) {
             $retVal->add_feature($fids{$fid});
