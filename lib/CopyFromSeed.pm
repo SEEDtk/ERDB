@@ -937,6 +937,7 @@ sub ReadFunctions {
         my $fileName = "$genomeDir/$file";
         if (-f $fileName) {
             my $ih = $self->OpenFile($file => $fileName);
+            print "Reading functions from $fileName.\n";
             # Loop through this file. We blindly overwrite, so the last assignment always
             # wins.
             while (! eof $ih) {
