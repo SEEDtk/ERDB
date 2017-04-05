@@ -101,6 +101,10 @@ TRUE if the subsystems are core subsystems, else FALSE.
 
 Name of the repo directory to contain global files unrelated to genomes or subsystems.
 
+=item nonhuman
+
+TRUE if this is a RAST-type SEED with multiple assigned-functions files. else FALSE.
+
 =back
 
 =head2 Command-Line Option Groups
@@ -243,12 +247,14 @@ copied.
 
 sub new {
     # Get the parameters.
-    my ($class, $opt, $figDisk) = @_;
+    my ($class, $opt, $figDisk, $type) = @_;
     # Create the base-class object.
     my $retVal = Loader::new($class);
     # Store the FIGdisk pointer and command-line options.
     $retVal->{opt} = $opt;
     $retVal->{figDisk} = $figDisk;
+    # Denote this is a human-curated SEED.
+    $retVal->{nonhuman} = 0;
     # Validate the FIGdisk, if one is specified.
     if ($figDisk) {
         CheckFigDisk($figDisk);
@@ -920,8 +926,13 @@ sub ReadFunctions {
     my ($self, $genomeDir) = @_;
     # Declare the return variable.
     my %retVal;
-    # Loop through the three function files, in order.
-    for my $file (qw(assigned_functions proposed_no_ff_functions proposed_functions)) {
+    # Compute the list of function files.
+    my @funFiles = qw(assigned_functions);
+    if ($self->{nonhuman}) {
+        push @funFiles, qw(proposed_no_ff_functions proposed_functions);
+    }
+    # Loop through the function files, in order.
+    for my $file (@funFiles) {
         # Only proceed if the current file type exists.
         my $fileName = "$genomeDir/$file";
         if (-f $fileName) {
@@ -1176,8 +1187,8 @@ sub SetSEED {
     # Store it in our data structures.
     $self->{figDisk} = $figDisk;
     $stats->Add(figDisks => 1);
-    # Reset the statistics and hashes.
-    $self->Reset($privilege, $genomesProcessed);
+    # Reset the statistics and hashes. Note we are assuming a human-curated SEED.
+    $self->Reset($privilege, $genomesProcessed, 0);
 }
 
 =head3 Reset
@@ -1197,17 +1208,22 @@ The privilege level associated with the forthcoming annotations and subsystems.
 If specified, a reference to a hash of the genomes already loaded in this run. They will not be
 reprocessed.
 
+=item rastFlag (optional)
+
+If TRUE, then this is a RAST-type SEED with multiple assigned-functions files. The default is FALSE.
+
 =back
 
 =cut
 
 sub Reset {
-    my ($self, $privilege, $genomesProcessed) = @_;
+    my ($self, $privilege, $genomesProcessed, $rastFlag) = @_;
     # Get the statistics object.
     my $stats = $self->stats;
     # Store the privilege level.
     $self->{privilege} = $privilege;
     $self->{subPriv} = ($privilege == Shrub::PRIV ? 1 : 0);
+    $self->{nonhuman} = $rastFlag || 0;
     $stats->Add(coreSeeds => $self->{subPriv});
     # Refresh the genome index.
     $self->{genomeIndex} = $self->FindGenomeList($self->{genomeOutput});

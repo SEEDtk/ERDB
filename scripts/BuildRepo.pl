@@ -303,8 +303,8 @@ while (defined $line) {
         # Get the RAST directory and privilege level.
         my ($rastDir, $priv) = @parms;
         $priv //= $opt->privilege;
-        # Reset the loader.
-        $loader->Reset($priv, \%genomesProcessed);
+        # Reset the loader in RAST mode.
+        $loader->Reset($priv, \%genomesProcessed, 1);
         print "Copying from level-$priv RAST at $rastDir.\n";
         $stats->Add(rastInstances => 1);
         # Loop through the genomes.
