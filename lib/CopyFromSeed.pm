@@ -1177,7 +1177,7 @@ sub ReadPattyFams {
     my $ih = $self->OpenFile(pattyFam => $protFamFile);
     # Loop through it.
     while (my $fields = $self->GetLine(pattyFam => $ih)) {
-        my ($fid, $fam, $fun) = @$fields;
+        my ($fid, $fam, undef, $fun) = @$fields;
         if ($fam =~ /^PGF_/) {
             # Here we have a global family, so we keep it..
             $stats->Add(pattyFamGlobalLine => 1);
