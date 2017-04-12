@@ -340,7 +340,7 @@ $loader->IndexGenomes();
 # Unspool the family data.
 print "Fixing Protein Families.\n";
 $protFamRepo->FixFunctions();
-print "Unspoolign Protein Families.\n";
+print "Unspooling Protein Families.\n";
 $protFamRepo->output($opt->repo . '/Other');
 # Compute the total time.
 my $timer = time - $startTime;
