@@ -337,6 +337,11 @@ while (defined $line) {
 print "End of command file.\n";
 # Create the genome index.
 $loader->IndexGenomes();
+# Unspool the family data.
+print "Fixing Protein Families.\n";
+$protFamRepo->FixFunctions();
+print "Unspoolign Protein Families.\n";
+$protFamRepo->output($opt->repo . '/Other');
 # Compute the total time.
 my $timer = time - $startTime;
 $stats->Add(totalTime => $timer);

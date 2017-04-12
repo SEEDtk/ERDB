@@ -23,6 +23,7 @@ package CopyFromPatric;
     use base qw(RepoLoader);
     use P3DataAPI;
     use File::Path;
+    use Shrub;
 
 =head1 Copy Genomes From Patric
 
@@ -64,13 +65,17 @@ Privilege level of the incoming annotations.
 
 L<P3DataAPI> object for talking to PATRIC.
 
+=item protFamRepo
+
+L<ProtFamRepo> object for building protein families.
+
 =back
 
 =head2 Special Methods
 
 =head3 new
 
-    my $loader = CopyFromPatric->new($privilege, $opt, \%genomesProcessed)
+    my $loader = CopyFromPatric->new($privilege, $opt, \%genomesProcessed, $protFamRepo);
 
 Create a new PATRIC genome loader with the specified command-line options.
 
@@ -90,12 +95,16 @@ L<CopyFromSeed/common_options>.
 If specified, a reference to a hash of genome IDs already processed by this load. These genomes will not be
 reprocessed.
 
+=item protFamRepo
+
+L<ProtFamRepo> object for building protein families.
+
 =back
 
 =cut
 
 sub new {
-    my ($class, $privilege, $opt, $genomesProcessed) = @_;
+    my ($class, $privilege, $opt, $genomesProcessed, $protFamRepo) = @_;
     # Create the base-class object.
     my $retVal = Loader::new($class);
     # Attach the command-line options.
@@ -115,6 +124,8 @@ sub new {
     $ENV{PERL_LWP_SSL_VERIFY_HOSTNAME} = 0;
     # Connect to PATRIC.
     $retVal->{p3} = P3DataAPI->new();
+    # Attach the protein-family builder.
+    $retVal->{protFamRepo} = $protFamRepo;
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;
@@ -278,16 +289,31 @@ sub ProcessPegFeatures {
     my ($self, $gto, $ph, $fh) = @_;
     # Get the statistics object.
     my $stats = $self->stats;
+    # Get the protein-family repo.
+    my $protFamRepo = $self->{protFamRepo};
     # Loop through the features.
     my $featureList = $gto->{features};
     for my $feature (@$featureList) {
         # Only process pegs.
         if ($feature->{type} eq 'CDS') {
             # Write the protein translation.
-            print $fh ">$feature->{id}\n$feature->{protein_translation}\n";
+            my $aa_sequence = $feature->{protein_translation};
+            print $fh ">$feature->{id}\n$aa_sequence\n";
             $stats->Add('peg-fasta-lineout' => 1);
             # Write the feature.
             $self->WriteFeatureData($feature, $ph);
+            # Compute the protein ID.
+            my $protID = Shrub::ProteinID($aa_sequence);
+            # Get the protein families and store them.
+            my $families = $feature->{family_assignments};
+            for my $family (@$families) {
+                my ($db, $fam, $function) = @$family;
+                $stats->Add(patricPFamFound => 1);
+                if ($db eq 'PGF') {
+                    $protFamRepo->AddProt($fam, $protID, $function);
+                    $stats->Add(patricPFamKept => 1);
+                }
+            }
         }
     }
 }
