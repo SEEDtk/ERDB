@@ -25,12 +25,13 @@ use ScriptUtils;
 use File::Copy::Recursive;
 use Shrub::ChemLoader;
 use CopyFromPatric;
+use ProtFamRepo;
 
-=head1 Copy Data From one or more SEED FIGdisks to Create an Input Repository
+=head1 Copy Data From One or More Sources to Create an Input Repository
 
     BuildRepo [ options ]
 
-This script copies genomes and subsystems from one or more SEEDs into a format
+This script copies genomes and subsystems from one or more sources into a format
 ready for loading into Shrub.
 
 =head2 Parameters
@@ -165,6 +166,8 @@ my $opt = ScriptUtils::Opts('',
 # Get a helper object and the associated statistics object.
 my $loader = CopyFromSeed->new($opt);
 my $stats = $loader->stats;
+# Create the protein family repo.
+my $protFamRepo = ProtFamRepo->new($stats);
 # Get the chemistry data.
 print "Refreshing chemistry data.\n";
 Shrub::ChemLoader::RefreshFiles($opt->repo);
@@ -208,7 +211,7 @@ while (defined $line) {
         $priv //= $opt->privilege;
         # Tell the helper (and the user) about this SEED.
         print "Copying from level-$priv SEED at $figDisk.\n";
-        $loader->SetSEED($figDisk, $priv, \%genomesProcessed);
+        $loader->SetSEED($figDisk, $priv, \%genomesProcessed, $protFamRepo);
         # Loop through the SEED commands.
         my $done;
         while (! $done) {
@@ -280,7 +283,7 @@ while (defined $line) {
         $priv //= $opt->privilege;
         # Create the PATRIC helper.
         print "Copying from level-$priv PATRIC.\n";
-        my $ploader = CopyFromPatric->new($priv, $opt, \%genomesProcessed);
+        my $ploader = CopyFromPatric->new($priv, $opt, \%genomesProcessed, $protFamRepo);
         my $done;
         while (! $done) {
             $line = <$ih>;
@@ -304,7 +307,7 @@ while (defined $line) {
         my ($rastDir, $priv) = @parms;
         $priv //= $opt->privilege;
         # Reset the loader in RAST mode.
-        $loader->Reset($priv, \%genomesProcessed, 1);
+        $loader->Reset($priv, \%genomesProcessed, $protFamRepo, 1);
         print "Copying from level-$priv RAST at $rastDir.\n";
         $stats->Add(rastInstances => 1);
         # Loop through the genomes.

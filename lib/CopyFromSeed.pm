@@ -105,6 +105,10 @@ Name of the repo directory to contain global files unrelated to genomes or subsy
 
 TRUE if this is a RAST-type SEED with multiple assigned-functions files. else FALSE.
 
+=item protFamRepo
+
+L<ProtFamRepo> object for tracking protein family data.
+
 =back
 
 =head2 Command-Line Option Groups
@@ -792,6 +796,30 @@ sub CopyGenome {
                         # Here we can copy the FASTA file.
                         File::Copy::Recursive::fcopy($inputFasta, "$outDir/peg-trans");
                         $stats->Add('peg-fasta-copied' => 1);
+                        # Do we have a protein family file?
+                        my $protFamFile = "$genomeDir/pattyfams.txt";
+                        if (-s $protFamFile) {
+                            # Yes. Read in the global families. This hash will map each PEG ID
+                            # to a [family,function] pair.
+                            my $gFamHash = $self->ReadPattyFams($protFamFile);
+                            # Get the protein family object.
+                            my $protFamRepo = $self->{protFamRepo};
+                            # Read the proteins and use them to build the family data.
+                            $ph = $self->OpenFasta(pegFasta => $inputFasta);
+                            while (my $triple = $self->GetLine(pegFasta => $ph)) {
+                                my ($fid, undef, $seq) = @$triple;
+                                $stats->Add(proteinIn => 1);
+                                # Do we have a protein family for this protein?
+                                if ($gFamHash->{$fid}) {
+                                    # Yes. Compute the protein ID.
+                                    my $protID = Shrub::ProteinID($seq);
+                                    # Get the family ID and function.
+                                    my ($fam, $fun) = @{$gFamHash->{$fid}};
+                                    # Store the family information.
+                                    $protFamRepo->AddProt($fam, $protID, $fun);
+                                }
+                            }
+                        }
                     }
                     # Create the non-peg-info file.
                     open(my $nh, ">$outDir/non-peg-info") || die "Could not open non-peg-info for output: $!";
@@ -1103,6 +1131,7 @@ This is the same as the base-class method L<RepoLoader/IndexGenomes>, except
 in this case we know the directory name internally.
 
 =cut
+
 sub IndexGenomes {
     # Get the parameters.
     my ($self) = @_;
@@ -1114,6 +1143,50 @@ sub IndexGenomes {
     }
 }
 
+=head3 ReadPattyFams
+
+    my $gFamHash = $loader->ReadPattyFams($protFamFile);
+
+Read in the global families from a SEED pattyfams file. We need to map each FIG feature ID to
+its global family and the family function.
+
+=over 4
+
+=item protFamFile
+
+The name of the file containing the family data. The file is tab-delimited, with each line containing (0) a feature ID,
+(1) a protein family ID, and (2) the family function. Only global families are processed: these have IDs prefixed with
+C<PGF_>.
+
+=item RETURN
+
+Returns a reference to a hash that maps each feature ID to a 2-tuple consisting of (0) the protein family ID and (1) the
+protein family function.
+
+=back
+
+=cut
+
+sub ReadPattyFams {
+    my ($self, $protFamFile) = @_;
+    # This will be the return hash.
+    my %retVal;
+    # Get the statistics object.
+    my $stats = $self->stats;
+    # Open the file for input.
+    my $ih = $self->OpenFile(pattyFam => $protFamFile);
+    # Loop through it.
+    while (my $fields = $self->GetLine(pattyFam => $ih)) {
+        my ($fid, $fam, $fun) = @$fields;
+        if ($fam =~ /^PGF_/) {
+            # Here we have a global family, so we keep it..
+            $stats->Add(pattyFamGlobalLine => 1);
+            $retVal{$fid} = [$fam, $fun];
+        }
+    }
+    # Return the hash.
+    return \%retVal;
+}
 
 =head2 Utility Methods
 
@@ -1174,13 +1247,17 @@ The privilege level associated with the SEED's annotations and subsystems.
 If specified, a reference to a hash of the genomes already loaded in this run. They will not be
 reprocessed.
 
+=item protFamRepo
+
+If specified, a L<ProtFamRepo> object for tracking protein families.
+
 =back
 
 =cut
 
 sub SetSEED {
     # Get the parameters.
-    my ($self, $figDisk, $privilege, $genomesProcessed) = @_;
+    my ($self, $figDisk, $privilege, $genomesProcessed, $protFamRepo) = @_;
     # Get the statistics object.
     my $stats = $self->stats;
     # Verify the FIGdisk.
@@ -1189,12 +1266,12 @@ sub SetSEED {
     $self->{figDisk} = $figDisk;
     $stats->Add(figDisks => 1);
     # Reset the statistics and hashes. Note we are assuming a human-curated SEED.
-    $self->Reset($privilege, $genomesProcessed, 0);
+    $self->Reset($privilege, $genomesProcessed, $protFamRepo, 0);
 }
 
 =head3 Reset
 
-    $loader->Reset($privilege, \%genomesProcessed);
+    $loader->Reset($privilege, \%genomesProcessed, $protFamRepo, $rastFlag);
 
 Set up this object for another run through SEED genome directories.
 
@@ -1209,6 +1286,10 @@ The privilege level associated with the forthcoming annotations and subsystems.
 If specified, a reference to a hash of the genomes already loaded in this run. They will not be
 reprocessed.
 
+=item protFamRepo
+
+If specified, a L<ProtFamRepo> object for tracking protein families.
+
 =item rastFlag (optional)
 
 If TRUE, then this is a RAST-type SEED with multiple assigned-functions files. The default is FALSE.
@@ -1218,12 +1299,13 @@ If TRUE, then this is a RAST-type SEED with multiple assigned-functions files. T
 =cut
 
 sub Reset {
-    my ($self, $privilege, $genomesProcessed, $rastFlag) = @_;
+    my ($self, $privilege, $genomesProcessed, $protFamRepo, $rastFlag) = @_;
     # Get the statistics object.
     my $stats = $self->stats;
     # Store the privilege level.
     $self->{privilege} = $privilege;
     $self->{subPriv} = ($privilege == Shrub::PRIV ? 1 : 0);
+    $self->{protFamRepo} = $protFamRepo;
     $self->{nonhuman} = $rastFlag || 0;
     $stats->Add(coreSeeds => $self->{subPriv});
     # Refresh the genome index.
