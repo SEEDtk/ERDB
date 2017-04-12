@@ -355,45 +355,22 @@ if ($genomesLoading) {
     if (! $cleared) {
         $loader->Clear(@ptables);
     }
-    # Loop through the protein family files.
-    my $fileIndex = 1;
-    while (-f "$repo/Other/ProteinFamily/protFamily.$fileIndex.tbl") {
-        print "Processing family file $fileIndex.\n";
-        open(my $ih, "<$repo/Other/ProteinFamily/protFamily.$fileIndex.tbl") ||
-            die "Could not open protein family file $fileIndex: $!";
-        # The file is sorted by family ID. We process one family at a time.
-        my $currentFamily = "";
-        my $currentFunction = "";
-        # This holds all the family's protein IDs.
-        my $md5s = {};
-        # Loop through all the proteins.
-        while (! eof $ih) {
-            my $line = <$ih>;
-            chomp $line;
-            my ($family, $func, $md5) = split /\t/, $line;
-            $stats->Add(protFamLineIn => 1);
-            if ($family ne $currentFamily) {
-                $stats->Add(newProtFamily => 1);
-                if ($currentFamily) {
-                    ProcessProteinFamily($currentFamily, $currentFunction, $md5s);
-                }
-                # Start the new family.
-                $currentFamily = $family;
-                # We need to compute the function ID.
-                my ($statement, $sep, $roles) = $funcMgr->Parse($func);
-                $currentFunction = $funcMgr->Process($statement, $sep, $roles);
-                # Clear the MD5 hash.
-                $md5s = {};
-            }
-            # Store the incoming protein.
-            $md5s->{$md5} = 1;
-        }
-        # Process the residual family.
-        if ($currentFamily) {
-            ProcessProteinFamily($currentFamily, $currentFunction, $md5s);
-        }
-        # Get the next file.
-        $fileIndex++;
+    # Process the protein families. First, we create the ProteinFamily records.
+    my $ih = $loader->OpenFile(famFuns => "$repo/Other/famFuns.tbl");
+    while (my $famData = $loader->GetLine(famFuns => $ih)) {
+        my ($fam, $fun) = @$famData;
+        # We need to compute the function ID.
+        my ($statement, $sep, $roles) = $funcMgr->Parse($fun);
+        my $funID = $funcMgr->Process($statement, $sep, $roles);
+        # Create the family record.
+        $loader->InsertObject('ProteinFamily', id => $fam, Function2Family_link => $funID);
+    }
+    # Now, create the protein/family links.
+    close $ih;
+    $ih = $loader->OpenFile(protFams => "$repo/Other/protFams.tbl");
+    while (my $protData = $loader->GetLine(protFams => $ih)) {
+        my ($prot, $fam) = @$protData;
+        $loader->InsertObject('Family2Protein', 'from-link' => $fam, 'to-link' => $prot);
     }
     # Unspool the tables.
     print "Unspooling cluster and protein family tables.\n";
@@ -402,7 +379,6 @@ if ($genomesLoading) {
 # Next we must load the samples. There are few of these, and they are always loaded in slow mode, with
 # direct inserts. Genome and taxonomy data must already exist. If we have a samples directory, we
 # ask the post-loader to load it.
-# in the repository.
 if (-d "$repo/Samples") {
     $postLoader->LoadSamples("$repo/Samples");
 }
@@ -464,36 +440,3 @@ sub DomainCheck {
     }
 }
 
-# Insert a protein family into the database.
-sub ProcessProteinFamily {
-    my ($currentFamily, $currentFunction, $md5s) = @_;
-    # Check to insure the proteins exist. We process the proteins in batches of 100.
-    my @protList = sort keys %$md5s;
-    my $protCount = scalar @protList;
-    my $empty = 1;
-    for (my $i = 0; $i < $protCount; $i += 100) {
-        my $i1 = $i + 99;
-        $i = $protCount - 1 if ($i1 >= $protCount);
-        my @segment = @protList[$i .. $i1];
-        my $filter = 'Protein(id) IN (' . join(', ', map { '?' } @segment) . ')';
-        my @prots = $shrub->GetFlat('Protein', $filter, \@segment, 'id');
-        # Now @prots is a list of proteins actually in the database.
-        my $found = scalar(@prots);
-        $stats->Add(familyProteinsSkipped => (scalar(@segment) - $found));
-        if (! $found) {
-            $stats->Add(emptyProteinFamilyChunk => 1);
-        } else {
-            $stats->Add(familyProteinsFound => $found);
-            $stats->Add(processedProteinFamilyChunk => 1);
-            $empty = 0;
-            for my $prot (@prots) {
-                $loader->InsertObject('Family2Protein', 'from-link' => $currentFamily, 'to-link' => $prot);
-            }
-        }
-    }
-    if ($empty) {
-        $stats->Add(empyProteinFamily => 1);
-    } else {
-        $loader->InsertObject('ProteinFamily', id => $currentFamily, Function2Family_link => $currentFunction);
-    }
-}

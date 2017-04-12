@@ -185,7 +185,8 @@ sub FixFunctions {
     $protFamRepo->output($dir);
 
 Output the protein family data to files for loading. There will be a C<protFams.tbl> file that maps protein IDs to family
-IDs and a L<famFuns.tbl> file that maps family IDs to functional assignments.
+IDs and a C<famFuns.tbl> file that maps family IDs to functional assignments. Both files are tab-delimited, with the key
+in the first column and the value in the second.
 
 =over 4
 
