@@ -17,6 +17,10 @@ while (! eof $ih) {
     my $line = <$ih>;
     chomp $line;
     my ($id, $checksum, $role) = split /\t/, $line;
+    my $subs = ($role =~ s/\r//g);
+    if ($subs) {
+        print "CRs found in $id: $role\n";
+    }
     my $newCheck = RoleParse::Checksum($role);
     if ($newCheck ne $checksum) {
         print "Correcting $id: $role.\n";
@@ -28,5 +32,5 @@ while (! eof $ih) {
     } else {
         print "Could not find $id: $role.\n";
     }
-    
+
 }
