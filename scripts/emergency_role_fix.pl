@@ -11,8 +11,8 @@ use Shrub;
 
 my $shrub = Shrub->new();
 open(my $ih, "<$FIG_Config::global/roles.in.subsystems") || die "Could not open input roles.in.subsystems: $!";
-open(my $oh, "<$FIG_Config::data/roles.in.subsystems") || die "Could not open output roles.in.subsystems: $!";
-open(my $rh, "<$FIG_Config::data/Inputs/Other/roles.tbl") || die "Could not open roles.tbl: $!";
+open(my $oh, ">$FIG_Config::data/roles.in.subsystems") || die "Could not open output roles.in.subsystems: $!";
+open(my $rh, ">$FIG_Config::data/Inputs/Other/roles.tbl") || die "Could not open roles.tbl: $!";
 while (! eof $ih) {
     my $line = <$ih>;
     chomp $line;
@@ -23,5 +23,10 @@ while (! eof $ih) {
     }
     print $oh join("\t", $id, $newCheck, $role) . "\n";
     my ($roleData) = $shrub->GetAll('Role', 'Role(id) = ?', [$id], 'id checksum ec-number tc-number');
-    print $rh join("\t", @$roleData) . "\n";
+    if ($roleData) {
+        print $rh join("\t", @$roleData) . "\n";
+    } else {
+        print "Could not find $id: $role.\n";
+    }
+    
 }
