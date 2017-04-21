@@ -800,50 +800,53 @@ sub ReadFeatures {
         if ($fid =~ /fig\|\d+\.\d+\.(\w+)\.\d+/) {
             $ftype = $1;
         } else {
-            die "Invalid feature ID $fid.";
+            print "WARNING: Invalid feature ID $fid in $genome.\n";
+            $stats->Add(invalidFeatureID => 1);
         }
-        # If this is NOT a peg and has no function, change the function to
-        # the appropriate hypothetical.
-        if ($ftype ne 'peg' && ! $function) {
-            $function = "hypothetical $ftype";
+        if ($ftype) {
+            # If this is NOT a peg and has no function, change the function to
+            # the appropriate hypothetical.
+            if ($ftype ne 'peg' && ! $function) {
+                $function = "hypothetical $ftype";
+            }
+            # Compute the total sequence length.
+            my $seqLen = 0;
+            for my $loc (@locs) {
+                $seqLen += $loc->Length;
+            }
+            # Merge the length into the feature statistics.
+            if ($seqLen > $fidStats->{'longest-feature'}) {
+                $fidStats->{'longest-feature'} = $seqLen;
+            }
+            # Compute the protein.
+            my $protID = $protHash->{$fid} // '';
+            # Compute the function checksum.
+            my $md5 = Shrub::Checksum($function);
+            # Connect the feature to the genome.
+            $loader->InsertObject('Feature', id => $fid, 'feature-type' => $ftype,
+                    checksum => $md5, 'sequence-length' => $seqLen,
+                    Genome2Feature_link => $genome,
+                    Protein2Feature_link => $protID);
+            $stats->Add(feature => 1);
+            # Connect the feature to the contigs. This is where the location information figures in.
+            my $ordinal = 0;
+            for my $loc (@locs) {
+                $loader->InsertObject('Feature2Contig', 'from-link' => $fid, 'to-link' => RealContigID($genome , $loc->Contig),
+                        begin => $loc->Left, dir => $loc->Dir, len => $loc->Length, ordinal => ++$ordinal);
+                $stats->Add(featureSegment => 1);
+            }
+            # Parse the function.
+            my ($statement, $sep, $roles, $comment) = Shrub::Functions::Parse($function);
+            # Insure it is in the database.
+            my $funcID = $funcMgr->Process($statement, $sep, $roles);
+            # Connect the functions. Make the connection at each privilege level.
+            for (my $p = $priv; $p >= 0; $p--) {
+                $loader->InsertObject('Feature2Function', 'from-link' => $fid, 'to-link' => $funcID,
+                        comment => $comment, security => $p);
+                $stats->Add(featureFunction => 1);
+            }
+            $fcount++;
         }
-        # Compute the total sequence length.
-        my $seqLen = 0;
-        for my $loc (@locs) {
-            $seqLen += $loc->Length;
-        }
-        # Merge the length into the feature statistics.
-        if ($seqLen > $fidStats->{'longest-feature'}) {
-            $fidStats->{'longest-feature'} = $seqLen;
-        }
-        # Compute the protein.
-        my $protID = $protHash->{$fid} // '';
-        # Compute the function checksum.
-        my $md5 = Shrub::Checksum($function);
-        # Connect the feature to the genome.
-        $loader->InsertObject('Feature', id => $fid, 'feature-type' => $ftype,
-                checksum => $md5, 'sequence-length' => $seqLen,
-                Genome2Feature_link => $genome,
-                Protein2Feature_link => $protID);
-        $stats->Add(feature => 1);
-        # Connect the feature to the contigs. This is where the location information figures in.
-        my $ordinal = 0;
-        for my $loc (@locs) {
-            $loader->InsertObject('Feature2Contig', 'from-link' => $fid, 'to-link' => RealContigID($genome , $loc->Contig),
-                    begin => $loc->Left, dir => $loc->Dir, len => $loc->Length, ordinal => ++$ordinal);
-            $stats->Add(featureSegment => 1);
-        }
-        # Parse the function.
-        my ($statement, $sep, $roles, $comment) = Shrub::Functions::Parse($function);
-        # Insure it is in the database.
-        my $funcID = $funcMgr->Process($statement, $sep, $roles);
-        # Connect the functions. Make the connection at each privilege level.
-        for (my $p = $priv; $p >= 0; $p--) {
-            $loader->InsertObject('Feature2Function', 'from-link' => $fid, 'to-link' => $funcID,
-                    comment => $comment, security => $p);
-            $stats->Add(featureFunction => 1);
-        }
-        $fcount++;
     }
     print "$fcount features processed.\n";
 }
