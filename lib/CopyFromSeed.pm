@@ -410,7 +410,7 @@ sub CheckSubsystem {
     if (! -d "$subBase/$dirName") {
         print "Subsystem $subName not found in SEED.\n";
         $stats->Add(subsystemNotFound => 1);
-    } elsif (! -f "$subBase/$dirName/EXCHANGABLE") {
+    } elsif (! ReadFlagFile("$subBase/$dirName/EXCHANGABLE")) {
         print "Subsystem $subName is private in SEED.\n";
         $stats->Add(subsystemPrivate => 1);
     } elsif (! -f "$subBase/$dirName/spreadsheet") {
