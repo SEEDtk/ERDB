@@ -293,7 +293,7 @@ sub LoadRoleMap {
     # Get the role manager.
     my $roleMgr = $self->{roleMgr};
     # Open the roles file.
-    my $roleFile = "$self->{repoDir}/Templates/Annotations/Roles.tsv";
+    my $roleFile = "$self->{repoDir}/Annotations/Roles.tsv";
     open(my $ih, "<$roleFile") || die "Could not open ModelSEED role file: $!";
     # Discard the label line.
     my $line = <$ih>;
@@ -327,7 +327,7 @@ sub LoadComplexes {
     # Get the role map.
     my $roleH = $self->{roleMap};
     # Open the complexes file.
-    my $cpxFile = "$self->{repoDir}/Templates/Annotations/Complexes.tsv";
+    my $cpxFile = "$self->{repoDir}/Annotations/Complexes.tsv";
     open(my $ih, "<$cpxFile") || die "Could not open ModelSEED complex file: $!";
     # Discard the label line.
     my $line = <$ih>;
