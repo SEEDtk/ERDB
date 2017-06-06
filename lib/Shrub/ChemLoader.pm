@@ -293,7 +293,7 @@ sub LoadRoleMap {
     # Get the role manager.
     my $roleMgr = $self->{roleMgr};
     # Open the roles file.
-    my $roleFile = "$self->{repoDir}/Templates/Roles.tsv";
+    my $roleFile = "$self->{repoDir}/Templates/Annotations/Roles.tsv";
     open(my $ih, "<$roleFile") || die "Could not open ModelSEED role file: $!";
     # Discard the label line.
     my $line = <$ih>;
@@ -327,7 +327,7 @@ sub LoadComplexes {
     # Get the role map.
     my $roleH = $self->{roleMap};
     # Open the complexes file.
-    my $cpxFile = "$self->{repoDir}/Templates/Complexes.tsv";
+    my $cpxFile = "$self->{repoDir}/Templates/Annotations/Complexes.tsv";
     open(my $ih, "<$cpxFile") || die "Could not open ModelSEED complex file: $!";
     # Discard the label line.
     my $line = <$ih>;
@@ -379,7 +379,7 @@ sub LoadCompounds {
     my $loader = $self->{loader};
     my $stats = $loader->stats;
     # Open the compounds file.
-    my $cpdFile = "$self->{repoDir}/Biochemistry/compounds.master.tsv";
+    my $cpdFile = "$self->{repoDir}/Biochemistry/compounds.tsv";
     open(my $ih, "<$cpdFile") || die "Could not open ModelSEED compounds file: $!";
     # Discard the label line.
     my $line = <$ih>;
@@ -410,7 +410,7 @@ sub LoadReactions {
     my $loader = $self->{loader};
     my $stats = $loader->stats;
     # Open the reactions file.
-    my $reactFile = "$self->{repoDir}/Biochemistry/reactions.master.tsv";
+    my $reactFile = "$self->{repoDir}/Biochemistry/reactions.tsv";
     open(my $ih, "<$reactFile") || die "Could not open ModelSEED reactions file: $!";
     # Discard the label line.
     my $line = <$ih>;
@@ -473,7 +473,7 @@ sub LoadReactions {
     # Finally, we connect reactions to pathways.
     close $ih; undef $ih;
     print "Connecting reactions to pathways.\n";
-    open($ih, "<$self->{repoDir}/Pathways/plantdefault.pathways.tsv") || die "Could not open ModelSEED pathways file: $!";
+    open($ih, "<$self->{repoDir}/Biochemistry/Pathways/plantdefault.pathways.tsv") || die "Could not open ModelSEED pathways file: $!";
     # This hash tracks the pathway names.
     my %pathways;
     # Get the types from the label line.
