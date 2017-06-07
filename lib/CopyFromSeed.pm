@@ -992,7 +992,7 @@ sub AllGenomes {
     my ($self) = @_;
     # Read all the genomes in the organism directory.
     my $orgDir = "$self->{figDisk}/FIG/Data/Organisms";
-    my @genomes = [ grep { $_ =~ /^\d+\.\d+$/ && -d "$orgDir/$_" } $self->OpenDir($orgDir) ];
+    my @genomes = grep { $_ =~ /^\d+\.\d+$/ && -d "$orgDir/$_" } $self->OpenDir($orgDir);
     print scalar(@genomes) . " genome IDs read from directory.\n";
     # This will be the return list.
     my @retVal;
