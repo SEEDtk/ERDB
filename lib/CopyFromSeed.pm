@@ -992,10 +992,20 @@ sub AllGenomes {
     my ($self) = @_;
     # Read all the genomes in the organism directory.
     my $orgDir = "$self->{figDisk}/FIG/Data/Organisms";
-    my $retVal = [ grep { $_ =~ /^\d+\.\d+$/ && -d "$orgDir/$_" } $self->OpenDir($orgDir) ];
-    print scalar(@$retVal) . " genome IDs read from directory.\n";
+    my @genomes = [ grep { $_ =~ /^\d+\.\d+$/ && -d "$orgDir/$_" } $self->OpenDir($orgDir) ];
+    print scalar(@genomes) . " genome IDs read from directory.\n";
+    # This will be the return list.
+    my @retVal;
+    # Look for un-deleted genomes.
+    for my $genome (@genomes) {
+        my $deleteFlag = ReadFlagFile("$orgDir/$genome/DELETED");
+        if (! $deleteFlag || $deleteFlag ne 'deleted') {
+            push @retVal, $genome;
+        }
+    }
+    print scalar(@retVal) . " genomes are still valid.\n";
     # Return the resulting genome list.
-    return $retVal;
+    return \@retVal;
 }
 
 =head3 GenomeName
