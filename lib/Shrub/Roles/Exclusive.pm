@@ -113,7 +113,7 @@ sub init {
             # Save the role ID for this checksum.
             $checkHash{$checksum} = $roleID;
             # Save the EC and TC numbers for this role.
-            $roleNums{$roleID} = [$ecNum, $tcNum];
+            $roleNums{$roleID} = ['', ''];
             # Compute the next available suffix.
             ERDBtk::ID::Magic::Exclusive::UpdatePrefixHash(\%prefixHash, $roleID);
         }
@@ -243,6 +243,8 @@ sub InsertRole {
                 'ec-number' => $ecNum, 'tc-number' => $tcNum, hypo => $hypo };
         # Update the role number hash.
         $roleNums->{$retVal} = [$ecNum, $tcNum];
+        # Denote that now it is technically in the database.
+        $inDB->{$retVal} = 1;
     }
     # Return the role ID.
     return $retVal;

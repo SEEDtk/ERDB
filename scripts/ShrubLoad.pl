@@ -236,6 +236,30 @@ if ($genomesLoading) {
     $funcMgr = Shrub::Functions->new($loader, slow => $slowFlag, roles => $roleMgr,
             exclusive => $exclusive);
 }
+# These will hold the subsystem objects.
+my ($sLoader, $subs);
+if ($subsLoading) {
+    print "Pre-loading roles for subsystems.\n";
+    $sLoader = Shrub::SubsystemLoader->new($loader, roleMgr => $roleMgr, slow => $slowFlag,
+            exclusive => $exclusive);
+    # Get the list of subsystems to load.
+    $subs = $sLoader->SelectSubsystems($subsSpec, $subsDir);
+    # Pre-load the subsystem roles into the role manager. This insures that the subsystem version
+    # of the role name takes precedence over later versions.
+    for my $sub (sort @$subs) {
+        print "Preloading roles for $sub.\n";
+        # Open the role input file.
+        my $subDir = $loader->FindSubsystem($subsDir, $sub);
+        my $rh = $loader->OpenFile(role => "$subDir/Roles");
+        # Loop through the roles.
+        while (my $roleData = $loader->GetLine(role => $rh)) {
+            # Get this role's description.
+            my $role = $roleData->[1];
+            # Compute the role ID. If the role is new, this inserts it in the database.
+            my ($roleID) = $roleMgr->Process($role);
+        }
+    }
+}
 # This will track the genomes we load.
 my $gHash;
 # Here we process the taxonomies.
@@ -271,10 +295,6 @@ if ($genomesLoading) {
 # Here we process the subsystems.
 if ($subsLoading) {
     print "Processing subsystems.\n";
-    my $sLoader = Shrub::SubsystemLoader->new($loader, roleMgr => $roleMgr, slow => $slowFlag,
-            exclusive => $exclusive);
-    # Get the list of subsystems to load.
-    my $subs = $sLoader->SelectSubsystems($subsSpec, $subsDir);
     # We need to be able to tell which subsystems are already in the database. If the number of subsystems
     # being loaded is large, we spool all the subsystem IDs into memory to speed the checking process.
     my $subTotal = scalar @$subs;
