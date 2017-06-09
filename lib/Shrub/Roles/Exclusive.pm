@@ -227,7 +227,7 @@ sub InsertRole {
         }
     } else {
         # The role does not exist, we need to insert it.
-        $stats->Add(roleNotFound => 1);
+        $stats->Add(roleCreatedNew => 1);
         # Compute its ID.
         $retVal = $self->{inserter}->ComputeID($roleText);
         # Save its information in the checksum hash.
