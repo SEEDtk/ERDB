@@ -112,7 +112,7 @@ sub init {
             my ($roleID, $checksum, $ecNum, $tcNum) = split /\t/, $line;
             # Save the role ID for this checksum.
             $checkHash{$checksum} = $roleID;
-            # Save the EC and TC numbers for this role.
+            # Denote we do not know the EC and TC numbers for this role.
             $roleNums{$roleID} = ['', ''];
             # Compute the next available suffix.
             ERDBtk::ID::Magic::Exclusive::UpdatePrefixHash(\%prefixHash, $roleID);
