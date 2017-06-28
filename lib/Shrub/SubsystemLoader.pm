@@ -296,7 +296,7 @@ sub LoadSubsystem {
                 ordinal => $ord, abbr => $abbr, aux => $aux);
         $stats->Add(roleForSubsystem => 1);
         # Save the role's abbreviation and ID.
-        $roleMap{$abbr} = [$roleID, $ord];
+        $roleMap{$abbr} = [$roleID, $ord, $aux];
         # Increment the column number.
         $ord++;
     }
@@ -376,9 +376,11 @@ sub LoadSubsystem {
                 # We want this peg. Put it in the cell.
                 my $cellID = $cellMap->{$abbr};
                 $loader->InsertObject('Feature2Cell', 'from-link' => $peg, 'to-link' => $cellID);
-                # Update the variant map.
-                my $roleID = $roleMap{$abbr}[0];
-                $variantMap{$row}{$roleID} = 1;
+                # Update the variant map. Note that auxiliary roles are not included.
+                my ($roleID, undef, $aux) = @{$roleMap{$abbr}};
+                if (! $aux) {
+                    $variantMap{$row}{$roleID} = 1;
+                }
             }
         }
     }
@@ -394,7 +396,7 @@ sub LoadSubsystem {
         if (! $mapsUsed{$mapString}) {
             $mapsUsed{$mapString} = 1;
             # Yes, insert it.
-            $loader->InsertObject('VariantMap', id => "$retVal:$row", Subsystem2Map_link => $retVal, 
+            $loader->InsertObject('VariantMap', id => "$retVal:$row", Subsystem2Map_link => $retVal,
                     'variant-code' => $variantCode{$row}, 'map' => $mapString, size => $mapSize);
         }
     }
