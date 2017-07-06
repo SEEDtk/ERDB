@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="http://pubseed.theseed.org/FIG/Html/ERDBtk_DBD.xsd">
+    <Title>PATRIC Bioinformatics Database</Title>
+    <Notes>The PATRIC database contains large tables describing the characteristics
+        of over one hundred thousand genomes.
+    </Notes>
+    <Regions>
+    </Regions>
+    <Diagram height="800" width="800" ratio="0.7" size="90"
+        fontSize="12" editable="0" />
+    <Entities>
+        <Entity name="Genome" keyType="short-string" default="id name">
+            <DisplayInfo theme="red">
+                <RegionInfo name="" col="4" row="3" />
+            </DisplayInfo>
+            <Notes>A genome represents a specific organism with DNA, or a
+                specific meta-genome. All DNA sequences in the database belong to
+                genomes. This table can be listed using p3-all-genomes. You
+                can also access data from genome records given a list of genome
+                IDs using p3-get-genome-data.
+            </Notes>
+        </Entity>
+        <Entity name="Contig" keyType="string" default="id length">
+            <DisplayInfo theme="red">
+                <RegionInfo name="" col="2" row="3" />
+            </DisplayInfo>
+            <Notes>A contig is a contiguous sequence of base pairs belonging to
+                a single genome. The key of the contig is the genome ID followed
+                by a colon and then the contig ID.
+            </Notes>
+        </Entity>
+        <Entity name="Feature" keyType="string" default="id">
+            <DisplayInfo theme="green">
+                <RegionInfo name="" col="4" row="5" />
+            </DisplayInfo>
+            <Notes>A feature (sometimes also called a gene) is a part of a
+                genome that is of special interest. Features may be spread across
+                multiple DNA sequences (contigs) of a genome, but never across more
+                than one genome. Each feature in the database has a unique FIG
+                ID that functions as its ID in this table. Given a list of feature
+                IDs, the feature data can be accessed using p3-get-feature-data.
+            </Notes>
+        </Entity>
+        <Entity name="Drug" keyType="short-string" default="id name">
+            <DisplayInfo theme="blue">
+                <RegionInfo name="" col="6" row="3" />
+            </DisplayInfo>
+            <Notes>A drug represents an antibiotic or other anti-microbial therapeutic
+            compound. Drugs are the anchor for resistance and susceptibility information
+            regarding genomes in the database. This table can be listed using
+            p3-all-drugs.
+            </Notes>
+        </Entity>
+        <Entity name="Family" keyType="short-string" default="id">
+            <DisplayInfo theme="green" caption="Family">
+                <RegionInfo name="" col="4" row="7" />
+            </DisplayInfo>
+            <Notes>A (protein) family contains a set of proteins that perform the same function.
+            Given a list of family IDs, the family data can be accessed using p3-get-family-data.</Notes>
+        </Entity>
+    </Entities>
+    <Relationships>
+        <Relationship name="GenomeDrug" from="Genome" to="Drug" arity="MM" converse="DrugGenome">
+            <DisplayInfo theme="blue" caption="Genome\nDrug" />
+            <Notes>This relationship connects a genome to a drug and contains the resistance/susceptiblity
+            data for the genome/drug pair. It is navigated from a list of genomes using p3-get-genome-drug-data and
+            from a list of drugs using p3-get-drug-genome-data.</Notes>
+        </Relationship>
+        <Relationship name="GenomeContig" from="Genome" to="Contig" arity="1M" embedded="1"
+            converse="ContigGenome">
+            <DisplayInfo theme="red" caption="Contig\nGenome" />
+            <Notes>This relationship connects a genome to its DNA sequences. It is navigated by
+            p3-get-genome-contigs proceeding from a list of genomes to contig data.</Notes>
+        </Relationship>
+        <Relationship name="GenomeFeature" from="Genome" to="Feature" arity="1M" embedded="1"
+            converse="FeatureGenome">
+            <DisplayInfo theme="green" caption="Genome\nFeature" />
+            <Notes>This relationship connects a genome to its constituent features. It is navigated
+            by p3-get-genome-features proceeding from a list of genomes to feature data.</Notes>
+        </Relationship>
+        <Relationship name="FamilyFeature" from="Family" to="Feature" arity="1M" converse="FeatureFamily"
+            embedded="1">
+            <DisplayInfo theme="green" caption="Feature\nFamily" />
+            <Notes>This relationship connects protein families to features. It is navigated by p3-get-family-features
+            from a list of family IDs to features. The family IDs are stored as attributes of the feature record
+            for navigation from features to the families.</Notes>
+        </Relationship>
+    </Relationships>
+</Database>
