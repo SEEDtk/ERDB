@@ -298,20 +298,25 @@ sub ProcessPegFeatures {
         if ($feature->{type} eq 'CDS') {
             # Write the protein translation.
             my $aa_sequence = $feature->{protein_translation};
-            print $fh ">$feature->{id}\n$aa_sequence\n";
-            $stats->Add('peg-fasta-lineout' => 1);
-            # Write the feature.
-            $self->WriteFeatureData($feature, $ph);
-            # Compute the protein ID.
-            my $protID = Shrub::ProteinID($aa_sequence);
-            # Get the protein families and store them.
-            my $families = $feature->{family_assignments};
-            for my $family (@$families) {
-                my ($db, $fam, $function) = @$family;
-                $stats->Add(patricPFamFound => 1);
-                if ($db eq 'PGF') {
-                    $protFamRepo->AddProt($fam, $protID, $function);
-                    $stats->Add(patricPFamKept => 1);
+            if (! $aa_sequence) {
+                print "WARNING: $feature->{id} has no protein translation.\n";
+                $stats->Add(patricMissingProtein => 1);
+            } else {
+                print $fh ">$feature->{id}\n$aa_sequence\n";
+                $stats->Add('peg-fasta-lineout' => 1);
+                # Write the feature.
+                $self->WriteFeatureData($feature, $ph);
+                # Compute the protein ID.
+                my $protID = Shrub::ProteinID($aa_sequence);
+                # Get the protein families and store them.
+                my $families = $feature->{family_assignments};
+                for my $family (@$families) {
+                    my ($db, $fam, $function) = @$family;
+                    $stats->Add(patricPFamFound => 1);
+                    if ($db eq 'PGF') {
+                        $protFamRepo->AddProt($fam, $protID, $function);
+                        $stats->Add(patricPFamKept => 1);
+                    }
                 }
             }
         }
