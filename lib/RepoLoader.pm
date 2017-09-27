@@ -218,18 +218,25 @@ Returns a normalized subsystem name.
 
 =cut
 
+use constant UNSTRANGE => { l => '<', g => '>', p => '%' };
+
+
 sub NormalizedName {
     # Convert from the instance form of the call to a direct call.
     shift if UNIVERSAL::isa($_[0], __PACKAGE__);
     # Get the parameters.
     my ($subName) = @_;
+    # Convert the strange characters, encoded using percents.
+    my $retVal = $subName;
+    $retVal =~ s/%([a-z])/UNSTRANGE->{$1}/ge;
+    # Convert the special characters.
+    $retVal =~ tr/;!/:?/;
     # Normalize the subsystem name by converting underscores to spaces.
     # Underscores at the beginning and end are not converted.
-    my $retVal = $subName;
     my $trailer = chop $retVal;
     my $prefix = substr($retVal,0,1);
     $retVal = substr($retVal, 1);
-    $retVal =~ tr/_;!/ :?/;
+    $retVal =~ tr/_/ /;
     $retVal = $prefix . $retVal . $trailer;
     # Return the result.
     return $retVal;
@@ -263,6 +270,8 @@ Returns a version of the subsystem name suitable for use as a directory name.
 
 =cut
 
+use constant STRANGE => { '<' => '%l', '>' => '%g', '%' => '%p' };
+
 sub DenormalizedName {
     # Convert from the instance form of the call to a direct call.
     shift if UNIVERSAL::isa($_[0], __PACKAGE__);
@@ -271,6 +280,8 @@ sub DenormalizedName {
     # Translate the characters.
     my $retVal = $subName;
     $retVal =~ tr/ :?/_;!/;
+    # Now convert the strange characters.
+    $retVal =~ s/([<>%])/STRANGE->{$1}/ge;
     # Return the result.
     return $retVal;
 }
