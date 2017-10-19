@@ -986,6 +986,85 @@ sub get_funcs_for_pegs_in_genome {
     return \@tuples;
 }
 
+=head3 genes_in_region
+
+    my $geneList = $shrub->genes_in_region($targetLoc, $priv);
+
+Return a list of all the features that overlap the specified region.
+
+=over 4
+
+=item targetLoc
+
+A L<BasicLocation> for the region whose features are desired.
+
+=item priv
+
+Privilege level for functional assignments.
+
+=item RETURN
+
+Returns a reference to a list of 4-tuples, one for each feature that overlaps the region. Each
+4-tuple contains (0) the feature ID, (1) a L<BasicLocation> describing the full extent of its
+segments on the target contig, (2) the ID of its assigned function, and (3) the description of its
+assigned function.
+
+=back
+
+=cut
+
+sub genes_in_region {
+    my ($self, $targetLoc, $priv) = @_;
+    # Our results go in here.
+    my @retVal;
+    # Get the target contig.
+    my $contig = $targetLoc->Contig;
+    # Get the length of the longest feature for the genome that owns this contig.
+    my ($limit) = $self->GetFlat('Contig2Genome Genome', 'Contig2Genome(from-link) = ?', [$contig],
+            'Genome(longest-feature)');
+    # Every feature that overlaps MUST start to the left of this point.
+    my $leftLimit = $targetLoc->Left - $limit;
+    # Form a query to get all the overlapping segments. We get a segment if it starts to the left of
+    # the end point and it starts to the right of the limit point.
+    my $filter = 'Contig2Feature(from-link) = ? AND Contig2Feature(begin) <= ? AND (Contig2Feature(begin) >= ? AND Feature2Function(security) = ?)';
+    my $parms = [$contig, $targetLoc->Right, $leftLimit, $priv];
+    my @feats = $self->GetAll('Contig2Feature Feature Feature2Function Function', $filter, $parms,
+        'Contig2Feature(to-link) Contig2Feature(begin) Contig2Feature(dir) Contig2Feature(len) Feature(sequence-length) Function(id) Function(description) Feature2Function(comment)');
+    # Now loop through the features, keeping the ones that truly overlap the region. If a feature's
+    # total length does not match the segment length, we get the rest of its segments. We use a hash to
+    # skip over features we've already processed.
+    my %feats;
+    for my $feat (@feats) {
+        my ($fid, $begin, $dir, $len, $totLen, $funcID, $funcName, $comment) = @$feat;
+        # Only proceed if this feature is new.
+        if (! $feats{$fid}) {
+            # Get the feature's location.
+            my $loc = BasicLocation->new([$contig, $begin, $dir, $len]);
+            if ($targetLoc->Overlap($loc)) {
+                # Check for multiple segments.
+                if ($len < $totLen) {
+                    my @locs = map { BasicLocation->new($_) } $self->GetAll('Feature2Contig',
+                            'Feature2Contig(from-link) = ? AND Feature2Contig(to-link) = ?',
+                            [$fid, $contig], 'contig begin dir len');
+                    for my $loc2 (@locs) {
+                        $loc->Merge($loc2);
+                    }
+                }
+            }
+            # Add the comment (if any) to the function name.
+            if ($comment) {
+                $funcName .= " # $comment";
+            }
+            # Now $loc is the full location of the feature.
+            push @retVal, [$fid, $loc, $funcID, $funcName];
+            $feats{$fid} = 1;
+        }
+    }
+    # Return the features found.
+    return \@retVal;
+}
+
+
 =head3 get_trans_for_genome
 
     my \@tuples = $shrub->get_trans_for_genome($g);
