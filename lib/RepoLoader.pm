@@ -514,7 +514,7 @@ sub CopySamples {
     print scalar(@samples) . " sample directories found.\n";
     for my $sample (@samples) {
         my $sampleDir = "$inDir/$sample";
-        if (! -s "$sampleDir/bins.rast.json") {
+        if (! -s "$sampleDir/bins.rast.json" || ! -s "$sampleDir/site.tbl") {
             print "$sampleDir incomplete-- skipping.\n";
             $stats->Add(sampleSkipped => 1);
         } else {
@@ -547,7 +547,7 @@ sub CopySamples {
                 closedir $sh;
                 for my $file (@files) {
                     # Do we want to copy this file?
-                    if ($file =~ /^bin\d\.gto$/ || $file eq 'site.tbl' || $file eq 'bins.rast.json') {
+                    if ($file =~ /^bin\d+\.gto$/ || $file eq 'site.tbl' || $file eq 'bins.rast.json') {
                         # Yes. Copy it.
                         print "Copying $file.\n";
                         File::Copy::Recursive::fcopy("$sampleDir/$file", "$sampleODir/$file");
