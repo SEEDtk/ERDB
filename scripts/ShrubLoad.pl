@@ -396,13 +396,12 @@ if ($genomesLoading) {
     print "Unspooling cluster and protein family tables.\n";
     $loader->Close();
 }
-# Next we must load the samples. There are few of these, and they are always loaded in slow mode, with
+# Next we must load the samples. These are always loaded in slow mode, with
 # direct inserts. Genome and taxonomy data must already exist. If we have a samples directory, we
 # ask the post-loader to load it.
 if (-d "$repo/Samples") {
     $postLoader->LoadSamples("$repo/Samples");
 }
-
 # Finally, the domains. These are loaded from a global file.
 # This will track the domains loaded.
 my %domains;

@@ -126,6 +126,11 @@ Reference to a hash that maps ModelSEED role IDs to Shrub role IDs.
 TRUE if we are to load using individual inserts, FALSE if we are to load by spooling
 inserts into files for mass loading.
 
+=item compoundH
+
+Reference to a hash mapping each compound to the number of reactions in which it occurs. This is used to compute
+cofactors.
+
 =back
 
 =cut
@@ -197,7 +202,7 @@ sub new {
     }
     # Create the object.
     my $retVal = { loader => $loader, roleMgr => $roleMgr, slow => $slow,
-            repoDir => $repoDir, roleMap => {} };
+            repoDir => $repoDir, roleMap => {}, compoundH => {} };
     # Bless and return the object.
     bless $retVal, $class;
     return $retVal;
@@ -267,10 +272,10 @@ sub Process {
     $self->LoadRoleMap();
     # Load the complexes and connect them to the roles.
     $self->LoadComplexes();
-    # Load the compounds.
-    $self->LoadCompounds();
     # Load the reactions and connect them to the compounds and complexes.
     $self->LoadReactions();
+    # Load the compounds.
+    $self->LoadCompounds();
 }
 
 =head2 Internal Methods
@@ -378,6 +383,8 @@ sub LoadCompounds {
     print "Loading ModelSEED compounds.\n";
     my $loader = $self->{loader};
     my $stats = $loader->stats;
+    # Get the compound counts.
+    my $compoundH = $self->{compoundH};
     # Open the compounds file.
     my $cpdFile = "$self->{repoDir}/Biochemistry/compounds.tsv";
     open(my $ih, "<$cpdFile") || die "Could not open ModelSEED compounds file: $!";
@@ -388,10 +395,10 @@ sub LoadCompounds {
         $line = <$ih>;
         $stats->Add(compoundsLineIn => 1);
         chomp $line;
-        my ($id, undef, $name, $formula, undef, undef, undef, undef, undef, undef, undef, $cofactor) =
-                split /\t/, $line;
+        my ($id, undef, $name, $formula) = split /\t/, $line;
+        my $cFlag = (($compoundH->{$id} // 0) > 90 ? 1 : 0);
         $loader->InsertObject('Compound', id => $id, label => $name, formula => $formula,
-                cofactor => $cofactor);
+                cofactor => $cFlag);
     }
 }
 
@@ -416,6 +423,8 @@ sub LoadReactions {
     my $line = <$ih>;
     # We will track reaction IDs in here.
     my %reactions;
+    # This will be the compoundH hash.
+    my %counts;
     # Loop through the data lines.
     while (! eof $ih) {
         $line = <$ih>;
@@ -426,6 +435,8 @@ sub LoadReactions {
         $reactions{$rid} = 1;
         # Create the reaction record.
         $loader->InsertObject('Reaction', id => $rid, name => $name, direction => $direction);
+        # Track the compounds in here.
+        my %compounds;
         # Loop through the stoichiometry.
         my @stoichs = split /;/, $stoich;
         for my $stoichData (@stoichs) {
@@ -440,8 +451,13 @@ sub LoadReactions {
             }
             $loader->InsertObject('Reaction2Compound', 'from-link' => $rid, 'to-link' => $compound,
                     product => $product, stoichiometry => $number);
+            # Remember the compound.
+            $compounds{$compound} = 1;
         }
-
+        # Count this reaction for each compound.
+        for my $compound (keys %compounds) {
+            $counts{$compound}++;
+        }
     }
     # Now we need to link these reactions to complexes.
     close $ih; undef $ih;
@@ -519,6 +535,8 @@ sub LoadReactions {
             }
         }
     }
+    # Save the compound hash.
+    $self->{compoundH} = \%counts;
 }
 
 
