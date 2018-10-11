@@ -854,6 +854,7 @@ sub drop_table {
     my $tbl  = $arg{tbl};
     my $dbh  = $self->{_dbh};
     my $dbms = $self->{_dbms};
+    my $q = $self->quote();
     my $cmd;
 
     #
@@ -862,10 +863,10 @@ sub drop_table {
     delete $self->{table_cache};
 
     if ( $dbms eq "mysql" || $dbms eq "Pg" ) {
-        $cmd = "DROP TABLE IF EXISTS $tbl;";
+        $cmd = "DROP TABLE IF EXISTS $q$tbl$q;";
     } else {
         if ( $self->table_exists($tbl) ) {
-            $cmd = "DROP TABLE $tbl;";
+            $cmd = "DROP TABLE $q$tbl$q;";
         }
     }
     if ($cmd) {
