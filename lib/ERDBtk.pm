@@ -3492,7 +3492,7 @@ sub CreateTable {
     my $fieldThing = $self->ComputeFieldString($relationName);
     # Insure the table is not already there.
     if (! $options{nodrop}) {
-        $dbh->drop_table(tbl => $q . $relationName . $q);
+        $dbh->drop_table(tbl => $relationName);
     }
     # Create an estimate of the table size.
     my $estimation;
