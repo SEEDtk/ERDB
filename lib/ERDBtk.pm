@@ -3124,7 +3124,8 @@ sub LoadTable {
     # Load the table.
     my $rv;
     eval {
-        $rv = $dbh->load_table(file => $fileName, tbl => $relationName,
+        my $q = $self->q;
+        $rv = $dbh->load_table(file => $fileName, tbl => "$q$relationName$q",
                                style => $options{mode}, 'local' => 'LOCAL',
                                dup => $options{dup} );
     };
@@ -3186,7 +3187,9 @@ sub Analyze {
     # Get the parameters.
     my ($self, $tableName) = @_;
     # Analyze the table.
-    $self->{_dbh}->vacuum_it($tableName);
+    my $dbh = $self->{_dbh};
+    my $q = $self->q;
+    $dbh->vacuum_it("$q$tableName$q");
 }
 
 =head3 TruncateTable
@@ -3212,8 +3215,9 @@ sub TruncateTable {
     my ($self, $table) = @_;
     # Get the database handle.
     my $dbh = $self->{_dbh};
+    my $q = $self->q;
     # Execute a truncation comment.
-    $dbh->truncate_table($table);
+    $dbh->truncate_table("$q$table$q");
 }
 
 =head3 DropRelation
@@ -3238,9 +3242,10 @@ sub DropRelation {
     my ($self, $relationName) = @_;
     # Get the database handle.
     my $dbh = $self->{_dbh};
+    my $q = $self->q;
     # Drop the relation. The method used here has no effect if the relation
     # does not exist.
-    $dbh->drop_table(tbl => $relationName);
+    $dbh->drop_table(tbl => "$q$relationName$q");
 }
 
 =head3 DumpRelations
@@ -3492,7 +3497,7 @@ sub CreateTable {
     my $fieldThing = $self->ComputeFieldString($relationName);
     # Insure the table is not already there.
     if (! $options{nodrop}) {
-        $dbh->drop_table(tbl => $relationName);
+        $dbh->drop_table(tbl => "$q$relationName$q");
     }
     # Create an estimate of the table size.
     my $estimation;
@@ -3815,8 +3820,6 @@ sub CreateIndexes {
     my $relationData = $self->FindRelation($relationName);
     # Get the database handle.
     my $dbh = $self->{_dbh};
-    # Get the quote character.
-    my $q = $self->q;
     # Now we need to create this relation's indexes. We do this by looping
     # through its index table.
     my $indexHash = $relationData->{Indexes};
@@ -4040,10 +4043,11 @@ sub UpdateField {
     # and the field list is a single name.
     $suffix =~ s/^FROM.+WHERE\s+//;
     my $fieldList = $sqlHelper->ComputeFieldList($fieldName);
-    # Create the update statement.
-    my $command = "UPDATE $objectName SET $fieldList = ? WHERE $suffix";
     # Get the database handle.
     my $dbh = $self->{_dbh};
+    my $q = $self->q;
+    # Create the update statement.
+    my $command = "UPDATE $q$objectName$q SET $fieldList = ? WHERE $suffix";
     # Add the old and new values to the parameter list. Note we allow the
     # possibility that there are no user-supplied parameters.
     my @params = ($newValue, $oldValue);
@@ -5525,7 +5529,8 @@ sub _DumpRelation {
     open(DTXOUT, ">$fileName") || Confess("Could not open dump file $fileName: $!");
     # Create a query for the specified relation.
     my $dbh = $self->{_dbh};
-    my $query = $dbh->prepare_command("SELECT * FROM $relationName");
+    my $q = $self->q;
+    my $query = $dbh->prepare_command("SELECT * FROM $q$relationName$q");
     # Execute the query.
     $query->execute() || Confess("SELECT error dumping $relationName.");
     # Loop through the results.
