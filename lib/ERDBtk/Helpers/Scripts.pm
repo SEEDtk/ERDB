@@ -291,7 +291,7 @@ sub compute_filtering {
     for my $spec (@$like) {
         my ($field, $value) = split /,/, $spec;
         push @fieldNames, $field;
-        push @filter, "($objectName($field) LIKE ? COLLATE latin1_general_ci)";
+        push @filter, "($objectName($field) LIKE ?)";
         push @parms, $value;
     }
     # Loop through the op specifiers.
