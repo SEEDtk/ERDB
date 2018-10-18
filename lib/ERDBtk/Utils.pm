@@ -338,6 +338,7 @@ sub DropAll {
     my $erdb = $self->{erdb};
     # Get the DBtk handle.
     my $dbh = $erdb->{_dbh};
+    my $q = $dbh->quote();
     # Get the statistics object.
     my $stats = $self->stats;
     # Get the hash of table names currently in the database.
@@ -347,7 +348,7 @@ sub DropAll {
     for my $table (values %$tableH) {
          print "Dropping $table.\n";
          $stats->Add(tableDropped => 1);
-         $dbh->drop_table(tbl => $table);
+         $dbh->drop_table(tbl => "$q$table$q");
     }
     # Denote all the tables are gone.
     $self->{tables} = {};
