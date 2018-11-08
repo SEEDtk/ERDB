@@ -188,6 +188,8 @@ sub CopyGenome {
                     $stats->Add(missingContigsInPATRIC => 1);
                 }
             }
+            # Clean up a bad genome name.
+            $genomeName =~ s/"//g;
             # Compute the output directory.
             my $relPath = $self->RepoPath($genomeName);
             # Create the full path.
