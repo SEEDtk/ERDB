@@ -189,7 +189,7 @@ sub CopyGenome {
                 }
             }
             # Clean up a bad genome name.
-            $genomeName =~ s/"//g;
+            $genomeName =~ s/["':\/]//g;
             # Compute the output directory.
             my $relPath = $self->RepoPath($genomeName);
             # Create the full path.
