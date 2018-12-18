@@ -299,7 +299,7 @@ sub LoadSamples {
     my $stats = $loader->stats;
     # Insure the output directory for the bins exists.
     my $sampleODir = $FIG_Config::shrub_sample;
-    if (! -d $sampleODir) {
+    if ($sampleODir && ! -d $sampleODir) {
         print "Creating $sampleODir.\n";
         File::Copy::Recursive::pathmk($sampleODir);
     }
@@ -378,11 +378,14 @@ sub LoadSamples {
                 }
                 # Compute the database ID for the bin.
                 my $dbID = "$sampleID.$binID";
-                # Create the GTO file.
-                my $gtoFile = "$dbID.gto";
-                print "Copying GTO file $gtoFile.\n";
-                File::Copy::Recursive::fcopy("$projDir/$sample/bin$binID.gto", "$sampleODir/$gtoFile");
-                print "Storing bin in database.\n";
+                # Create the GTO file if we are storing samples.
+                my $gtoFile = '';
+                if ($sampleODir) {
+                    $gtoFile = "$dbID.gto";
+                    print "Copying GTO file $gtoFile.\n";
+                    File::Copy::Recursive::fcopy("$projDir/$sample/bin$binID.gto", "$sampleODir/$gtoFile");
+                    print "Storing bin in database.\n";
+                }
                 # Get the universal roles.
                 my $uniH = $bin->uniProts;
                 # Create the bin record.
