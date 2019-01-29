@@ -270,6 +270,50 @@ sub script_options {
 
 =head2 Data Query Methods
 
+=head3 domain_of
+
+    my $domain = $shrub->domain_of($taxID);
+
+Find the domain for a specified taxonomic ID.  This involves climbing the taxonomy tree until we find a domain flag.
+
+=over 4
+
+=item taxID
+
+The taxonomic grouping ID whose domain is to be found.  It is presumed the grouping is not already a domain.
+
+=item RETURN
+
+Returns the domain name (e.g. C<Archaea>, C<Bacteria>).
+
+=back
+
+=cut
+
+sub domain_of {
+    my ($self, $taxID) = @_;
+    # This will be the return value.
+    my $retVal;
+    # Loop until we find something.  If we have an error, we just return 'Other'.
+    my $groupID = $taxID;
+    while (! $retVal) {
+        my ($parentData) = $self->GetAll('IsInTaxonomicGroup TaxonomicGrouping', 'IsInTaxonomicGroup(from-link) = ?', [$groupID],
+                'TaxonomicGrouping(id) TaxonomicGrouping(scientific-name) TaxonomicGrouping(domain)');
+        if (! $parentData) {
+            $retVal = 'Other';
+        } else {
+            my ($newID, $newName, $domainFlag) = @$parentData;
+            if ($domainFlag) {
+                $retVal = $newName;
+            } else {
+                $groupID = $newID;
+            }
+        }
+    }
+    # Return the domain found.
+    return $retVal;
+}
+
 =head3 contig_seek
 
     my $dna = $shrub->contig_seek($contigID);
