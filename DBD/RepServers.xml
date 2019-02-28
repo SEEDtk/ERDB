@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="http://bioseed.mcs.anl.gov/~parrello/SEEDtk/ERDBtk_DBD.xsd">
+    <Title>Representative Genome Partitionings</Title>
+    <Notes>This diagram describes how pieces of the Representative Genome machinery
+        work together.
+    </Notes>
+    <Regions>
+    </Regions>
+    <Diagram height="800" width="800" ratio="0.7" size="90"
+        fontSize="12" editable="0" />
+    <Entities>
+        <Entity name="Genome" keyType="short-string" default="id name">
+            <DisplayInfo theme="red">
+                <RegionInfo name="" col="3" row="5" />
+            </DisplayInfo>
+            <Notes>A genome represents a specific organism with DNA.  The genomes
+                generally come from PATRIC, but some may reside in other databases.
+                A partitioning identifies genomes that are close and groups them
+                together.
+            </Notes>
+            <Asides>The objects in this table are the primary
+                items of interest.  A representative genome is captured in memory
+                by the [b]RepGenome[/b] object.  Each is recorded in the partitioning
+                directory in the [i]complete.genomes[/i] file and the
+                [i]6.1.1.20.fasta[/i] file.  For represented genomes, all we need is
+                the ID.  These are tracked in the [i]rep_db.tbl[/i] file.
+            </Asides>
+            <Fields>
+                <Field name="name" type="string">
+                    <Notes>The name of this genome.</Notes>
+                    <Asides>This is attribute [i]name[/i] of the [b]RepGenome[/b] object.
+                    It is only stored for representative genomes.</Asides>
+                </Field>
+                <Field name="prot" type="string">
+                    <Notes>The protein sequence for the seed (PheS) protein of the genome.</Notes>
+                    <Asides>This is attribute [i]prot[/i] of the [b]RepGenome[/b] object. It
+                    is only stored for representative genomes.</Asides>
+                </Field>
+            </Fields>
+        </Entity>
+        <Entity name="Source" keyType="string" default="id">
+            <DisplayInfo theme="red">
+                <RegionInfo name="" col="1" row="5" />
+            </DisplayInfo>
+            <Notes>A source represents a database containing genomes.  The source for most genomes is
+                PATRIC.
+            </Notes>
+            <Asides>Currently, the source is not stored.  Almost all genomes are from PATRIC, and the rest
+                are in the Shrub. The few scripts that deal with this issue look in Shrub first and then
+                PATRIC when resolving a genome ID.
+            </Asides>
+        </Entity>
+        <Entity name="Partitioning" keyType="string" default="id score kmer">
+            <DisplayInfo theme="blue">
+                <RegionInfo name="" col="3" row="1" />
+            </DisplayInfo>
+            <Notes>A parititioning divides all the genomes from a particular set
+                into groups of similar genomes.  Each such group, called a
+                partition, contains one representative genome and zero or more
+                represented genomes, all within a certain threshold similarity
+                of the representaitive.</Notes>
+            <Asides>The partititioning is represented by a disk directory
+                that is read into memory as a [b]RepGenomeDb[/b] object.  Traditionally,
+                these directories are stored in the [i]RepServers[/i] directory,
+                and almost all of them cover the good genomes in PATRIC.
+            </Asides>
+            <Fields>
+                <Field name="score" type="int">
+                    <Notes>similarity threshold for this partitioning</Notes>
+                    <Asides>This is stored in the [i]K[/i] file in the directory,
+                    and is accessed via the [i]score[/i] attribute of the
+                    [b]RepGenomeDb[/b] object.</Asides>
+                </Field>
+                <Field name="kmer" type="int">
+                    <Notes>protein kmer size used to compute similarity in this
+                    partitioning</Notes>
+                    <Asides>This is stored in the [i]K[/i] file in the directory, and
+                    is accessed via the [i]K[/i] attribute of the [b]RepGenomeDb[/b]
+                    object.  Its value is almost always 8.</Asides>
+                </Field>
+            </Fields>
+        </Entity>
+        <Entity name="Partition" keyType="short-string" default="id">
+            <DisplayInfo theme="blue">
+                <RegionInfo name="" col="3" row="3" />
+            </DisplayInfo>
+            <Notes>A partition is a group of similar genomes belonging to a partitioning.
+                It consists of a single representative genome and zero or more represented
+                genomes that are close to it.
+            </Notes>
+            <Asides>A partition is represented by a [b]RepGenome[/b] object in memory.
+                In the partitioning's disk directory, the attributes of the representative
+                genome are stored in the [i]complete.genomes[/i] and [i]6.1.1.20.fasta[/i]
+                files.  The ID of this record is the representative genome ID.  Given
+                a [b]RepGenomeDb[b] object, if you know the representative genome ID, you
+                can use the [i]rep_object[/i] method to get the partition's [b]RepGenome[/b]
+                object.
+            </Asides>
+        </Entity>
+    </Entities>
+    <Relationships>
+        <Relationship name="IsOriginOf" from="Source" to="Genome" arity="1M" converse="IsFoundIn">
+            <DisplayInfo theme="red" caption="Is Origin Of" />
+            <Notes>This relationship connects a genome to the source database from which it was
+                loaded.</Notes>
+        </Relationship>
+        <Relationship name="IsRepresentativeFor" from="Genome" to="Partition" arity="1M" embedded="1"
+            converse="HasRepresentative">
+            <DisplayInfo theme="blue">
+                <RegionInfo name="" caption="Has\nRepresentative" col="2" row="4" />
+            </DisplayInfo>
+            <Notes>This relationship connects a partition to its representative genome.</Notes>
+            <Asides>In memory, the partition and the representative genome are part of the same
+                object-- [b]RepGenome[/b]-- so there is no need for a relationship method.</Asides>
+        </Relationship>
+        <Relationship name="Represents" from="Partition" to="Genome" arity="MM"
+            converse="IsRepresentedIn">
+            <DisplayInfo theme="blue" />
+            <Notes>This relationship connects a partition to the genomes it represents, all of
+                which are similar to the representative genome.</Notes>
+            <Asides>The relationship is stored in the directory using the file [i]rep_db.tbl[/i].
+                To go from a [b]RepGenome[/b] object to its represented genomes, use the [i]rep_list[/i]
+                method.  Given a genome ID, find its partition using the [i]check_rep[/i] method
+                of the [b]RepGenomeDb[/b] object.</Asides>
+        </Relationship>
+        <Relationship name="ConsistsOf" from="Partitioning" to="Partition" arity="1M" converse="BelongsTo"
+            embedded="1">
+            <DisplayInfo theme="blue" caption="Consists\nOf" />
+            <Notes>This relationship connects a partitioning to its consistuent partitions.</Notes>
+            <Asides>On disk, the relationship is managed by the [i]complete.genomes[/i] file, which
+                lists all the representative genomes in the partititioning.  In memory, use the
+                [i]list_reps[/i] method of [b]RepGenomeDb[/b] to get a list of the representative genomes.
+                The [i]rep_object[/i] method can then be used to retrieve the appropriate [b]RepGenome[/b]
+                objects.</Asides>
+        </Relationship>
+    </Relationships>
+</Database>
