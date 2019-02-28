@@ -109,7 +109,7 @@
         <Relationship name="IsRepresentativeFor" from="Genome" to="Partition" arity="1M" embedded="1"
             converse="HasRepresentative">
             <DisplayInfo theme="blue">
-                <RegionInfo name="" caption="Has\nRepresentative" col="2" row="4" />
+                <RegionInfo name="" caption="Has\nRepresentative" col="2" row="4" fixed="1" />
             </DisplayInfo>
             <Notes>This relationship connects a partition to its representative genome.</Notes>
             <Asides>In memory, the partition and the representative genome are part of the same
@@ -117,7 +117,9 @@
         </Relationship>
         <Relationship name="Represents" from="Partition" to="Genome" arity="MM"
             converse="IsRepresentedIn">
-            <DisplayInfo theme="blue" />
+            <DisplayInfo theme="blue">
+                <RegionInfo name="" caption="Represents" col="4" row="4" fixed="1" />
+            </DisplayInfo>
             <Notes>This relationship connects a partition to the genomes it represents, all of
                 which are similar to the representative genome.</Notes>
             <Asides>The relationship is stored in the directory using the file [i]rep_db.tbl[/i].
