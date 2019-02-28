@@ -100,7 +100,8 @@
         </Entity>
     </Entities>
     <Relationships>
-        <Relationship name="IsOriginOf" from="Source" to="Genome" arity="1M" converse="IsFoundIn">
+        <Relationship name="IsOriginOf" from="Source" to="Genome" arity="1M" converse="IsFoundIn"
+            embedded="1">
             <DisplayInfo theme="red" caption="Is Origin Of" />
             <Notes>This relationship connects a genome to the source database from which it was
                 loaded.</Notes>
