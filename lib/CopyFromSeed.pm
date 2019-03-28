@@ -673,6 +673,7 @@ sub CopyGenome {
         my $genomeDir = $dir // "$self->{figDisk}/FIG/Data/Organisms/$genome";
         # Get the genome name.
         my $genomeName = $self->GenomeName($genome, $dir);
+        my $keep;
         if (! -d $genomeDir) {
             # Here the genome simply isn't in the SEED.
             print "Genome $genome not found in SEED-- skipped.\n";
@@ -682,9 +683,17 @@ sub CopyGenome {
             print "Could not find name of $genome-- skipped.\n";
             $stats->Add('genome-name-not-found' => 1);
         } elsif (! $dir && ! -f "$genomeDir/COMPLETE") {
-            # We don't want incomplete genomes from real SEEDs.
-            print "$genome is incomplete-- skipped.\n";
-            $stats->Add('genome-incomplete' => 1);
+            # If it is incomplete, we only accept it if it is a virus.
+            if (open(my $th, '<', "$genomeDir/TAXONOMY")) {
+                my $line = <$th>;
+                if ($line =~ /^Virus/) {
+                    $keep = 1;
+                }
+            }
+            if (! $keep) {
+                print "$genome is incomplete-- skipped.\n";
+                $stats->Add('genome-incomplete' => 1);
+            }
         } elsif (! -d "$genomeDir/Features") {
             # If there are no features, we can't process the genome.
             print "$genome has no Features directory.\n";
@@ -698,6 +707,9 @@ sub CopyGenome {
             print "$genome has no contigs file.\n";
             $stats->Add('genome-no-contigs' => 1);
         } else {
+            $keep = 1;
+        }
+        if ($keep) {
             # Now find out this genome's domain.
             my $taxonomy = ReadFlagFile("$genomeDir/TAXONOMY");
             # Remove spurious spaces.
