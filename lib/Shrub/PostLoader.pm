@@ -219,7 +219,7 @@ sub LoadClusters {
 
     $loader->SetUniRoles();
 
-Update the universal role flags for all the functions.
+Update the universal role flags for all the functions.  We also write out the universal role file.
 
 =cut
 
@@ -259,7 +259,8 @@ sub SetUniRoles {
     print "$gCount genomes found.\n";
     my $min = $gCount * $self->{uniPercent} / 100;
     print "Universal role threshhold is $min.\n";
-    # Now all the genomes have been processed. Update the functions.
+    # Now all the genomes have been processed. Update the functions and write the uni-role file.
+    open(my $uh, '>', "$FIG_Config::global/uniRoles.tbl") || die "Could not open uni-role file: $!";
     my @funs = $shrub->GetFlat('Function', '', [], 'id');
     for my $fun (@funs) {
         my $count = $funFinds{$fun} // 0;
@@ -267,9 +268,15 @@ sub SetUniRoles {
         if ($count >= $min) {
             $stats->Add(uniProteinFound => 1);
             $universal = 1;
+            # To write the uni-role file, we need the roles of this function.
+            my @roles = $shrub->GetAll('Function2Role Role', 'Function2Role(from-link) = ?', [$fun], 'Role(id) Role(checksum) Role(description)');
+            for my $roleTuple (@roles) {
+                print $uh join("\t", @$roleTuple) . "\n";
+            }
         }
         $shrub->UpdateEntity(Function => $fun, universal => $universal);
     }
+    close $uh;
     print "Universal role flags updated.\n";
 }
 
