@@ -10,7 +10,7 @@ use Encode qw(encode_utf8);
 use Shrub;
 
 my $shrub = Shrub->new();
-open(my $ih, "<$FIG_Config::global/roles.in.subsystems") || die "Could not open input roles.in.subsystems: $!";
+open(my $ih, "<$FIG_Config::p3data/roles.in.subsystems") || die "Could not open input roles.in.subsystems: $!";
 open(my $oh, ">$FIG_Config::data/roles.in.subsystems") || die "Could not open output roles.in.subsystems: $!";
 open(my $rh, ">$FIG_Config::data/Inputs/Other/roles.tbl") || die "Could not open roles.tbl: $!";
 while (! eof $ih) {
