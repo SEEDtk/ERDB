@@ -299,6 +299,7 @@ while (defined $line) {
         my $done;
         while (! $done) {
             $line = <$fh>;
+            print STDERR "Line read is $line"; ##TODO delete this line
             $stats->Add(patricGenomeLines => 1);
             if (! defined $line || substr($line, 0, 1) eq '+') {
                 # Here we have a new section.
