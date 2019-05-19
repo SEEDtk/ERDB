@@ -291,15 +291,17 @@ while (defined $line) {
         print "Copying from level-$priv PATRIC.\n";
         my $ploader = CopyFromPatric->new($priv, $opt, \%genomesProcessed, $protFamRepo);
         # Determine how we're finding the genome IDs.  The default is to use the current file.
-        my $fh = $ih;
+        my $fh;
         if ($file) {
             print "Reading genome IDs from $file.\n";
             open($fh, '<', $file) || die "Could not open genome ID input file: $!";
+        } else {
+            print "Reading genome IDs from input file.\n";
+            $fh = $ih;
         }
         my $done;
         while (! $done) {
             $line = <$fh>;
-            print STDERR "Line read is $line"; ##TODO delete this line
             $stats->Add(patricGenomeLines => 1);
             if (! defined $line || substr($line, 0, 1) eq '+') {
                 # Here we have a new section.
