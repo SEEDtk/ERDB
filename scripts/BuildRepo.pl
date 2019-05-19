@@ -100,9 +100,9 @@ The command word C<+PATRIC>.
 The privilege level to assign-- C<0> (public), C<1> (projected), or C<2> (core). This
 defaults to the privilege level specified in the C<--privilege> command-line option.
 
-=item 3 (optional)
+=item 3
 
-The name of a tab-delimtied file containing PATRIC genome IDs in its first column.
+(optional) The name of a tab-delimtied file containing PATRIC genome IDs in its first column.
 
 =back
 
@@ -282,22 +282,25 @@ while (defined $line) {
         }
         $line = <$ih>;
     } elsif ($command eq '+PATRIC') {
-        # Get the privilege.
+        # Get the privilege and the optional input file.
         my ($priv, $file) = @parms;
-        $priv ||= $opt->privilege;
+        if (! defined $priv || $priv eq '') {
+            $priv = $opt->privilege;
+        }
         # Create the PATRIC helper.
         print "Copying from level-$priv PATRIC.\n";
         my $ploader = CopyFromPatric->new($priv, $opt, \%genomesProcessed, $protFamRepo);
         # Determine how we're finding the genome IDs.  The default is to use the current file.
         my $fh = $ih;
         if ($file) {
+            print "Reading genome IDs from $file.\n";
             open($fh, '<', $file) || die "Could not open genome ID input file: $!";
         }
         my $done;
         while (! $done) {
             $line = <$fh>;
             $stats->Add(patricGenomeLines => 1);
-            if (! defined $line || ! $file && substr($line, 0, 1) eq '+') {
+            if (! defined $line || substr($line, 0, 1) eq '+') {
                 # Here we have a new section.
                 $done = 1;
                 # If we read from a file, push forward to the next line.
