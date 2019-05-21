@@ -445,7 +445,7 @@ if (! $opt->nodomains) {
 my $timer = time - $startTime;
 $stats->Add(totalTime => $timer);
 # Tell the user we're done.
-print "Database loaded.\n" . $stats->Show();
+print "All done.\n" . $stats->Show();
 
 # Insure a CDD domain is in the database.
 sub DomainCheck {
