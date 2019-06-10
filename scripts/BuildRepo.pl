@@ -39,7 +39,13 @@ ready for loading into Shrub.
 There are no positional parameters.
 
 The command-line options are those found in L<CopyFromSeed/common_options>
-plus L<ScriptUtils/ih_options>.
+plus L<ScriptUtils/ih_options>, plus the following.
+
+=over 4
+
+=item resume
+
+Resume copying after a failed previous load.
 
 =head3 Standard Input
 
@@ -166,15 +172,19 @@ $| = 1; # Prevent buffering on STDOUT.
 my $opt = ScriptUtils::Opts('',
         CopyFromSeed::common_options(),
         ScriptUtils::ih_options(),
+        ['resume', 'resume after an interrupted load']
 );
 # Get a helper object and the associated statistics object.
 my $loader = CopyFromSeed->new($opt);
 my $stats = $loader->stats;
 # Create the protein family repo.
 my $protFamRepo = ProtFamRepo->new($stats);
-# Get the chemistry data.
-print "Refreshing chemistry data.\n";
-Shrub::ChemLoader::RefreshFiles($opt->repo);
+# If we are NOT resuming, get the chem data.
+if (! $opt->resume) {
+    # Get the chemistry data.
+    print "Refreshing chemistry data.\n";
+    Shrub::ChemLoader::RefreshFiles($opt->repo);
+}
 # Connect to the standard input.
 my $ih = ScriptUtils::IH($opt->input);
 # Are we clearing?
@@ -196,6 +206,25 @@ if ($opt->clear) {
 }
 # This hash is used to prevent us from reloading genomes we've already processed.
 my %genomesProcessed;
+if ($opt->resume) {
+    # We are resuming.  Denote that we've processed any genome that has a nonempty
+    # "non-peg-info" file. To do this, we need to do a recursive search through
+    # the GenomeData directory.
+    my $genomeDir = $loader->genome_repo();
+    my $genomeHash = $loader->FindGenomeList($genomeDir, nameless => 1);
+    # Loop through the genomes in the directory, checking for "non-peg-info".
+    print "Scanning for existing genomes.\n";
+    my $count = 0;
+    for my $genome (keys %$genomeHash) {
+        my $dirName = $genomeHash->{$genome};
+        if (-s "$dirName/non-peg-info") {
+            $genomesProcessed{$genome} = 1;
+            $stats->Add("genome-alreadyLoaded" => 1);
+            $count++;
+        }
+    }
+    print "$count pre-existing genomes found.\n";
+}
 # Get the first line.
 my $line = <$ih>;
 # Loop through the input file.
@@ -227,8 +256,13 @@ while (defined $line) {
             } else {
                 $line =~ s/[\r\n]+$//;
                 if ($line eq '*Subsystems') {
-                    # Here the user wants to load all subsystems.
+                    # Here the user wants to load all subsystems.  Get a list of the good ones.
                     my $subList = $loader->ComputeSubsystems();
+                    # If we are resuming, delete any existing subsystems.
+                    if ($opt->resume) {
+                        print "Deleting old subsystem data.\n";
+                        File::Copy::Recursive::pathempty($loader->subsys_repo);
+                    }
                     # Loop through the subsystems, loading them.
                     print "Processing subsystems.\n";
                     my ($count, $total) = (0, scalar @$subList);
