@@ -210,10 +210,10 @@ if ($opt->resume) {
     # We are resuming.  Denote that we've processed any genome that has a nonempty
     # "non-peg-info" file. To do this, we need to do a recursive search through
     # the GenomeData directory.
+    print "Scanning for existing genomes.\n";
     my $genomeDir = $loader->genome_repo();
     my $genomeHash = $loader->FindGenomeList($genomeDir, nameless => 1);
     # Loop through the genomes in the directory, checking for "non-peg-info".
-    print "Scanning for existing genomes.\n";
     my $count = 0;
     for my $genome (keys %$genomeHash) {
         my $dirName = $genomeHash->{$genome};
