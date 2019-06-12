@@ -127,9 +127,6 @@ sub FindGenomeList {
                         $retVal{$subDir} = [$dirName, $metaHash->{name}];
                     }
                     $genomeCount++;
-                    if ($genomeCount % 200 == 0) {
-                        print "Reading genome directories. $genomeCount genomes processed.\n";
-                    }
                 } else {
                     # Here we have a subdirectory that might contain more genomes.
                     # Push it onto the stack to be processed later.
