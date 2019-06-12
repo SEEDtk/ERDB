@@ -177,7 +177,10 @@ my $opt = ScriptUtils::Opts('',
 # Get a helper object and the associated statistics object.
 my $loader = CopyFromSeed->new($opt);
 my $stats = $loader->stats;
+# If an error occurs in the PATRIC loader, it will be available in here.
+my $ploader;
 # We want time stamps and stats when an error occurs.
+my $exitCode = 0;
 eval {
     # Create the protein family repo.
     my $protFamRepo = ProtFamRepo->new($stats);
@@ -325,7 +328,7 @@ eval {
             }
             # Create the PATRIC helper.
             print "Copying from level-$priv PATRIC.\n";
-            my $ploader = CopyFromPatric->new($priv, $opt, \%genomesProcessed, $protFamRepo);
+            $ploader = CopyFromPatric->new($priv, $opt, \%genomesProcessed, $protFamRepo);
             # Determine how we're finding the genome IDs.  The default is to use the current file.
             my $fh;
             if ($file) {
@@ -357,6 +360,7 @@ eval {
             }
             # Roll up the statistics.
             $stats->Accumulate($ploader->stats);
+            undef $ploader;
         } elsif ($command eq '+RAST') {
             # Get the RAST directory and privilege level.
             my ($rastDir, $priv) = @parms;
@@ -403,6 +407,13 @@ eval {
 };
 if ($@) {
     print "Error occurred at " . localtime(time) . "\n";
+    print "FATAL ERROR: $@\n";
+    $exitCode = 255;
+    # Roll up the PATRIC loader stats if one was active during the error.
+    if ($ploader) {
+        $stats->Accumulate($ploader->stats);
+    }
 }
 # Tell the user we're done.
 print "All done.\n" . $stats->Show();
+exit($exitCode);
