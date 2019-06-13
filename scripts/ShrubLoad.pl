@@ -288,8 +288,10 @@ if ($genomesLoading) {
         $gCount++;
         $stats->Add(genomesProcessed => 1);
         print "Processing $genomeID ($gCount of $gTotal).\n";
-        $gLoader->LoadGenome($genomeID, $gHash->{$genomeID}, $metaHash->{$genomeID}, $cleared);
-        $genomes{$genomeID} = 1;
+        my $ok = $gLoader->LoadGenome($genomeID, $gHash->{$genomeID}, $metaHash->{$genomeID}, $cleared);
+        if ($ok) {
+            $genomes{$genomeID} = 1;
+        }
     }
 }
 # Here we process the subsystems.

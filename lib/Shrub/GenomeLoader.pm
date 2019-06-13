@@ -414,7 +414,7 @@ sub CurateNewGenomes {
 
 =head3 LoadGenome
 
-    $genomeLoader->LoadGenome($genome, $genomeDir, $metaHash);
+    my $okFlag = $genomeLoader->LoadGenome($genome, $genomeDir, $metaHash);
 
 Load a genome into the database.Any previous copy of the genome must already have been deleted.
 (This is done automatically by L</CurateNewGenomes>; otherwise, use the method L<ERDBtk/Dalete>).)
@@ -435,6 +435,10 @@ A reference to a hash containing the metadata for the genome, mapping each
 key to its value. If omitted, the metadata will be read from the C<genome-info>
 file.
 
+=item RETURN
+
+Returns TRUE if the genome was successfully loaded, else FALSE.
+
 =back
 
 =cut
@@ -442,6 +446,8 @@ file.
 sub LoadGenome {
     # Get the parameters.
     my ($self, $genome, $genomeDir, $metaHash) = @_;
+    # This will be the return value.
+    my $retVal = 0;
     # Get the loader, shrub, and statistics objects.
     my $loader = $self->{loader};
     my $shrub = $loader->db;
@@ -457,69 +463,77 @@ sub LoadGenome {
         $metaHash = $loader->ReadMetaData("$genomeDir/genome-info",
                 required => [qw(name md5 privilege prokaryotic domain)]);
     }
-     # Get the DNA repository directory.
-     my $dnaRepo = $self->{dnaRepo};
-     my $relPath = $loader->RepoPath($metaHash->{name});
-     my $absPath;
-     # Only proceed if this installation supports DNA.
-     if ($dnaRepo) {
-         # Form the repository directory for the DNA.
-         $absPath = "$dnaRepo/$relPath";
-         if (! -d $absPath) {
-             print "Creating directory $relPath for DNA file.\n";
-             File::Path::make_path($absPath);
-         }
-         $absPath .= "/$genome.fa";
-     }
-     $relPath .= "/$genome.fa";
-     # Now we read the contig file and analyze the DNA for gc-content, number
-     # of bases, and the list of contigs. We also copy it to the output
-     # repository.
-     print "Analyzing contigs.\n";
-     my ($contigList, $genomeHash) = $self->AnalyzeContigFasta($genome, "$genomeDir/contigs", $absPath);
-     # Get the annotation privilege level for this genome.
-     my $priv = $metaHash->{privilege};
-     # Compute the genetic code.
-     my $code = $metaHash->{code} // 11;
-     # Now we need to process the features. This hash holds the useful feature statistics, currently
-     # only "longest-feature".
-     my %fidStats = ('longest-feature' => 0);
-     # Process the non-protein features.
-     my $npFile = "$genomeDir/non-peg-info";
-     if (-f $npFile) {
-         # Read the feature data.
-         print "Processing non-protein features.\n";
-         $self->ReadFeatures($genome, $npFile, $priv, \%fidStats);
-     }
-     # Process the protein features.
-     my $protHash = $self->ReadProteins($genome, $genomeDir);
-     print "Processing protein features.\n";
-     $self->ReadFeatures($genome, "$genomeDir/peg-info", $priv, \%fidStats, $protHash);
      # Compute the taxonomy ID for the genome.
      my ($taxID) = split /\./, $genome;
      my $conf = 0;
      if ($taxLoader) {
          ($conf, $taxID) = $taxLoader->ComputeTaxID($genome, $metaHash->{taxid}, $metaHash->{name});
      }
-     # Decide if the genome is well-behaved. It must have at least 300 kilobases, not be questionable, and be a
-     # prokaryotic core genome.
-     my $wellBehaved = ($metaHash->{prokaryotic} && ! $qHash->{$genome} && $genomeHash->{'dna-size'} >= 300000 && $metaHash->{type});
-     # Now we can create the genome record.
-     print "Storing $genome in database.\n";
-     $loader->InsertObject('Genome', id => $genome, %$genomeHash,
-             core => $metaHash->{type}, name => $metaHash->{name}, prokaryotic => $metaHash->{prokaryotic},
-             'contig-file' => $relPath, 'genetic-code' => $code, domain => $metaHash->{domain}, %fidStats,
-             Taxonomy2Genome_confidence => $conf, Taxonomy2Genome_link => $taxID,
-             'well-behaved' => $wellBehaved);
-     $stats->Add(genomeInserted => 1);
-     # Connect the contigs to it.
-     for my $contigDatum (@$contigList) {
-         # Fix the contig ID.
-         $contigDatum->{id} = RealContigID($genome, $contigDatum->{id});
-         # Create the contig.
-         $loader->InsertObject('Contig', %$contigDatum, Genome2Contig_link => $genome);
-         $stats->Add(contigInserted => 1);
+     if (! defined $conf) {
+         print "Skipping $genome due to bad taxonomy.\n";
+         $stats->Add(badTaxonomy => 1);
+     } else {
+         # Get the DNA repository directory.
+         my $dnaRepo = $self->{dnaRepo};
+         my $relPath = $loader->RepoPath($metaHash->{name});
+         my $absPath;
+         # Only proceed if this installation supports DNA.
+         if ($dnaRepo) {
+             # Form the repository directory for the DNA.
+             $absPath = "$dnaRepo/$relPath";
+             if (! -d $absPath) {
+                 print "Creating directory $relPath for DNA file.\n";
+                 File::Path::make_path($absPath);
+             }
+             $absPath .= "/$genome.fa";
+         }
+         $relPath .= "/$genome.fa";
+         # Now we read the contig file and analyze the DNA for gc-content, number
+         # of bases, and the list of contigs. We also copy it to the output
+         # repository.
+         print "Analyzing contigs.\n";
+         my ($contigList, $genomeHash) = $self->AnalyzeContigFasta($genome, "$genomeDir/contigs", $absPath);
+         # Get the annotation privilege level for this genome.
+         my $priv = $metaHash->{privilege};
+         # Compute the genetic code.
+         my $code = $metaHash->{code} // 11;
+         # Now we need to process the features. This hash holds the useful feature statistics, currently
+         # only "longest-feature".
+         my %fidStats = ('longest-feature' => 0);
+         # Process the non-protein features.
+         my $npFile = "$genomeDir/non-peg-info";
+         if (-f $npFile) {
+             # Read the feature data.
+             print "Processing non-protein features.\n";
+             $self->ReadFeatures($genome, $npFile, $priv, \%fidStats);
+         }
+         # Process the protein features.
+         my $protHash = $self->ReadProteins($genome, $genomeDir);
+         print "Processing protein features.\n";
+         $self->ReadFeatures($genome, "$genomeDir/peg-info", $priv, \%fidStats, $protHash);
+         # Decide if the genome is well-behaved. It must have at least 300 kilobases, not be questionable, and be a
+         # prokaryotic core genome.
+         my $wellBehaved = ($metaHash->{prokaryotic} && ! $qHash->{$genome} && $genomeHash->{'dna-size'} >= 300000 && $metaHash->{type});
+         # Now we can create the genome record.
+         print "Storing $genome in database.\n";
+         $loader->InsertObject('Genome', id => $genome, %$genomeHash,
+                 core => $metaHash->{type}, name => $metaHash->{name}, prokaryotic => $metaHash->{prokaryotic},
+                 'contig-file' => $relPath, 'genetic-code' => $code, domain => $metaHash->{domain}, %fidStats,
+                 Taxonomy2Genome_confidence => $conf, Taxonomy2Genome_link => $taxID,
+                 'well-behaved' => $wellBehaved);
+         $stats->Add(genomeInserted => 1);
+         # Connect the contigs to it.
+         for my $contigDatum (@$contigList) {
+             # Fix the contig ID.
+             $contigDatum->{id} = RealContigID($genome, $contigDatum->{id});
+             # Create the contig.
+             $loader->InsertObject('Contig', %$contigDatum, Genome2Contig_link => $genome);
+             $stats->Add(contigInserted => 1);
+         }
+         # Denote we've loaded a genome.
+         $retVal = 1;
      }
+     return $retVal;
 }
 
 =head3 ReadProteins
