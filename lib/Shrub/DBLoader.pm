@@ -67,13 +67,17 @@ Reference to a hash containing the names of the tables being inserted in replace
 
 Reference to a list of objects that should be closed before this object is closed.
 
+=item delayTables
+
+Reference to a hash of objects that should not be loaded at this time.
+
 =back
 
 =head2 Special Methods
 
 =head3 new
 
-    my $loader = Shrub::DBLoader->new($shrub);
+    my $loader = Shrub::DBLoader->new($shrub, \@delayList);
 
 Create a new, blank loader object.
 
@@ -83,19 +87,29 @@ Create a new, blank loader object.
 
 L<Shrub> object for the database being loaded.
 
+=item delayList (optional)
+
+List of objects to be loaded later.
+
 =back
 
 =cut
 
 sub new {
     # Get the parameters.
-    my ($class, $shrub) = @_;
+    my ($class, $shrub, $delayList) = @_;
     # Create the base object.
     my $retVal = Loader::new($class);
     # Attach the Shrub database and denote no tables are being loaded
     # yet.
     $retVal->{shrub} = $shrub;
     $retVal->Reset();
+    # Set the delayList.
+    my %delayTables;
+    if ($delayList) {
+        %delayTables = map { $_ => 1 } @$delayList;
+    }
+    $retVal->{delayTables} = \%delayTables;
     # Return the completed object.
     return $retVal;
 }
@@ -581,8 +595,10 @@ sub Close {
     for my $subObject (@{$self->{closeQueue}}) {
         $subObject->Close();
     }
+    # Remove tables in the delay list.
+    my @loadObjects = grep { ! $self->{delayTables}{$_} } @$loadList;
     # Loop through the objects being loaded.
-    for my $table (@$loadList) {
+    for my $table (@loadObjects) {
         my $loadThing = $loadThings->{$table};
         # Loop through the relations for this object.
         my $names = $loadThing->{names};

@@ -103,6 +103,11 @@ If specified, protein domains will not be loaded.
 
 If specified, chemistry data will not be loaded.
 
+=item skipTables
+
+Specifies a comma-delimited list of tables to skip loading.  The load files will
+still be generated, and they can be loaded later with L<ShrubLoadTabler.pl>.
+
 =back
 
 =cut
@@ -123,6 +128,7 @@ my $opt = ScriptUtils::Opts('', Shrub::script_options(), ERDBtk::Utils::init_opt
         ['notaxon', "suppress loading the taxonomy data"],
         ['nodomains', "suppress loading the domains"],
         ['nochem', "suppress loading the chemistry data"],
+        ['skipTables=s', 'comma-delimited list of tables not to load', { default => "" }],
         [xmode => [["exclusive|X", "exclusive database access"], ["shared|S", "shared database access"]]],
         );
 # Find out what we are loading.
@@ -131,6 +137,7 @@ my $subsSpec = $opt->subsystems;
 my $genomesLoading = ($genomeSpec ne 'none');
 my $subsLoading = ($subsSpec ne 'none');
 my $dnaFlag = ($opt->nodna ? 0 : 1);
+my @skips = split /,/, $opt->skiptables;
 # Validate the load specifications.
 if ($genomesLoading && $genomeSpec ne 'all' && ! -f $genomeSpec) {
     die "Could not find genome list file $genomeSpec.";
@@ -170,7 +177,7 @@ if (! $opt->notaxon && ! $exclusive) {
 print "Connecting to the database.\n";
 my $shrub = Shrub->new_for_script($opt, externalDBD => $opt->store);
 # Get the load helper.
-my $loader = Shrub::DBLoader->new($shrub);
+my $loader = Shrub::DBLoader->new($shrub, \@skips);
 # Get the statistics object.
 my $stats = $loader->stats;
 # Create the ERDBtk utility object.'
