@@ -3157,10 +3157,6 @@ sub LoadTable {
         # Here the load failed and we want to error out.
         Confess($errorMessage);
     }
-    # Analyze the table to improve performance.
-    if (! $options{partial}) {
-        $self->Analyze($relationName);
-    }
     # Return the statistics.
     return $retVal;
 }
