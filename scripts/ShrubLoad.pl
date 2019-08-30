@@ -106,7 +106,7 @@ If specified, chemistry data will not be loaded.
 =item skipTables
 
 Specifies a comma-delimited list of tables to skip loading.  The load files will
-still be generated, and they can be loaded later with L<ShrubLoadTabler.pl>.
+still be generated, and they can be loaded later with L<ShrubLoadTables.pl>.
 
 =back
 
