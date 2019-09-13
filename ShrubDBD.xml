@@ -185,7 +185,7 @@
                 </Index>
             </Indexes>
         </Entity>
-        <Entity name="Protein" keyType="short-string" default="id">
+        <Entity name="Protein" keyType="short-string" default="id" engine="MyISAM" estimate="16000000">
             <DisplayInfo theme="green">
                 <RegionInfo name="" col="1" row="3" />
             </DisplayInfo>

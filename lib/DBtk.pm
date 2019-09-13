@@ -983,6 +983,7 @@ sub create_table {
     my %arg     = @_;
     my $tbl     = $arg{tbl};
     my $flds    = $arg{flds};
+    my $engine  = $arg{engine};
     my $dbh     = $self->{_dbh};
     my $dbms    = $self->{_dbms};
     my $options = "";
@@ -998,7 +999,7 @@ sub create_table {
             $options = " DEFAULT CHARSET latin1 COLLATE latin1_bin";
         }
         if ( not $FIG_Config::mysql_v3 ) {
-            my $engine = $FIG_Config::default_mysql_engine || 'MyISAM';
+            $engine //= $FIG_Config::default_mysql_engine || 'MyISAM';
             $options .= " ENGINE = $engine";
         }
         if ( defined $arg{estimates}

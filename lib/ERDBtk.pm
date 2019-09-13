@@ -3463,12 +3463,6 @@ If TRUE, no indexes will be created for the relation. If this option is
 specified, L</CreateIndex> must be called later to bring the indexes
 into existence.
 
-=item estimate
-
-If specified, the estimated maximum number of rows for the relation. This
-information allows the creation of tables using storage engines that are
-faster but require size estimates, such as MyISAM.
-
 =item nodrop
 
 If TRUE, the table will not be dropped before creation. This will cause an
@@ -3495,14 +3489,21 @@ sub CreateTable {
     if (! $options{nodrop}) {
         $dbh->drop_table(tbl => "$q$relationName$q");
     }
-    # Create an estimate of the table size.
-    my $estimation;
-    if ($options{estimate}) {
-        $estimation = [$self->EstimateRowSize($relationName), $options{estimate}];
+    my ($engine, $estimation);
+    if ($rootFlag) {
+        my $entity = $self->FindEntity($relationName);
+        # Check for an engine.
+        if ($entity->{engine}) {
+            $engine = $entity->{engine};
+        }
+        # Create an estimate of the table size.
+        if ($entity->{estimate}) {
+            $estimation = [$self->EstimateRowSize($relationName), $entity->{estimate}];
+        }
     }
     # Create the table.
     $dbh->create_table(tbl => $q . $relationName . $q, flds => $fieldThing,
-                       estimates => $estimation);
+                       estimates => $estimation, engine => $engine);
     # If we want to build the indexes, we do it here. Note that the full-text
     # search index will not be built until the table has been loaded.
     if (! $options{unindexed}) {

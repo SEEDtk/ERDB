@@ -44,6 +44,9 @@ If specified, the name of a tab-delimited file containing the names of the objec
 to load in the first column. These objects will be loaded in addition to any
 specified in the positional parameters.
 
+=item create
+
+
 =back
 
 =cut
@@ -58,6 +61,7 @@ $| = 1; # Prevent buffering on STDOUT.
 # Parse the command line.
 my $opt = ScriptUtils::Opts('table1 table2 ...', Shrub::script_options(),
         ["objects=s", "file containing table list in first column"],
+        ['create', 're-create the tables']
         );
 # Connect to the database.
 print "Connecting to database.\n";
@@ -115,6 +119,9 @@ for my $rel (@rels) {
         $stats->Add(file_missing => 1);
     } else {
         print "Loading $rel.\n";
+        if ($opt->create) {
+            $shrub->CreateTable($rel);
+        }
         $shrub->LoadTable($fileName, $rel, dup => 'ignore');
         $stats->Add(file_loaded => 1);
     }
