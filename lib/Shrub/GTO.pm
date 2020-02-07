@@ -56,7 +56,7 @@ sub new {
     # Declare the return variable.
     my $retVal;
     # Get the genome data.
-    my ($name, $domain, $gc) = $shrub->GetEntityValues(Genome => $genomeID, 'name domain genetic-code');
+    my ($name, $domain, $gc, $core) = $shrub->GetEntityValues(Genome => $genomeID, 'name domain genetic-code core');
     # Only proceed if we found the genome.
     if ($name) {
         # Compute the taxonomy ID.
@@ -67,6 +67,8 @@ sub new {
         $retVal->set_metadata({ id => $genomeID, scientific_name => $name, domain => $domain,
                 genetic_code => $gc, source => 'Shrub', source_id => $genomeID,
                 ncbi_taxonomy_id => $taxonID });
+        # Store the home.
+        $retVal->{home} = ($core ? "CORE" : "PATRIC");
         # Get the contigs.
         my $contigs = Shrub::Contigs->new($shrub, $genomeID);
         my @contigHashes = map { { id => $_->[0], dna => $_->[2] } } $contigs->tuples;
@@ -103,6 +105,16 @@ sub new {
                 push @{$fids{$fid}{-family_assignments}}, ['PGFAM', $family, $func];
             }
         }
+        # Compute the taxonomy.
+        my $taxID = $retVal->{ncbi_taxonomy_id};
+        my @lineage;
+        while ($taxID != 1) {
+            my ($taxData) = $shrub->GetAll('TaxonomicGrouping IsInTaxonomicGroup', 'TaxonomicGrouping(id) = ?', [$taxID], 'scientific-name id type IsInTaxonomicGroup(to-link)');
+            my $next = pop @$taxData;
+            unshift @lineage, $taxData;
+            $taxID = $next;
+        }
+        $retVal->{ncbi_lineage} = \@lineage;
         # Add the features.
         for my $fid (keys %fids) {
             $retVal->add_feature($fids{$fid});
