@@ -360,8 +360,8 @@ sub RepoPath {
         $species = "sp";
     }
     # Remove dangerous characters.
-    $genus =~ s/[\[\]:\(\)\?]//g;
-    $species =~ s/[\[\]:\(\)\?]//g;
+    $genus =~ s/[\[\]:\(\)\?\.]//g;
+    $species =~ s/[\[\]:\(\)\?\.]//g;
     # Compute the desired path.
     my $retVal = "$genus/$species";
     # Return the result.
