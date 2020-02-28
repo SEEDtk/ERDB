@@ -354,7 +354,7 @@ eval {
                     # Copy the genome.
                     $ploader->CopyGenome($genome);
                 } else {
-                    print "Invalid PATRIC input line: $line";
+                    print "Invalid PATRIC input line: $line" if ! $file;
                     $stats->Add(badInput => 1);
                 }
             }
